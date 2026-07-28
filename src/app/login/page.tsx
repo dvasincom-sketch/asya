@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Orb } from "@/components/Orb";
 
-// Маска российского номера: показываем +7 900 000-00-00, наружу отдаём как есть (сервер нормализует).
+// Маска российского номера: показываем +7 900 000-00-00.
 function formatRuPhone(raw: string): string {
   let d = raw.replace(/\D/g, "");
   if (d.startsWith("8")) d = "7" + d.slice(1);
   if (d && !d.startsWith("7")) d = "7" + d;
   d = d.slice(0, 11);
-  const p = d.slice(1); // до 10 цифр после «7»
+  const p = d.slice(1);
   if (!p) return d ? "+7" : "";
   let out = "+7";
   if (p.length > 0) out += " " + p.slice(0, 3);
@@ -25,7 +25,9 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   const tgBot = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
+  const codeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     (window as unknown as { onTelegramAuth?: (u: unknown) => void }).onTelegramAuth = async (user) => {
@@ -37,7 +39,6 @@ export default function LoginPage() {
       if (r.ok) window.location.href = "/account";
       else setError("Не получилось войти через Telegram. Попробуй ещё раз.");
     };
-
     const username = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
     const holder = document.getElementById("tg-login-btn");
     if (username && holder && holder.childElementCount === 0) {
@@ -53,11 +54,19 @@ export default function LoginPage() {
     }
   }, []);
 
-  async function requestCode() {
-    if (phone.replace(/\D/g, "").length < 11 || busy) {
+  // Обратный отсчёт для «отправить код заново».
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
+  async function requestCode(isResend = false) {
+    if (phone.replace(/\D/g, "").length < 11) {
       setError("Введи номер полностью: +7 и 10 цифр.");
       return;
     }
+    if (busy || (isResend && resendIn > 0)) return;
     setBusy(true);
     setError("");
     try {
@@ -68,6 +77,8 @@ export default function LoginPage() {
       });
       if (r.ok) {
         setStage("code");
+        setResendIn(45);
+        setTimeout(() => codeRef.current?.focus(), 60);
       } else {
         const d = await r.json().catch(() => ({}));
         setError(d.text || "Не удалось отправить код. Попробуй позже.");
@@ -89,9 +100,8 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, code }),
       });
-      if (r.ok) {
-        window.location.href = "/account";
-      } else {
+      if (r.ok) window.location.href = "/account";
+      else {
         const d = await r.json().catch(() => ({}));
         setError(d.text || "Код неверный или истёк. Попробуй ещё раз.");
       }
@@ -126,13 +136,15 @@ export default function LoginPage() {
               onChange={(e) => setPhone(formatRuPhone(e.target.value))}
               onKeyDown={(e) => { if (e.key === "Enter") requestCode(); }}
             />
-            <button className="btn-primary" onClick={requestCode} disabled={busy}>
-              Получить код
+            <button className="btn-primary" onClick={() => requestCode()} disabled={busy}>
+              {busy ? <span className="spinner" /> : "Получить код"}
             </button>
           </>
         ) : (
           <>
+            <p className="code-sent">Код отправлен на {phone}</p>
             <input
+              ref={codeRef}
               className="auth-input"
               inputMode="numeric"
               placeholder="Код из SMS"
@@ -141,16 +153,18 @@ export default function LoginPage() {
               onKeyDown={(e) => { if (e.key === "Enter") verifyCode(); }}
             />
             <button className="btn-primary" onClick={verifyCode} disabled={busy}>
-              Войти
+              {busy ? <span className="spinner" /> : "Войти"}
             </button>
-            <button className="btn-ghost" onClick={() => { setStage("phone"); setError(""); }}>
+            <button className="btn-ghost" onClick={() => requestCode(true)} disabled={busy || resendIn > 0}>
+              {resendIn > 0 ? `Отправить заново через ${resendIn}с` : "Отправить код заново"}
+            </button>
+            <button className="btn-ghost" onClick={() => { setStage("phone"); setError(""); setResendIn(0); }}>
               Изменить номер
             </button>
           </>
         )}
 
         {error && <div className="auth-error">{error}</div>}
-
         <div className="auth-foot">Это общение и поддержка, не медицинская помощь 🌸</div>
       </div>
     </div>

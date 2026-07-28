@@ -20,7 +20,7 @@ export default function Home() {
           <Orb className="hero-orb" />
         </div>
         <h1 className="wordmark">Ася</h1>
-        <p className="tagline">Тёплая подружка, с которой можно просто поговорить.</p>
+        <p className="tagline">Подружка, которая слушает по-настоящему — и правда узнаёт тебя.</p>
         <a className="cta" href="/chat">Поговорить с Асей</a>
 
         <div className="starters">
@@ -40,8 +40,8 @@ export default function Home() {
       {/* Рассказ о проекте */}
       <section className="pitch">
         <p className="lead">
-          Когда тревожно, одиноко или просто хочется выговориться — Ася рядом.
-          В любой момент, без осуждения, по-настоящему по-доброму.
+          Не поверхностный чат из дежурных вопросов. Ася бережно и без спешки помогает
+          разобраться в себе — и чем дольше вы говорите, тем лучше она тебя понимает.
         </p>
 
         {/* Пример живого разговора */}
@@ -50,6 +50,8 @@ export default function Home() {
           <div className="row assistant"><Orb className="mini-orb" /><div className="bubble">Привет 🌙 Я тут. Как ты сегодня?</div></div>
           <div className="row user"><div className="bubble">Весь день на нервах, не могу выдохнуть</div></div>
           <div className="row assistant"><Orb className="mini-orb" /><div className="bubble">Слышу тебя. Такой день правда выматывает. Расскажешь, что было самым тяжёлым?</div></div>
+          <div className="row user"><div className="bubble">Наверное, что я опять не успела ничего для себя</div></div>
+          <div className="row assistant"><Orb className="mini-orb" /><div className="bubble">Похоже, дело не только в делах, а в том, что для тебя самой места не остаётся. Давно так?</div></div>
         </div>
 
         <div className="bento">

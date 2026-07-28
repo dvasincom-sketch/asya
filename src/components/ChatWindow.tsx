@@ -10,6 +10,8 @@ type Msg =
   | { role: "assistant"; kind: "text"; content: string }
   | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] };
 
+const CHAT_STARTERS = ["Мне тревожно", "Тяжело на работе", "Разобрать сон", "Просто поболтать"];
+
 export default function ChatWindow() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
@@ -161,6 +163,13 @@ export default function ChatWindow() {
             <h2>Привет, я Ася</h2>
             <p>Здесь можно просто поговорить — о чём угодно. Тебя тут не торопят и не осудят.</p>
             <div className="safe-chip">🌸 Это общение и поддержка, не медицинская помощь</div>
+            <div className="starters-row intro-chips">
+              {CHAT_STARTERS.map((s) => (
+                <button key={s} className="starter" onClick={() => { setInput(s); inputRef.current?.focus(); }}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
