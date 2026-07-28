@@ -1,6 +1,10 @@
 # Ася — приложение (Next.js + TypeScript + Prisma)
 
-Каркас продукта на зафиксированном стеке. Сейчас реализованы **шаги 1–2**: рабочий чат `/chat` на дизайне из v3, подключённый к Timeweb AI Gateway со стримингом и кризисным фильтром. Схема БД (Prisma) уже лежит готовой под следующие шаги (вход, память, история, подписка, бот).
+Каркас продукта на зафиксированном стеке.
+
+**Готово:**
+- **Шаги 1–2** — чат `/chat` на дизайне из v3, подключён к Timeweb AI Gateway со стримингом и кризисным фильтром.
+- **Шаг 3** — PostgreSQL через Prisma + **вход**: Telegram Login и телефон по SMS-коду, серверные сессии, экраны `/login` и `/account`.
 
 ## Стек
 Next.js (App Router) · React · TypeScript · Prisma · PostgreSQL · Timeweb AI Gateway · (далее) grammY, ЮKassa.
@@ -9,40 +13,62 @@ Next.js (App Router) · React · TypeScript · Prisma · PostgreSQL · Timeweb A
 ```
 src/
 ├─ app/
-│  ├─ layout.tsx          # общий фон-аврора, темы
-│  ├─ page.tsx            # → /chat (позже: лендинг ася.онлайн)
-│  ├─ globals.css         # дизайн-токены из v3
-│  ├─ chat/page.tsx       # экран чата
-│  └─ api/chat/route.ts   # прокси к Timeweb: стрим + кризис
-├─ components/            # Orb, ChatWindow, CrisisCard
-└─ lib/                   # prompt, crisis, timeweb, prisma
-prisma/schema.prisma      # модели БД (User, Message, Memory, Consent, Subscription, ...)
+│  ├─ layout.tsx · globals.css       # фон-аврора, темы, дизайн-токены
+│  ├─ page.tsx                       # → /chat
+│  ├─ chat/page.tsx                  # чат с Асей
+│  ├─ login/page.tsx                 # вход: Telegram + телефон
+│  ├─ account/page.tsx               # кабинет (защищён сессией)
+│  └─ api/
+│     ├─ chat/route.ts               # прокси к Timeweb: стрим + кризис
+│     ├─ me/route.ts                 # текущий пользователь
+│     └─ auth/
+│        ├─ telegram/route.ts        # проверка подписи Telegram
+│        ├─ otp/request/route.ts     # отправка SMS-кода
+│        ├─ otp/verify/route.ts      # проверка кода + вход
+│        └─ logout/route.ts
+├─ components/                       # Orb, ChatWindow, CrisisCard, LogoutButton
+└─ lib/                              # prompt, crisis, timeweb, prisma, auth, telegram, sms, otp, phone
+prisma/schema.prisma                 # User, Message, Memory, Consent, Subscription, CrisisEvent, OtpCode, Session
 ```
 
-## Запуск (шаги 1–2, только чат — БД не нужна)
+## Настройка окружения
 ```bash
-cp .env.example .env       # впиши TIMEWEB_API_KEY и TIMEWEB_MODEL
+cp .env.example .env
+```
+Заполни:
+- `TIMEWEB_API_KEY`, `TIMEWEB_MODEL` — доступ к модели.
+- `DATABASE_URL` — строка подключения PostgreSQL.
+- `TELEGRAM_BOT_TOKEN` — токен бота от @BotFather; у бота задай домен командой `/setdomain` (для локали подойдёт `localhost`).
+- `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` — юзернейм бота без `@`.
+- `SMS_API_ID` — api_id от sms.ru. **Если пусто — код входа печатается в лог сервера** (удобно тестировать без реальных SMS).
+
+## База данных
+```bash
+npm run prisma:generate     # сгенерировать клиент
+npm run prisma:migrate      # создать таблицы (prisma migrate dev)
+```
+
+## Запуск
+```bash
 npm install
-npm run dev                # http://localhost:3000  → /chat
+npm run dev                 # http://localhost:3000
 ```
-Точное имя модели узнать: `curl https://api.timeweb.ai/v1/models -H "Authorization: Bearer $TIMEWEB_API_KEY"`.
+- `/chat` — чат (работает и без входа).
+- `/login` — вход через Telegram или телефон.
+- `/account` — кабинет (редиректит на `/login`, если не вошёл).
 
-## Когда подключим БД (шаг 3+)
-```bash
-# заполни DATABASE_URL в .env (PostgreSQL)
-npm run prisma:generate
-npm run prisma:migrate     # создаст таблицы
-```
+## Как проверить вход
+- **Телефон:** на `/login` введи номер → «Получить код». Без `SMS_API_ID` код появится в логе `npm run dev` → введи его → попадёшь в `/account`.
+- **Telegram:** нужен реальный бот с заданным доменом; кнопка входа появится, если задан `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`.
 
-## Дальше по плану (документ «Стек и архитектура»)
-3. Вход: Telegram Login + телефон-OTP, сессии.
-4. Память и история (с учётом тумблеров приватности).
+## Дальше по плану
+4. Память и история разговоров (с учётом тумблеров приватности).
 5. Экран настроек/приватности (порт v3): удаление в один клик, экспорт.
 6. Подписка «Забота+» + ЮKassa + платный гейт.
 7. Онбординг + согласие (152-ФЗ).
 8. Telegram-бот на grammY — тот же backend и БД.
 
 ## Заметки
-- Ключи только в `.env`, во фронт не попадают (чат ходит через свой `/api/chat`).
-- Кризисный фильтр (слой 1) срабатывает до вызова модели; номера помощи — в `src/lib/crisis.ts`, проверить перед запуском.
-- Дизайн — из прототипа v3; экраны онбординга/истории/настроек переносятся компонентами на следующих шагах.
+- Ключи только в `.env` (в `.gitignore`).
+- Кризисный фильтр (слой 1) — в `src/lib/crisis.ts`, номера помощи проверить перед запуском.
+- Сессия — непрозрачный токен в httpOnly-куке `asya_session`, запись в таблице `Session`.
