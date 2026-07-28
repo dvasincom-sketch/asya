@@ -1,0 +1,95 @@
+// Ася — схема БД. Полная модель под весь продукт; на шаге 2 (чат) ещё не используется,
+// но лежит готовой для шагов 3+ (вход, память, история, подписка).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  tgId             BigInt?  @unique
+  phone            String?  @unique
+  createdAt        DateTime @default(now())
+  consentAt        DateTime?
+  consentVersion   String?
+  memoryEnabled    Boolean  @default(true)
+  historyEnabled   Boolean  @default(true)
+  remindersEnabled Boolean  @default(true)
+
+  messages     Message[]
+  memories     Memory[]
+  consents     Consent[]
+  subscription Subscription?
+  crisisEvents CrisisEvent[]
+  sessions     Session[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Memory {
+  id        String   @id @default(cuid())
+  userId    String
+  fact      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Consent {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  version   String
+  grantedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  status       String
+  provider     String    @default("yookassa")
+  externalId   String?
+  nextChargeAt DateTime?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CrisisEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  level     String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
