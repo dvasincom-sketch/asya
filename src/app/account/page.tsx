@@ -19,6 +19,8 @@ export default async function AccountPage() {
         <p className="sub">Ты вошла. Здесь скоро появится «Забота+», история и настройки приватности.</p>
         <div className="account-who">{who}</div>
         <a className="btn-primary" href="/chat">Открыть чат с Асей</a>
+        <a className="btn-ghost" href="/account/memory">То, что Ася о тебе знает</a>
+        <a className="btn-ghost" href="/account/sessions">Сессия с Асей</a>
         <a className="btn-ghost" href="/account/settings">Настройки и приватность</a>
         <LogoutButton />
       </div>
