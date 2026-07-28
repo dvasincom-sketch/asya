@@ -16,11 +16,21 @@ export default function ChatWindow() {
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const el = chatRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, typing]);
+
+  // Подсказка с лендинга: /chat?start=... — подставляем в поле и фокусируем.
+  useEffect(() => {
+    const start = new URLSearchParams(window.location.search).get("start");
+    if (start) {
+      setInput(start);
+      inputRef.current?.focus();
+    }
+  }, []);
 
   function toggleTheme() {
     const el = document.documentElement;
@@ -136,7 +146,10 @@ export default function ChatWindow() {
             <span className="dotlive" /> рядом, слушает
           </div>
         </div>
-        <button className="theme-btn" onClick={toggleTheme} title="день / вечер">
+        <a className="theme-btn" href="/account/settings" title="настройки" style={{ marginLeft: "auto", textDecoration: "none" }}>
+          ⚙
+        </a>
+        <button className="theme-btn" onClick={toggleTheme} title="день / вечер" style={{ marginLeft: 8 }}>
           ◐
         </button>
       </header>
@@ -180,6 +193,7 @@ export default function ChatWindow() {
       <div className="composer">
         <div className="field">
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

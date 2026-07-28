@@ -11,10 +11,18 @@ export async function POST(req: NextRequest) {
   if (!phone || !code) return Response.json({ error: "bad_request" }, { status: 400 });
 
   const p = normalizePhone(phone);
-  const ok = await verifyOtp(p, String(code));
-  if (!ok) return Response.json({ error: "invalid_code", text: "Код неверный или истёк." }, { status: 401 });
+  try {
+    const ok = await verifyOtp(p, String(code));
+    if (!ok) return Response.json({ error: "invalid_code", text: "Код неверный или истёк." }, { status: 401 });
 
-  const user = await prisma.user.upsert({ where: { phone: p }, update: {}, create: { phone: p } });
-  await createSession(user.id);
-  return Response.json({ ok: true });
+    const user = await prisma.user.upsert({ where: { phone: p }, update: {}, create: { phone: p } });
+    await createSession(user.id);
+    return Response.json({ ok: true });
+  } catch (e) {
+    console.error("[otp/verify] Ошибка (проверь DATABASE_URL и `npm run prisma:migrate`):", e);
+    return Response.json(
+      { error: "db", text: "Не получается завершить вход — не настроена база данных." },
+      { status: 500 },
+    );
+  }
 }

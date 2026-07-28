@@ -3,14 +3,30 @@
 import { useEffect, useState } from "react";
 import { Orb } from "@/components/Orb";
 
+// Маска российского номера: показываем +7 900 000-00-00, наружу отдаём как есть (сервер нормализует).
+function formatRuPhone(raw: string): string {
+  let d = raw.replace(/\D/g, "");
+  if (d.startsWith("8")) d = "7" + d.slice(1);
+  if (d && !d.startsWith("7")) d = "7" + d;
+  d = d.slice(0, 11);
+  const p = d.slice(1); // до 10 цифр после «7»
+  if (!p) return d ? "+7" : "";
+  let out = "+7";
+  if (p.length > 0) out += " " + p.slice(0, 3);
+  if (p.length >= 4) out += " " + p.slice(3, 6);
+  if (p.length >= 7) out += "-" + p.slice(6, 8);
+  if (p.length >= 9) out += "-" + p.slice(8, 10);
+  return out;
+}
+
 export default function LoginPage() {
   const [stage, setStage] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const tgBot = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
 
-  // Telegram Login Widget
   useEffect(() => {
     (window as unknown as { onTelegramAuth?: (u: unknown) => void }).onTelegramAuth = async (user) => {
       const r = await fetch("/api/auth/telegram", {
@@ -38,7 +54,10 @@ export default function LoginPage() {
   }, []);
 
   async function requestCode() {
-    if (!phone.trim() || busy) return;
+    if (phone.replace(/\D/g, "").length < 11 || busy) {
+      setError("Введи номер полностью: +7 и 10 цифр.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -47,8 +66,14 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone }),
       });
-      if (r.ok) setStage("code");
-      else setError("Не удалось отправить код. Проверь номер.");
+      if (r.ok) {
+        setStage("code");
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setError(d.text || "Не удалось отправить код. Попробуй позже.");
+      }
+    } catch {
+      setError("Сеть недоступна. Попробуй ещё раз.");
     } finally {
       setBusy(false);
     }
@@ -64,8 +89,14 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, code }),
       });
-      if (r.ok) window.location.href = "/account";
-      else setError("Код неверный или истёк. Попробуй ещё раз.");
+      if (r.ok) {
+        window.location.href = "/account";
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setError(d.text || "Код неверный или истёк. Попробуй ещё раз.");
+      }
+    } catch {
+      setError("Сеть недоступна. Попробуй ещё раз.");
     } finally {
       setBusy(false);
     }
@@ -78,9 +109,12 @@ export default function LoginPage() {
         <h2>Вход к Асе</h2>
         <p className="sub">Чтобы Ася помнила тебя и хранила ваши разговоры.</p>
 
-        <div id="tg-login-btn" className="tg-wrap" />
-
-        <div className="divider"><span>или по телефону</span></div>
+        {tgBot ? (
+          <>
+            <div id="tg-login-btn" className="tg-wrap" />
+            <div className="divider"><span>или по телефону</span></div>
+          </>
+        ) : null}
 
         {stage === "phone" ? (
           <>
@@ -89,7 +123,7 @@ export default function LoginPage() {
               inputMode="tel"
               placeholder="+7 900 000-00-00"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatRuPhone(e.target.value))}
               onKeyDown={(e) => { if (e.key === "Enter") requestCode(); }}
             />
             <button className="btn-primary" onClick={requestCode} disabled={busy}>
@@ -103,13 +137,13 @@ export default function LoginPage() {
               inputMode="numeric"
               placeholder="Код из SMS"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               onKeyDown={(e) => { if (e.key === "Enter") verifyCode(); }}
             />
             <button className="btn-primary" onClick={verifyCode} disabled={busy}>
               Войти
             </button>
-            <button className="btn-ghost" onClick={() => setStage("phone")}>
+            <button className="btn-ghost" onClick={() => { setStage("phone"); setError(""); }}>
               Изменить номер
             </button>
           </>
