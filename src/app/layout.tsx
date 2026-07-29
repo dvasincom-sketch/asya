@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Unbounded } from "next/font/google";
 import "./globals.css";
 
-// Футуристичный дисплейный шрифт с поддержкой кириллицы — для главной.
 const display = Unbounded({
   subsets: ["cyrillic", "latin"],
   weight: ["500", "700"],
@@ -13,6 +12,14 @@ const display = Unbounded({
 export const metadata: Metadata = {
   title: "Ася — поговорить",
   description: "Тёплая подружка, с которой можно поговорить — когда тревожно, грустно или просто хочется, чтобы услышали.",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Ася" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#181120",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -165,6 +165,7 @@ export default function LoginPage() {
         )}
 
         {error && <div className="auth-error">{error}</div>}
+        <a className="btn-ghost" href="/chat" style={{ marginTop: 14 }}>← Пока просто поговорить</a>
         <div className="auth-foot">Это общение и поддержка, не медицинская помощь 🌸</div>
       </div>
     </div>

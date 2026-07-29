@@ -10,13 +10,27 @@ type Msg =
   | { role: "assistant"; kind: "text"; content: string }
   | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] };
 
-const CHAT_STARTERS = ["Мне тревожно", "Тяжело на работе", "Разобрать сон", "Просто поболтать"];
+// Первый контакт: как обращаться (для правильного рода).
+const FIRST_CHIPS = [
+  { label: "Женский род", msg: "Обращайся ко мне в женском роде" },
+  { label: "Мужской род", msg: "Обращайся ко мне в мужском роде" },
+  { label: "Просто поболтать", msg: "Просто хочется поговорить" },
+];
+
+// Дневной лимит бесплатных сообщений (клиентский, мягкий — серверный придёт на шаге 4).
+const FREE_LIMIT = 20;
+function dayKey() {
+  return "asya_c_" + new Date().toISOString().slice(0, 10);
+}
 
 export default function ChatWindow() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  const [count, setCount] = useState(0);
+  const [gated, setGated] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,7 +39,7 @@ export default function ChatWindow() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, typing]);
 
-  // Подсказка с лендинга: /chat?start=... — подставляем в поле и фокусируем.
+  // Подсказка с лендинга: /chat?start=...
   useEffect(() => {
     const start = new URLSearchParams(window.location.search).get("start");
     if (start) {
@@ -34,12 +48,24 @@ export default function ChatWindow() {
     }
   }, []);
 
+  // Кто вошёл + дневной счётчик бесплатных сообщений.
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => setAuthed(Boolean(d.user)))
+      .catch(() => setAuthed(false));
+    try {
+      setCount(Number(localStorage.getItem(dayKey()) || "0"));
+    } catch {
+      /* localStorage может быть недоступен */
+    }
+  }, []);
+
   function toggleTheme() {
     const el = document.documentElement;
     el.dataset.theme = el.dataset.theme === "day" ? "dusk" : "day";
   }
 
-  // Обновляет content последнего сообщения-ассистента (для стрима).
   function updateLastAssistant(content: string) {
     setMessages((prev) => {
       const copy = [...prev];
@@ -51,14 +77,30 @@ export default function ChatWindow() {
     });
   }
 
-  async function send() {
-    const text = input.trim();
+  function bumpCount() {
+    const next = count + 1;
+    setCount(next);
+    try {
+      localStorage.setItem(dayKey(), String(next));
+    } catch {
+      /* ignore */
+    }
+    if (authed === false && next >= FREE_LIMIT) setGated(true);
+  }
+
+  async function send(textArg?: string) {
+    const text = (textArg ?? input).trim();
     if (!text || busy) return;
+    if (authed === false && count >= FREE_LIMIT) {
+      setGated(true);
+      return;
+    }
     setInput("");
     setBusy(true);
 
     const userMsg: Msg = { role: "user", kind: "text", content: text };
     setMessages((m) => [...m, userMsg]);
+    bumpCount();
 
     const history = [...messages, userMsg]
       .filter((m) => m.kind === "text")
@@ -71,27 +113,21 @@ export default function ChatWindow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history }),
       });
-
       const ct = resp.headers.get("content-type") || "";
 
       if (ct.includes("application/json")) {
         const data = await resp.json();
         setTyping(false);
         if (data.type === "crisis") {
-          setMessages((m) => [
-            ...m,
-            { role: "assistant", kind: "crisis", content: data.text, contacts: data.contacts || [] },
-          ]);
+          setMessages((m) => [...m, { role: "assistant", kind: "crisis", content: data.text, contacts: data.contacts || [] }]);
         } else {
           setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "…" }]);
         }
         return;
       }
 
-      // Стрим ответа модели (SSE).
       setTyping(false);
       setMessages((m) => [...m, { role: "assistant", kind: "text", content: "" }]);
-
       const reader = resp.body?.getReader();
       if (!reader) {
         updateLastAssistant("…");
@@ -121,7 +157,7 @@ export default function ChatWindow() {
                 updateLastAssistant(full);
               }
             } catch {
-              /* пропускаем неполные фрагменты */
+              /* неполный фрагмент */
             }
           }
         }
@@ -129,10 +165,7 @@ export default function ChatWindow() {
       if (!full) updateLastAssistant("…");
     } catch {
       setTyping(false);
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", kind: "text", content: "Кажется, я не смогла ответить. Попробуй ещё раз чуть позже 🤍" },
-      ]);
+      setMessages((m) => [...m, { role: "assistant", kind: "text", content: "Кажется, я не смогла ответить. Попробуй ещё раз чуть позже 🤍" }]);
     } finally {
       setBusy(false);
     }
@@ -144,16 +177,10 @@ export default function ChatWindow() {
         <Orb className="mini-orb" />
         <div>
           <h1>Ася</h1>
-          <div className="status">
-            <span className="dotlive" /> рядом, слушает
-          </div>
+          <div className="status"><span className="dotlive" /> онлайн</div>
         </div>
-        <a className="theme-btn" href="/account/settings" title="настройки" style={{ marginLeft: "auto", textDecoration: "none" }}>
-          ⚙
-        </a>
-        <button className="theme-btn" onClick={toggleTheme} title="день / вечер" style={{ marginLeft: 8 }}>
-          ◐
-        </button>
+        <a className="theme-btn" href="/account/settings" title="настройки" style={{ marginLeft: "auto", textDecoration: "none" }}>⚙</a>
+        <button className="theme-btn" onClick={toggleTheme} title="день / вечер" style={{ marginLeft: 8 }}>◐</button>
       </header>
 
       <div className="chat" ref={chatRef}>
@@ -161,15 +188,13 @@ export default function ChatWindow() {
           <div className="intro">
             <Orb className="big-orb" />
             <h2>Привет, я Ася</h2>
-            <p>Здесь можно просто поговорить — о чём угодно. Тебя тут не торопят и не осудят.</p>
-            <div className="safe-chip">🌸 Это общение и поддержка, не медицинская помощь</div>
+            <p>Чтобы говорить с тобой по-настоящему — подскажи, как к тебе обращаться: в женском роде или мужском? Спрашиваю только для этого, и это останется между нами.</p>
             <div className="starters-row intro-chips">
-              {CHAT_STARTERS.map((s) => (
-                <button key={s} className="starter" onClick={() => { setInput(s); inputRef.current?.focus(); }}>
-                  {s}
-                </button>
+              {FIRST_CHIPS.map((c) => (
+                <button key={c.label} className="starter" onClick={() => send(c.msg)}>{c.label}</button>
               ))}
             </div>
+            <div className="safe-chip">🌸 Это общение и поддержка, не медицинская помощь</div>
           </div>
         )}
 
@@ -190,34 +215,35 @@ export default function ChatWindow() {
         {typing && (
           <div className="row assistant">
             <Orb className="mini-orb thinking" />
-            <div className="typing">
-              <i />
-              <i />
-              <i />
-            </div>
+            <div className="typing"><i /><i /><i /></div>
           </div>
         )}
       </div>
 
-      <div className="composer">
-        <div className="field">
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") send();
-            }}
-            placeholder="Напиши, что чувствуешь…"
-            autoComplete="off"
-          />
+      {gated ? (
+        <div className="gate">
+          <Orb className="gate-orb" />
+          <h3>Продолжим с того же места?</h3>
+          <p>Ася уже начала тебя узнавать. Войди — и она запомнит ваш разговор, чтобы в следующий раз не начинать с нуля. Это бесплатно, без карты.</p>
+          <a className="btn-primary" href="/login">Войти и сохранить разговор</a>
         </div>
-        <button className="send" onClick={send} disabled={busy} aria-label="отправить">
-          <svg viewBox="0 0 24 24">
-            <path d="M3 20.5v-6l8-2-8-2v-6l19 8z" />
-          </svg>
-        </button>
-      </div>
+      ) : (
+        <div className="composer">
+          <div className="field">
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+              placeholder="Напиши, что чувствуешь…"
+              autoComplete="off"
+            />
+          </div>
+          <button className="send" onClick={() => send()} disabled={busy} aria-label="отправить">
+            <svg viewBox="0 0 24 24"><path d="M3 20.5v-6l8-2-8-2v-6l19 8z" /></svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
