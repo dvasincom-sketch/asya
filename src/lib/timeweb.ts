@@ -31,6 +31,35 @@ export function streamChat(messages: ChatMessage[], systemExtra = ""): Promise<R
   });
 }
 
+// Нестримовый ответ Асей — для Telegram (там сообщения приходят целиком, не потоком).
+// Голос и параметры те же, что в вебе; systemExtra — память о человеке.
+export async function completeChat(messages: ChatMessage[], systemExtra = ""): Promise<string> {
+  const trimmed = messages.slice(-20);
+  const system = SYSTEM_PROMPT + systemExtra;
+  try {
+    const res = await fetch(`${BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.TIMEWEB_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        stream: false,
+        temperature: 0.8,
+        top_p: 0.9,
+        max_tokens: 700,
+        messages: [{ role: "system", content: system }, ...trimmed],
+      }),
+    });
+    if (!res.ok) return "";
+    const j = await res.json();
+    return String(j?.choices?.[0]?.message?.content ?? "");
+  } catch {
+    return "";
+  }
+}
+
 // Нестримовый вызов модели — для служебных задач (например, извлечение фактов в память).
 // Возвращает текст ответа или "" при ошибке.
 export async function complete(
