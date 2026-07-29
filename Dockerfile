@@ -19,5 +19,6 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 # Копируем собранное приложение вместе с зависимостями и Prisma-клиентом
 COPY --from=builder /app ./
 EXPOSE 3000
-# Применяем миграции к проду и стартуем Next (слушает переменную PORT)
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+# Применяем миграции (с повторными попытками) и стартуем Next.
+# Если база временно недоступна — приложение всё равно поднимается.
+CMD ["sh", "/app/docker-entrypoint.sh"]
