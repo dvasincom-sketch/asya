@@ -7,20 +7,44 @@ type TgWebApp = {
   setBackgroundColor?: (c: string) => void;
 };
 
+const SDK = "https://telegram.org/js/telegram-web-app.js";
+
 export function getTg(): TgWebApp | null {
   if (typeof window === "undefined") return null;
   return (window as unknown as { Telegram?: { WebApp?: TgWebApp } }).Telegram?.WebApp ?? null;
 }
 
-// Мы внутри Telegram Mini App?
 export function inTelegram(): boolean {
   const tg = getTg();
   return Boolean(tg && tg.initData);
 }
 
+// Гарантированно подгружает Telegram SDK (если ещё не загружен), не блокируя обычный веб.
+function loadSdk(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined" || getTg()) return resolve();
+    const existing = document.querySelector("script[data-tg-sdk]") as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      setTimeout(resolve, 1500);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = SDK;
+    s.async = true;
+    s.setAttribute("data-tg-sdk", "1");
+    s.onload = () => resolve();
+    s.onerror = () => resolve();
+    document.head.appendChild(s);
+  });
+}
+
 // Инициализация Mini App + тихий вход по Telegram. Возвращает true, если мы внутри Telegram.
 export async function initTelegramMiniApp(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  await loadSdk();
   const tg = getTg();
+  // Вне Telegram initData пустой — сразу выходим, не задерживая обычный веб.
   if (!tg || !tg.initData) return false;
   try {
     tg.ready?.();

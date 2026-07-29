@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Unbounded } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 
 const display = Unbounded({
@@ -26,10 +25,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru" data-theme="dusk" className={display.variable}>
-      <head>
-        {/* Telegram Mini App SDK — до гидрации, чтобы window.Telegram был доступен на старте. */}
-        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
-      </head>
       <body>
         <div className="ambient">
           <span className="a1" />
