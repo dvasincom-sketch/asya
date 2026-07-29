@@ -24,6 +24,51 @@ export async function tgSend(chatId: number | string, text: string): Promise<voi
   }).catch(() => {});
 }
 
+// Отправить сообщение и вернуть его id — чтобы потом дописывать по мере генерации.
+export async function tgSendReturningId(chatId: number | string, text: string): Promise<number | null> {
+  const t = token();
+  if (!t) return null;
+  const res = await fetch(`${API}/bot${t}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+  }).catch(() => null);
+  if (!res) return null;
+  const j = await res.json().catch(() => null);
+  return j?.result?.message_id ?? null;
+}
+
+// Отредактировать ранее отправленное сообщение (для эффекта «печатается»).
+export async function tgEdit(chatId: number | string, messageId: number, text: string): Promise<void> {
+  const t = token();
+  if (!t || !text) return;
+  await fetch(`${API}/bot${t}/editMessageText`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, disable_web_page_preview: true }),
+  }).catch(() => {});
+}
+
+// Сообщение с кнопкой, открывающей Mini App (наш веб-интерфейс внутри Telegram).
+export async function tgSendWebApp(
+  chatId: number | string,
+  text: string,
+  url: string,
+  btn = "Открыть Асю 🤍",
+): Promise<void> {
+  const t = token();
+  if (!t) return;
+  await fetch(`${API}/bot${t}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      reply_markup: { inline_keyboard: [[{ text: btn, web_app: { url } }]] },
+    }),
+  }).catch(() => {});
+}
+
 // Показать «печатает…» — пока Ася думает.
 export async function tgTyping(chatId: number | string): Promise<void> {
   const t = token();

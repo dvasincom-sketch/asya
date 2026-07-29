@@ -35,7 +35,18 @@ export async function GET(req: NextRequest) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }).catch(() => null);
-
   const data = res ? await res.json().catch(() => ({})) : { ok: false, error: "нет ответа от Telegram" };
-  return Response.json({ requested_url: url, telegram: data });
+
+  // Кнопка-меню бота, открывающая Mini App (наш дизайн).
+  const appUrl = `${base.replace(/\/$/, "")}/chat`;
+  const menuRes = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      menu_button: { type: "web_app", text: "Открыть Асю", web_app: { url: appUrl } },
+    }),
+  }).catch(() => null);
+  const menu = menuRes ? await menuRes.json().catch(() => ({})) : { ok: false };
+
+  return Response.json({ requested_url: url, telegram: data, menu_button: menu, mini_app_url: appUrl });
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
 import { CrisisCard } from "./CrisisCard";
 import type { Contact } from "@/lib/crisis";
+import { initTelegramMiniApp } from "@/lib/telegramWebApp";
 
 type Msg =
   | { role: "user"; kind: "text"; content: string }
@@ -48,36 +49,42 @@ export default function ChatWindow() {
     }
   }, []);
 
-  // Кто вошёл + восстановление истории + дневной счётчик бесплатных сообщений.
+  // Внутри Telegram — тихий вход, затем: кто вошёл + восстановление истории.
   useEffect(() => {
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((d) => {
+    let cancelled = false;
+    (async () => {
+      // Если открыто как Telegram Mini App — авторизуемся по Telegram до /api/me.
+      await initTelegramMiniApp();
+      if (cancelled) return;
+      try {
+        const d = await fetch("/api/me").then((r) => r.json());
+        if (cancelled) return;
         const isAuthed = Boolean(d.user);
         setAuthed(isAuthed);
-        // Вошедшему — подгружаем сохранённый разговор, чтобы продолжить с того же места.
         if (isAuthed) {
-          fetch("/api/history")
-            .then((r) => r.json())
-            .then((h) => {
-              const rows: { role: string; content: string }[] = Array.isArray(h.messages) ? h.messages : [];
-              if (rows.length) {
-                setMessages(
-                  rows
-                    .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
-                    .map((m) => ({ role: m.role as "user" | "assistant", kind: "text", content: m.content })),
-                );
-              }
-            })
-            .catch(() => {});
+          const h = await fetch("/api/history").then((r) => r.json());
+          if (cancelled) return;
+          const rows: { role: string; content: string }[] = Array.isArray(h.messages) ? h.messages : [];
+          if (rows.length) {
+            setMessages(
+              rows
+                .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
+                .map((m) => ({ role: m.role as "user" | "assistant", kind: "text", content: m.content })),
+            );
+          }
         }
-      })
-      .catch(() => setAuthed(false));
+      } catch {
+        if (!cancelled) setAuthed(false);
+      }
+    })();
     try {
       setCount(Number(localStorage.getItem(dayKey()) || "0"));
     } catch {
       /* localStorage может быть недоступен */
     }
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function toggleTheme() {
