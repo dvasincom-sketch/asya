@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
     const upstream = await streamChat(messages);
     if (!upstream.ok || !upstream.body) {
       const detail = await upstream.text().catch(() => "");
+      console.error(
+        `[api/chat] Модель ответила ошибкой ${upstream.status}. Ответ провайдера: ${detail.slice(0, 800)}\n` +
+          `Проверь TIMEWEB_BASE_URL, TIMEWEB_MODEL и ключ TIMEWEB_API_KEY.`,
+      );
       return Response.json(
         { error: "upstream", text: "Не получилось связаться с моделью.", detail: detail.slice(0, 500) },
         { status: 502 },
@@ -45,7 +49,8 @@ export async function POST(req: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch {
+  } catch (e) {
+    console.error("[api/chat] Не удалось выполнить запрос к модели (сеть/URL/ключ):", e);
     return Response.json({ error: "server", text: "Что-то пошло не так на сервере." }, { status: 500 });
   }
 }
