@@ -21,6 +21,8 @@ model User {
   memoryEnabled    Boolean  @default(true)
   historyEnabled   Boolean  @default(true)
   remindersEnabled Boolean  @default(true)
+  portrait         String?
+  portraitAt       DateTime?
 
   messages     Message[]
   memories     Memory[]
@@ -75,10 +77,12 @@ model Memory {
   id        String   @id @default(cuid())
   userId    String
   fact      String
+  topic     String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, topic])
 }
 
 model Consent {

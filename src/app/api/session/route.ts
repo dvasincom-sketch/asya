@@ -216,8 +216,11 @@ export async function POST(req: NextRequest) {
                 .slice(0, 6)
             : [];
           if (facts.length) {
-            await prisma.memory.createMany({
-              data: facts.map((fact) => ({ userId: user.id, fact: `${t.saveTo} · ${fact}`.slice(0, 300) })),
+            const memDb = prisma.memory as unknown as {
+              createMany: (a: { data: { userId: string; fact: string; topic?: string | null }[] }) => Promise<unknown>;
+            };
+            await memDb.createMany({
+              data: facts.map((fact) => ({ userId: user.id, fact: fact.slice(0, 300), topic: t.saveTo })),
             });
           }
         } catch {

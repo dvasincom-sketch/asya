@@ -1,137 +1,222 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Orb } from "./Orb";
 
-type Saved =
-  | { type: "canvas"; body: [string, string][]; title: string; date: string }
-  | { type: "points"; body: string[]; title: string; date: string };
-
-type Theme = {
-  id: string; ic: string; name: string; line: string; meta: string; big?: boolean;
-  sub: string; summary: string; insights: string[]; saved?: Saved[]; moments: [string, string][];
+type Theme = { name: string; icon: string; line: string; count: number; updatedAt: string; big?: boolean };
+type SavedItem = { id: string; title: string; icon: string; synthType: "points" | "canvas"; summary: string; date: string };
+type Detail = {
+  topic: string; icon: string; count: number; summary: string;
+  insights: string[]; saved: SavedItem[]; moments: { date: string; text: string }[];
 };
-
-const THEMES: Theme[] = [
-  { id: "work", ic: "💼", name: "Работа", line: "Выгорание и границы — как не растворяться в работе.", meta: "14 разговоров · обновлено 3 дня назад", big: true,
-    sub: "Выгорание и границы",
-    summary: "Ты много вкладываешься, и тебе трудно останавливаться. Усталость копится к концу недели — и чаще всего дело не в задачах, а в том, что для себя не остаётся места.",
-    insights: ["Тяжелее всего — пятницы и созвоны.", "Тебе легчает, когда получается сказать «нет» без чувства вины.", "В глубине хочешь работу, где заботишься о людях, но без выгорания."],
-    saved: [{ type: "points", title: "Ретроспектива за 3 месяца", date: "3 дня назад", body: ["Много вложила — и гордишься проектом, и вымоталась.", "Круг: берёшь на себя → выгораешь → винишь себя.", "Ты впервые сказала «нет» — поворот начался.", "Шаг: останавливаться раньше, чем упадёшь."] }],
-    moments: [["3 дня назад", "Снова не успела ничего для себя — разбирали, почему так трудно остановиться."], ["14 июля", "Впервые сказала коллеге «нет». Было страшно, но потом стало легче."], ["28 июня", "Думала уволиться — смотрели, что именно не так, а что держит."]] },
-  { id: "rel", ic: "💗", name: "Отношения", line: "Про близость и про то, чтобы тебя слышали.", meta: "9 разговоров",
-    sub: "Близость и быть услышанной",
-    summary: "Тебе важно чувствовать, что тебя правда слышат. Иногда проще позаботиться о другом, чем попросить о себе — и от этого копится обида, которую трудно назвать.",
-    insights: ["Обиду замечаешь не сразу — сначала «всё нормально».", "Тепло чувствуешь через внимание к мелочам, а не громкие слова."],
-    moments: [["5 дней назад", "Поговорили о том, как просить близких о поддержке."], ["2 июля", "Ссора, после которой было важно, что тебя наконец услышали."]] },
-  { id: "dreams", ic: "🌙", name: "Сны", line: "Повторяются про опоздания и поиск.", meta: "6 снов",
-    sub: "Твои повторяющиеся сны",
-    summary: "В снах часто мотив опоздания и поиска — будто внутри есть страх что-то упустить или не успеть быть «достаточно хорошей». Они приходят в загруженные недели.",
-    insights: ["Сон про поезд — когда наяву гонка и нет паузы.", "После того как проговорим сон, тревога от него спадает."],
-    moments: [["вчера", "Поезд и потерянный билет — проснулась на нервах."], ["20 июня", "Искала дом и не могла найти — говорили про «где твоё место»."]] },
-  { id: "calm", ic: "🌊", name: "Тревога и состояние", line: "Что накрывает перед созвонами и как выдыхаешь.", meta: "11 разговоров",
-    sub: "Что накрывает и что помогает",
-    summary: "Тревога чаще всего телесная и перед «оценкой» — созвоны, дедлайны. Тебе помогает замедлиться, дыхание и то, что рядом кто-то есть.",
-    insights: ["Тело реагирует раньше мыслей — сердце, дыхание.", "Помогает вдох на 4 и медленный выдох на 6, и что ты не одна."],
-    moments: [["4 дня назад", "Паника перед созвоном — дышали вместе."], ["1 июля", "Разобрали, что за страхом «облажаться» стоит."]] },
-  { id: "ideas", ic: "✨", name: "Идеи и мечты", line: "Хочешь своё дело про заботу о людях.", meta: "5 разговоров",
-    sub: "Куда тебя тянет",
-    summary: "Тебя тянет к своему делу, связанному с заботой о людях — но пугает нестабильность и «а вдруг не получится». Мечта живая, ты возвращаешься к ней снова.",
-    insights: ["Загораешься, когда речь о помощи и уюте для других.", "Главный тормоз — не идея, а страх нестабильности."],
-    saved: [{ type: "canvas", title: "Аудио-забота для уставших мам", date: "сегодня", body: [["Проблема", "Мамам негде взять короткую заботу о себе"], ["Для кого", "Работающая мама 30–40, «не успеваю для себя»"], ["Ценность", "5 минут заботы, что помещаются в день"], ["Деньги", "Подписка ~299 ₽/мес, неделя бесплатно"], ["Метрика", "Возврат на 2-ю неделю"], ["Преимущество", "Ты сама из этой аудитории"]] }],
-    moments: [["неделю назад", "Фантазировали про маленькую студию заботы."], ["15 июня", "Первый раз призналась, что хочешь «своё»."]] },
-  { id: "self", ic: "🕊", name: "Забота о себе", line: "Учишься возвращать себе время без вины.", meta: "8 разговоров",
-    sub: "Возвращать себе время",
-    summary: "Ты учишься не винить себя за отдых и возвращать себе кусочки времени. Маленькие ритуалы — чай, тишина, кот — работают лучше больших планов.",
-    insights: ["Отдых пока даётся с чувством вины — но реже, чем раньше.", "Мелкие ритуалы восстанавливают тебя надёжнее «правильных» практик."],
-    moments: [["2 дня назад", "Устроила себе вечер без телефона — и это было хорошо."], ["10 июня", "Договорились про 20 минут «только для себя» в день."]] },
-];
 
 function toggleTheme() {
   const el = document.documentElement;
   el.dataset.theme = el.dataset.theme === "day" ? "dusk" : "day";
 }
 
-function SavedCard({ s }: { s: Saved }) {
+// «3 дня назад» / «сегодня» — по-человечески.
+function ago(iso: string): string {
+  const d = new Date(iso);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return "сегодня";
+  if (days === 1) return "вчера";
+  if (days < 7) return `${days} дня назад`;
+  if (days < 30) return `${Math.floor(days / 7)} нед. назад`;
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+}
+
+function parseSummary(raw: string): { points: string[]; pairs: [string, string][] } {
+  try {
+    const p: unknown = JSON.parse(raw);
+    if (!Array.isArray(p)) return { points: [], pairs: [] };
+    if (p.length && Array.isArray(p[0])) {
+      return { points: [], pairs: p.map((x) => [String((x as unknown[])[0]), String((x as unknown[])[1])]) };
+    }
+    return { points: p.map((x) => String(x)), pairs: [] };
+  } catch {
+    return { points: [], pairs: [] };
+  }
+}
+
+function SavedCard({ s }: { s: SavedItem }) {
+  const { points, pairs } = parseSummary(s.summary);
   return (
     <div className="saved-card">
       <div className="sv-head">
-        <span className="sv-ic">{s.type === "canvas" ? "🚀" : "🪞"}</span>
-        <div><b>{s.title}</b><span>сохранено {s.date} · из сессии</span></div>
+        <span className="sv-ic">{s.icon}</span>
+        <div><b>{s.title}</b><span>сохранено {ago(s.date)} · из сессии</span></div>
       </div>
-      {s.type === "canvas"
-        ? s.body.map(([k, v]) => (<div className="kv" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>))
-        : s.body.map((p, i) => (<div className="pt" key={i}><span>{p}</span></div>))}
+      {pairs.length
+        ? pairs.map(([k, v]) => (<div className="kv" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>))
+        : points.map((p, i) => (<div className="pt" key={i}><span>{p}</span></div>))}
     </div>
   );
 }
 
 export default function MemoryScreen() {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const t = THEMES.find((x) => x.id === openId) || null;
+  const [loading, setLoading] = useState(true);
+  const [authed, setAuthed] = useState(true);
+  const [portrait, setPortrait] = useState("");
+  const [themes, setThemes] = useState<Theme[]>([]);
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  if (t) {
+  useEffect(() => {
+    fetch("/api/knowledge")
+      .then((r) => r.json())
+      .then((d) => {
+        setAuthed(Boolean(d.user));
+        setPortrait(d.portrait || "");
+        setThemes(Array.isArray(d.themes) ? d.themes : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function open(topic: string) {
+    setDetailLoading(true);
+    try {
+      const d = await fetch(`/api/knowledge/theme?topic=${encodeURIComponent(topic)}`).then((r) => r.json());
+      if (!d.error) setDetail(d);
+    } catch {
+      /* ignore */
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  // ---------- Детали темы ----------
+  if (detail) {
     return (
       <div className="app">
         <div className="sbar">
-          <button className="icobtn" onClick={() => setOpenId(null)} title="назад">‹</button>
-          <h1>{t.name}</h1>
+          <button className="icobtn" onClick={() => setDetail(null)} title="назад">‹</button>
+          <h1>{detail.topic}</h1>
           <button className="icobtn right" onClick={toggleTheme}>◐</button>
         </div>
         <div className="sbody">
           <div className="d-head">
-            <div className="d-ic">{t.ic}</div>
-            <div><h2>{t.name}</h2><div className="d-sub">{t.sub}</div></div>
+            <div className="d-ic">{detail.icon}</div>
+            <div>
+              <h2>{detail.topic}</h2>
+              <div className="d-sub">
+                {detail.count} {detail.count === 1 ? "запись" : "записей"} в памяти
+              </div>
+            </div>
           </div>
-          <div className="sec">Что я понимаю</div>
-          <div className="d-summary">{t.summary}</div>
-          {t.insights.map((i, idx) => (<div className="insight" key={idx}><span>{i}</span></div>))}
-          {t.saved && (
+
+          {detail.summary && (
             <>
-              <div className="sec" style={{ marginTop: 24 }}>Сохранённые разборы</div>
-              {t.saved.map((s, i) => (<SavedCard s={s} key={i} />))}
+              <div className="sec">Что я понимаю</div>
+              <div className="d-summary">{detail.summary}</div>
             </>
           )}
-          <div className="sec" style={{ marginTop: 24 }}>Моменты</div>
-          <div className="tl">
-            {t.moments.map(([d, m], i) => (
-              <div className="moment" key={i}><div className="m-date">{d}</div><div className="m-text">{m}</div></div>
-            ))}
-          </div>
+
+          {detail.insights.length > 0 && (
+            <>
+              <div className="sec" style={{ marginTop: detail.summary ? 24 : 0 }}>Что я помню</div>
+              {detail.insights.map((i, idx) => (<div className="insight" key={idx}><span>{i}</span></div>))}
+            </>
+          )}
+
+          {detail.saved.length > 0 && (
+            <>
+              <div className="sec" style={{ marginTop: 24 }}>Сохранённые разборы</div>
+              {detail.saved.map((s) => (<SavedCard s={s} key={s.id} />))}
+            </>
+          )}
+
+          {detail.moments.length > 0 && (
+            <>
+              <div className="sec" style={{ marginTop: 24 }}>Моменты</div>
+              <div className="tl">
+                {detail.moments.map((m, i) => (
+                  <div className="moment" key={i}>
+                    <div className="m-date">{ago(m.date)}</div>
+                    <div className="m-text">{m.text}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
           <a className="btn-primary" href="/chat" style={{ marginTop: 22 }}>Поговорить об этом</a>
         </div>
       </div>
     );
   }
 
+  // ---------- Обзор ----------
   return (
     <div className="app">
       <div className="sbar">
-        <button className="icobtn" onClick={() => (window.location.href = "/account")} title="назад">‹</button>
+        <a className="icobtn" href="/account" title="назад">‹</a>
         <h1>То, что я о тебе знаю</h1>
         <button className="icobtn right" onClick={toggleTheme}>◐</button>
       </div>
       <div className="sbody">
-        <div className="portrait">
-          <Orb className="p-orb" />
-          <div>
-            <h2>Как я тебя вижу</h2>
-            <p>Ты заботливая и ответственная, часто ставишь других выше себя. Последние месяцы много думаешь про баланс — как оставлять место и для себя. Тебя греют мелочи: вечерний чай, тишина, кот Персик.</p>
+        {!authed ? (
+          <div className="gate" style={{ marginTop: 8 }}>
+            <Orb className="gate-orb" />
+            <h3>Здесь будет то, что Ася о тебе знает</h3>
+            <p>Войди — и она начнёт бережно запоминать, что тебе важно, и раскладывать это по темам. Бесплатно.</p>
+            <a className="btn-primary" href="/login">Войти</a>
           </div>
-        </div>
-        <div className="sec">Твои темы <small>Ася сама раскладывает разговоры по темам — тебе не нужно ничего сортировать</small></div>
-        <div className="themes">
-          {THEMES.map((th) => (
-            <button className={`theme ${th.big ? "big" : ""}`} key={th.id} onClick={() => setOpenId(th.id)}>
-              <div className="t-ic">{th.ic}</div>
-              <div className="t-body">
-                <h3>{th.name}</h3>
-                <div className="t-line">{th.line}</div>
-                <div className="t-meta">{th.meta}</div>
+        ) : (
+          <>
+            <div className="portrait">
+              <Orb className="p-orb" />
+              <div>
+                <h2>Как я тебя вижу</h2>
+                <p>
+                  {loading
+                    ? "Собираю…"
+                    : portrait ||
+                      "Мы ещё только знакомимся — поговори со мной, и здесь появится то, что я о тебе понимаю 🤍"}
+                </p>
               </div>
-            </button>
-          ))}
-        </div>
+            </div>
+
+            {themes.length > 0 ? (
+              <>
+                <div className="sec">
+                  Твои темы <small>Ася сама раскладывает разговоры по темам — тебе не нужно ничего сортировать</small>
+                </div>
+                <div className="themes">
+                  {themes.map((th) => (
+                    <button
+                      className={`theme ${th.big ? "big" : ""}`}
+                      key={th.name}
+                      onClick={() => open(th.name)}
+                      disabled={detailLoading}
+                    >
+                      <div className="t-ic">{th.icon}</div>
+                      <div className="t-body">
+                        <h3>{th.name}</h3>
+                        <div className="t-line">{th.line}</div>
+                        <div className="t-meta">
+                          {th.count} {th.count === 1 ? "запись" : "записей"} · обновлено {ago(th.updatedAt)}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              !loading && (
+                <div className="setup-intro" style={{ marginTop: 18 }}>
+                  <h2>Пока пусто</h2>
+                  <p>
+                    Расскажи мне о себе в разговоре — я запомню то, что тебе важно, и сама разложу по темам. Здесь можно
+                    будет всё посмотреть, а в настройках — что угодно убрать.
+                  </p>
+                  <a className="btn-primary" href="/chat" style={{ marginTop: 16 }}>Поговорить</a>
+                </div>
+              )
+            )}
+          </>
+        )}
       </div>
     </div>
   );
