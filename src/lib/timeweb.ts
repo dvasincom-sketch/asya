@@ -10,8 +10,10 @@ export function hasKey(): boolean {
 }
 
 // Возвращает «сырой» ответ fetch со стримом (SSE), который прокидываем в браузер.
-export function streamChat(messages: ChatMessage[]): Promise<Response> {
+// systemExtra — дополнение к system-prompt (например, память о человеке).
+export function streamChat(messages: ChatMessage[], systemExtra = ""): Promise<Response> {
   const trimmed = messages.slice(-20);
+  const system = SYSTEM_PROMPT + systemExtra;
   return fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -24,7 +26,7 @@ export function streamChat(messages: ChatMessage[]): Promise<Response> {
       temperature: 0.8,
       top_p: 0.9,
       max_tokens: 700,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...trimmed],
+      messages: [{ role: "system", content: system }, ...trimmed],
     }),
   });
 }

@@ -48,11 +48,30 @@ export default function ChatWindow() {
     }
   }, []);
 
-  // Кто вошёл + дневной счётчик бесплатных сообщений.
+  // Кто вошёл + восстановление истории + дневной счётчик бесплатных сообщений.
   useEffect(() => {
     fetch("/api/me")
       .then((r) => r.json())
-      .then((d) => setAuthed(Boolean(d.user)))
+      .then((d) => {
+        const isAuthed = Boolean(d.user);
+        setAuthed(isAuthed);
+        // Вошедшему — подгружаем сохранённый разговор, чтобы продолжить с того же места.
+        if (isAuthed) {
+          fetch("/api/history")
+            .then((r) => r.json())
+            .then((h) => {
+              const rows: { role: string; content: string }[] = Array.isArray(h.messages) ? h.messages : [];
+              if (rows.length) {
+                setMessages(
+                  rows
+                    .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
+                    .map((m) => ({ role: m.role as "user" | "assistant", kind: "text", content: m.content })),
+                );
+              }
+            })
+            .catch(() => {});
+        }
+      })
       .catch(() => setAuthed(false));
     try {
       setCount(Number(localStorage.getItem(dayKey()) || "0"));
