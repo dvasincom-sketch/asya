@@ -3,6 +3,8 @@ import { detectCrisis, CRISIS_REPLY, type ChatMessage } from "@/lib/crisis";
 import { streamChat, hasKey } from "@/lib/timeweb";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { usageKey, checkAndCount, ANON_LIMIT, USER_LIMIT } from "@/lib/ratelimit";
+import { rememberFrom } from "@/lib/memory";
 
 export const runtime = "nodejs";
 
@@ -20,16 +22,39 @@ export async function POST(req: NextRequest) {
   // Текущий пользователь (если вошёл). Для анонимных — быстро вернёт null, без БД.
   const user = await getCurrentUser().catch(() => null);
   const saveHistory = Boolean(user && user.historyEnabled);
+  const saveMemory = Boolean(user && user.memoryEnabled);
 
-  // Сохраняем сообщение пользователя.
-  if (saveHistory && user && lastUser) {
-    await prisma.message.create({ data: { userId: user.id, role: "user", content: String(lastUser.content) } }).catch(() => {});
-  }
-
-  // Кризисный путь — модель не вызываем.
+  // Кризисный путь — модель не вызываем и лимит не применяем (безопасность важнее).
   if (lastUser && detectCrisis(String(lastUser.content))) {
+    if (saveHistory && user) {
+      await prisma.message.create({ data: { userId: user.id, role: "user", content: String(lastUser.content) } }).catch(() => {});
+    }
     if (user) await prisma.crisisEvent.create({ data: { userId: user.id, level: "keyword" } }).catch(() => {});
     return Response.json(CRISIS_REPLY);
+  }
+
+  // Серверный дневной лимит: аноним — по IP, вошедший — по userId.
+  if (lastUser) {
+    const key = usageKey(req, user?.id);
+    const limit = user ? USER_LIMIT : ANON_LIMIT;
+    const { allowed } = await checkAndCount(key, limit);
+    if (!allowed) {
+      return Response.json(
+        {
+          error: "limit",
+          needAuth: !user,
+          text: user
+            ? "На сегодня достаточно — я никуда не денусь. Давай продолжим завтра 🤍"
+            : "Мы с тобой хорошо поговорили сегодня. Войди — и я сохраню наш разговор, чтобы завтра продолжить с того же места. Это бесплатно.",
+        },
+        { status: 429 },
+      );
+    }
+  }
+
+  // Сохраняем сообщение пользователя (после лимита — чтобы не копить заблокированные).
+  if (saveHistory && user && lastUser) {
+    await prisma.message.create({ data: { userId: user.id, role: "user", content: String(lastUser.content) } }).catch(() => {});
   }
 
   if (!hasKey()) {
@@ -64,6 +89,7 @@ export async function POST(req: NextRequest) {
     const reader = upstream.body.getReader();
     const dec = new TextDecoder();
     const uid = user?.id;
+    const userText = lastUser ? String(lastUser.content) : "";
     let full = "";
     let buf = "";
     const stream = new ReadableStream<Uint8Array>({
@@ -74,6 +100,8 @@ export async function POST(req: NextRequest) {
             await prisma.message.create({ data: { userId: uid, role: "assistant", content: full } }).catch(() => {});
           }
           controller.close();
+          // Авто-память: извлекаем факты из реплики пользователя (не блокирует поток).
+          if (saveMemory && uid && userText) void rememberFrom(uid, userText);
           return;
         }
         controller.enqueue(value);

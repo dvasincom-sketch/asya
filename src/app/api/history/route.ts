@@ -16,3 +16,11 @@ export async function GET() {
     messages: rows.map((r: { role: string; content: string }) => ({ role: r.role, content: r.content })).reverse(),
   });
 }
+
+// Удалить всю историю разговоров пользователя.
+export async function DELETE() {
+  const user = await getCurrentUser().catch(() => null);
+  if (!user) return Response.json({ error: "auth" }, { status: 401 });
+  await prisma.message.deleteMany({ where: { userId: user.id } }).catch(() => {});
+  return Response.json({ ok: true });
+}

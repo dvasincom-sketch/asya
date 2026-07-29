@@ -1,22 +1,38 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
 
-type Sheet = { title: string; text: string; btn: string; action: () => void };
-
-const INITIAL_MEMORY = [
-  "Любишь вечерний чай с ромашкой",
-  "Устаёшь к пятнице на работе",
-  "Кот Персик",
-  "Тревожно перед созвонами",
-];
+type Sheet = { title: string; text: string; btn: string; action: () => void | Promise<void> };
+type Chip = { id: string; fact: string };
 
 export default function SettingsScreen() {
-  const [chips, setChips] = useState<string[]>(INITIAL_MEMORY);
+  const [loading, setLoading] = useState(true);
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [historyEnabled, setHistoryEnabled] = useState(true);
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [chips, setChips] = useState<Chip[]>([]);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [toastMsg, setToastMsg] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Загрузка реальных настроек и памяти.
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.user) {
+          window.location.href = "/login";
+          return;
+        }
+        setMemoryEnabled(Boolean(d.user.memoryEnabled));
+        setHistoryEnabled(Boolean(d.user.historyEnabled));
+        setRemindersEnabled(Boolean(d.user.remindersEnabled));
+        setChips(Array.isArray(d.memories) ? d.memories : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   function toggleTheme() {
     const el = document.documentElement;
@@ -29,17 +45,67 @@ export default function SettingsScreen() {
     toastTimer.current = setTimeout(() => setToastMsg(""), 2600);
   }
 
-  function removeChip(i: number) {
-    setChips((c) => c.filter((_, idx) => idx !== i));
+  // Оптимистичное обновление флага + сохранение на сервере.
+  function saveFlag(patch: Partial<{ memoryEnabled: boolean; historyEnabled: boolean; remindersEnabled: boolean }>) {
+    fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).catch(() => {});
+  }
+
+  function onMemory(v: boolean) {
+    setMemoryEnabled(v);
+    saveFlag({ memoryEnabled: v });
+    toast(v ? "Ася снова запоминает 🤍" : "Ася больше не будет запоминать");
+  }
+  function onHistory(v: boolean) {
+    setHistoryEnabled(v);
+    saveFlag({ historyEnabled: v });
+    toast(v ? "История сохраняется 🤍" : "Новые разговоры не сохраняются");
+  }
+  function onReminders(v: boolean) {
+    setRemindersEnabled(v);
+    saveFlag({ remindersEnabled: v });
+  }
+
+  function removeChip(id: string) {
+    setChips((c) => c.filter((x) => x.id !== id));
+    fetch("/api/memory", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => {});
     toast("Ася это забыла 🤍");
+  }
+
+  async function wipeMemory() {
+    setChips([]);
+    await fetch("/api/memory", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {});
+    toast("Готово 🤍 Ася забыла, что знала о тебе");
+  }
+
+  async function wipeHistory() {
+    await fetch("/api/history", { method: "DELETE" }).catch(() => {});
+    toast("Готово 🤍 История разговоров удалена");
+  }
+
+  async function deleteAccount() {
+    await fetch("/api/account", { method: "DELETE" }).catch(() => {});
+    window.location.href = "/";
   }
 
   function confirm(s: Sheet) {
     setSheet(s);
   }
-  function runSheet() {
-    if (sheet) sheet.action();
+  async function runSheet() {
+    const s = sheet;
     setSheet(null);
+    if (s) await s.action();
   }
 
   return (
@@ -59,20 +125,28 @@ export default function SettingsScreen() {
               <span>Ася будет помнить, что тебе важно, между разговорами</span>
             </div>
             <label className="switch">
-              <input type="checkbox" defaultChecked />
+              <input type="checkbox" checked={memoryEnabled} onChange={(e) => onMemory(e.target.checked)} />
               <span className="sl" />
             </label>
           </div>
           <div className="memwrap">
-            <div className="mh">Вот что Ася помнит о тебе. Можешь убрать что угодно — она сразу забудет 🤍</div>
-            <div className="chips">
-              {chips.map((c, i) => (
-                <span className="chip" key={c}>
-                  {c}
-                  <button onClick={() => removeChip(i)} aria-label="забыть">✕</button>
-                </span>
-              ))}
+            <div className="mh">
+              {chips.length
+                ? "Вот что Ася помнит о тебе. Можешь убрать что угодно — она сразу забудет 🤍"
+                : loading
+                  ? "Загружаю…"
+                  : "Пока Ася ничего не запомнила. Она понемногу узнаёт тебя по мере ваших разговоров 🤍"}
             </div>
+            {chips.length > 0 && (
+              <div className="chips">
+                {chips.map((c) => (
+                  <span className="chip" key={c.id}>
+                    {c.fact}
+                    <button onClick={() => removeChip(c.id)} aria-label="забыть">✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -81,20 +155,20 @@ export default function SettingsScreen() {
           <div className="srow">
             <div className="ti">
               <b>Сохранять историю разговоров</b>
-              <span>Хранится зашифрованно. Выключишь — переписка не сохраняется</span>
+              <span>Выключишь — новые разговоры не сохраняются</span>
             </div>
             <label className="switch">
-              <input type="checkbox" defaultChecked />
+              <input type="checkbox" checked={historyEnabled} onChange={(e) => onHistory(e.target.checked)} />
               <span className="sl" />
             </label>
           </div>
-          <div className="srow tap" onClick={() => toast("Готовим файл с твоими данными… пришлём ссылку 🤍")}>
+          <a className="srow tap" href="/api/export" style={{ textDecoration: "none" }}>
             <div className="ti">
               <b>Скачать мои данные</b>
               <span>Выгрузка всей переписки и памяти одним файлом</span>
             </div>
             <span className="rico">↓</span>
-          </div>
+          </a>
         </div>
 
         <div className="sec">Удаление</div>
@@ -106,7 +180,7 @@ export default function SettingsScreen() {
                 title: "Забыть память?",
                 text: "Ася забудет всё, что знает о тебе. Ваши разговоры останутся, но она начнёт узнавать тебя заново.",
                 btn: "Забыть память",
-                action: () => { setChips([]); toast("Готово 🤍 Ася забыла, что знала о тебе"); },
+                action: wipeMemory,
               })
             }
           >
@@ -120,7 +194,7 @@ export default function SettingsScreen() {
                 title: "Удалить всю историю?",
                 text: "Все ваши разговоры будут удалены навсегда. Это нельзя отменить.",
                 btn: "Удалить историю",
-                action: () => toast("Готово 🤍 История разговоров удалена"),
+                action: wipeHistory,
               })
             }
           >
@@ -134,7 +208,7 @@ export default function SettingsScreen() {
                 title: "Удалить аккаунт?",
                 text: "Профиль, память и вся история будут удалены навсегда. Мне будет жаль прощаться, но выбор за тобой.",
                 btn: "Удалить аккаунт",
-                action: () => toast("Аккаунт удалён. Береги себя 🤍"),
+                action: deleteAccount,
               })
             }
           >
@@ -147,8 +221,8 @@ export default function SettingsScreen() {
         <div className="scard">
           <a className="srow tap" href="/account" style={{ textDecoration: "none" }}>
             <div className="ti">
-              <b>Подписка активна</b>
-              <span>300 ₽ / месяц · следующее списание 12 августа</span>
+              <b>Забота+</b>
+              <span>Хранение истории и памяти · 300 ₽ / месяц</span>
             </div>
             <span className="sub-badge">Управлять</span>
           </a>
@@ -158,7 +232,7 @@ export default function SettingsScreen() {
               <span>Изредка «как ты сегодня?» — только с твоего согласия</span>
             </div>
             <label className="switch">
-              <input type="checkbox" defaultChecked />
+              <input type="checkbox" checked={remindersEnabled} onChange={(e) => onReminders(e.target.checked)} />
               <span className="sl" />
             </label>
           </div>

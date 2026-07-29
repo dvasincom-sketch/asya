@@ -95,3 +95,12 @@ model Session {
   expiresAt DateTime
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// Серверный дневной счётчик сообщений. key = "u:<userId>:<yyyy-mm-dd>" для вошедших,
+// "ip:<ip>:<yyyy-mm-dd>" для анонимов. Защита от злоупотреблений и мягкий лимит.
+model DailyUsage {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+}

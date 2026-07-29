@@ -139,6 +139,10 @@ export default function ChatWindow() {
         setTyping(false);
         if (data.type === "crisis") {
           setMessages((m) => [...m, { role: "assistant", kind: "crisis", content: data.text, contacts: data.contacts || [] }]);
+        } else if (resp.status === 429 && data.error === "limit") {
+          // Дневной лимит исчерпан. Анониму — предлагаем войти (гейт), вошедшему — мягкое сообщение.
+          if (data.needAuth) setGated(true);
+          else setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "На сегодня достаточно 🤍" }]);
         } else {
           setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "…" }]);
         }
