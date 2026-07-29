@@ -7,6 +7,12 @@ function token(): string {
   return process.env.TELEGRAM_BOT_TOKEN || "";
 }
 
+// Telegram разрешает в secret_token только [A-Za-z0-9_-] (1..256).
+// Приводим любой заданный секрет к допустимому виду — одинаково при установке и проверке.
+export function safeWebhookSecret(): string {
+  return (process.env.TELEGRAM_WEBHOOK_SECRET || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 256);
+}
+
 // Отправить текстовое сообщение пользователю.
 export async function tgSend(chatId: number | string, text: string): Promise<void> {
   const t = token();

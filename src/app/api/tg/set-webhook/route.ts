@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { safeWebhookSecret } from "@/lib/tgbot";
 
 export const runtime = "nodejs";
 
@@ -20,15 +21,19 @@ export async function GET(req: NextRequest) {
   const base = process.env.PUBLIC_BASE_URL || req.nextUrl.origin;
   const url = `${base.replace(/\/$/, "")}/api/tg/webhook`;
 
+  // Telegram принимает secret_token только из [A-Za-z0-9_-]; отправляем очищенную версию.
+  const safeSecret = safeWebhookSecret();
+  const payload: Record<string, unknown> = {
+    url,
+    allowed_updates: ["message"],
+    drop_pending_updates: true,
+  };
+  if (safeSecret) payload.secret_token = safeSecret;
+
   const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      url,
-      secret_token: secret,
-      allowed_updates: ["message"],
-      drop_pending_updates: true,
-    }),
+    body: JSON.stringify(payload),
   }).catch(() => null);
 
   const data = res ? await res.json().catch(() => ({})) : { ok: false, error: "нет ответа от Telegram" };

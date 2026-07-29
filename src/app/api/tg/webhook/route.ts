@@ -4,7 +4,7 @@ import { completeChat, hasKey } from "@/lib/timeweb";
 import { prisma } from "@/lib/prisma";
 import { usageKey, checkAndCount, USER_LIMIT } from "@/lib/ratelimit";
 import { rememberFrom } from "@/lib/memory";
-import { tgSend, tgTyping, crisisText, TG_WELCOME } from "@/lib/tgbot";
+import { tgSend, tgTyping, crisisText, TG_WELCOME, safeWebhookSecret } from "@/lib/tgbot";
 
 export const runtime = "nodejs";
 
@@ -18,8 +18,8 @@ type TgUpdate = {
 
 // Telegram шлёт сюда апдейты. Отвечаем всегда 200, чтобы он не ретраил без нужды.
 export async function POST(req: NextRequest) {
-  // Проверка секрета вебхука (если задан при установке).
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  // Проверка секрета вебхука (если задан при установке). Секрет — в допустимом для Telegram виде.
+  const secret = safeWebhookSecret();
   if (secret && req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
     return Response.json({ ok: false }, { status: 401 });
   }
