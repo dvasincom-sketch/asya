@@ -28,6 +28,36 @@ model User {
   subscription Subscription?
   crisisEvents CrisisEvent[]
   sessions     Session[]
+  coachSessions CoachSession[]
+}
+
+// Структурированная сессия («разбор»): шаблон задаёт невидимый каркас вопросов,
+// а разговор и итог — настоящие, из ответов человека.
+model CoachSession {
+  id        String    @id @default(cuid())
+  userId    String
+  template  String
+  step      Int       @default(0)
+  done      Boolean   @default(false)
+  summary   String?
+  savedAt   DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  turns     SessionTurn[]
+
+  @@index([userId, createdAt])
+}
+
+model SessionTurn {
+  id        String       @id @default(cuid())
+  sessionId String
+  phase     Int
+  role      String
+  content   String
+  createdAt DateTime     @default(now())
+  session   CoachSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 model Message {

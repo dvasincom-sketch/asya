@@ -1,143 +1,358 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
 
-type Phase = { a: string; u: string };
-type Template = {
-  id: string; title: string; topic: string; labels: string[]; phases: Phase[];
-  synthType: "points" | "canvas"; synthTitle: string; synthSub: string;
-  synth: string[] | [string, string][]; saveTo: string;
+type Tpl = { id: string; title: string; icon: string; group: "self" | "goal"; blurb: string; badge?: string; steps: number };
+type Saved = {
+  id: string; template: string; title: string; icon: string; saveTo: string;
+  synthType: "points" | "canvas"; summary: string; createdAt: string;
 };
-
-const TEMPLATES: Record<string, Template> = {
-  retro: {
-    id: "retro", title: "Ретроспектива", topic: "Ретроспектива · работа за 3 месяца",
-    labels: ["Настроиться", "Что было", "Чувства", "Паттерны", "Дальше", "Итог"],
-    phases: [
-      { a: "Давай спокойно оглянемся на эти три месяца работы. С чем ты приходишь — что хочется понять?", u: "Устала и не понимаю, почему опять на том же месте." },
-      { a: "Вспомним, что это были за месяцы. Какие моменты всплывают первыми — и хорошие, и тяжёлые?", u: "Много созвонов, пара конфликтов… но и проект, которым горжусь." },
-      { a: "А если убрать события и остаться с чувством — что ты чаще всего ощущала?", u: "Как будто бегу — и всё равно недостаточно." },
-      { a: "Смотри: в июне думала уволиться, в июле впервые сказала «нет», сейчас снова «недостаточно». Как будто по кругу: берёшь на себя → выгораешь → винишь себя. Откликается?", u: "Да… именно так." },
-      { a: "Что из этого хочешь взять с собой в следующий месяц — маленькое, но твоё?", u: "Разрешить себе останавливаться раньше, чем упаду." },
-    ],
-    synthType: "points", synthTitle: "Что мы увидели вместе", synthSub: "ретроспектива · работа",
-    synth: ["За три месяца ты много вложила — и гордишься проектом, и вымоталась.", "Повторяется круг: берёшь на себя → выгораешь → винишь себя.", "Поворот уже начался — ты впервые сказала «нет».", "Твой шаг: останавливаться раньше, чем упадёшь."],
-    saveTo: "Работа",
-  },
-  biz: {
-    id: "biz", title: "Бизнес-идея", topic: "Собираем идею · «аудио-забота для уставших мам»",
-    labels: ["Проблема", "Для кого", "Ценность", "Как работает", "Где найдут", "Деньги", "Что нужно", "Метрика", "Преимущество", "Итог"],
-    phases: [
-      { a: "Расскажи, с какой проблемы всё началось. Что у людей болит или неудобно?", u: "Уставшие мамы не могут выделить час на себя, а коротких форматов заботы почти нет." },
-      { a: "Опиши того, кому это нужнее всех — конкретного человека.", u: "Мама двоих, 30–40, работает, вечно виноватая, что не успевает для себя." },
-      { a: "Если в одной фразе — почему это выберут? Что тут особенного?", u: "5 минут заботы, которые реально помещаются в её день." },
-      { a: "Как в общих чертах человек получает результат?", u: "Открыла приложение → короткое аудио под её состояние → стало легче." },
-      { a: "Как эти люди о тебе узнают? Где они уже бывают?", u: "Мам-блоги, телеграм-каналы про материнство, сарафан." },
-      { a: "На чём это зарабатывает? За что и как люди платят?", u: "Подписка ~299 ₽/мес, первая неделя бесплатно." },
-      { a: "Что нужно, чтобы запустить и держать? Главные расходы?", u: "Записать аудио, простое приложение, немного на продвижение." },
-      { a: "По какой одной цифре ты поймёшь, что идёт хорошо?", u: "Сколько мам возвращаются на вторую неделю." },
-      { a: "И последнее: что у тебя есть, что трудно скопировать? Почему именно ты?", u: "Я сама такая мама и знаю этот контекст изнутри." },
-    ],
-    synthType: "canvas", synthTitle: "Карточка твоей идеи", synthSub: "собрано из твоих ответов",
-    synth: [["Проблема", "Мамам негде взять короткую заботу о себе"], ["Для кого", "Работающая мама 30–40, «не успеваю для себя»"], ["Ценность", "5 минут заботы, что помещаются в день"], ["Деньги", "Подписка ~299 ₽/мес, неделя бесплатно"], ["Одна метрика", "Возврат на 2-ю неделю"], ["Твоё преимущество", "Ты сама из этой аудитории"]],
-    saveTo: "Идеи",
-  },
-};
+type Turn = { role: "assistant" | "user"; content: string };
+type Synth = { summary: string; synthType: "points" | "canvas"; synthTitle: string; synthSub: string; saveTo: string };
 
 function toggleTheme() {
   const el = document.documentElement;
   el.dataset.theme = el.dataset.theme === "day" ? "dusk" : "day";
 }
 
+// Итог приходит как JSON: список наблюдений или пары «ключ — значение».
+function parseSummary(raw: string): { points: string[]; pairs: [string, string][] } {
+  try {
+    const p: unknown = JSON.parse(raw);
+    if (!Array.isArray(p)) return { points: [], pairs: [] };
+    if (p.length && Array.isArray(p[0])) {
+      return { points: [], pairs: p.map((x) => [String((x as unknown[])[0]), String((x as unknown[])[1])]) };
+    }
+    return { points: p.map((x) => String(x)), pairs: [] };
+  } catch {
+    return { points: [], pairs: [] };
+  }
+}
+
 export default function SessionsScreen() {
-  const [t, setT] = useState<Template | null>(null);
-  const [step, setStep] = useState(1); // сколько фаз раскрыто
-  const [synth, setSynth] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [authed, setAuthed] = useState(true);
+  const [templates, setTemplates] = useState<Tpl[]>([]);
+  const [saved, setSaved] = useState<Saved[]>([]);
+  const [openSaved, setOpenSaved] = useState<Saved | null>(null);
+
+  // Живая сессия.
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [meta, setMeta] = useState<{ title: string; topic: string; labels: string[]; total: number } | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [step, setStep] = useState(1);
+  const [ready, setReady] = useState(false); // все вопросы заданы — пора подводить итог
+  const [synth, setSynth] = useState<Synth | null>(null);
   const [savedDone, setSavedDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const bodyRef = useRef<HTMLDivElement>(null);
 
-  function start(id: string) {
-    setT(TEMPLATES[id]); setStep(1); setSynth(false); setSavedDone(false);
+  async function load() {
+    try {
+      const d = await fetch("/api/session").then((r) => r.json());
+      setAuthed(Boolean(d.user));
+      setTemplates(Array.isArray(d.templates) ? d.templates : []);
+      setSaved(Array.isArray(d.saved) ? d.saved : []);
+    } catch {
+      setError("Не удалось загрузить разборы.");
+    } finally {
+      setLoading(false);
+    }
   }
-  function reset() { setT(null); }
-  function advance() {
-    if (!t) return;
-    if (step < t.phases.length) setStep(step + 1);
-    else if (!synth) setSynth(true);
+  useEffect(() => {
+    load();
+  }, []);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns, synth, busy]);
+
+  async function post(payload: Record<string, unknown>) {
+    const r = await fetch("/api/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(String(r.status));
+    return r.json();
   }
 
-  if (!t) {
+  async function start(id: string) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const d = await post({ action: "start", template: id });
+      setSessionId(d.sessionId);
+      setMeta({ title: d.title, topic: d.topic, labels: d.labels, total: d.total });
+      setTurns([{ role: "assistant", content: d.question }]);
+      setStep(d.step);
+      setReady(false);
+      setSynth(null);
+      setSavedDone(false);
+    } catch {
+      setError("Не получилось начать разбор. Попробуй ещё раз.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function send() {
+    const text = input.trim();
+    if (!text || busy || !sessionId) return;
+    setInput("");
+    setTurns((v) => [...v, { role: "user", content: text }]);
+    setBusy(true);
+    setError("");
+    try {
+      const d = await post({ action: "reply", sessionId, text });
+      if (d.ready) setReady(true);
+      else {
+        setTurns((v) => [...v, { role: "assistant", content: d.question }]);
+        setStep(d.step);
+      }
+    } catch {
+      setError("Ася не ответила. Попробуй ещё раз.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function finish() {
+    if (busy || !sessionId) return;
+    setBusy(true);
+    setError("");
+    try {
+      const d = await post({ action: "finish", sessionId });
+      setSynth(d);
+    } catch {
+      setError("Не получилось собрать итог. Попробуй ещё раз.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveSynth() {
+    if (busy || !sessionId) return;
+    setBusy(true);
+    try {
+      await post({ action: "save", sessionId });
+      setSavedDone(true);
+      load();
+    } catch {
+      setError("Не получилось сохранить.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function reset() {
+    setSessionId(null);
+    setMeta(null);
+    setTurns([]);
+    setSynth(null);
+    setReady(false);
+    setSavedDone(false);
+    setInput("");
+    setError("");
+  }
+
+  // ---------- Просмотр сохранённого разбора ----------
+  if (openSaved) {
+    const { points, pairs } = parseSummary(openSaved.summary);
     return (
       <div className="app">
         <div className="sbar">
-          <button className="icobtn" onClick={() => (window.location.href = "/account")} title="назад">‹</button>
-          <h1>Сессия с Асей</h1>
+          <button className="icobtn" onClick={() => setOpenSaved(null)} title="назад">‹</button>
+          <h1>{openSaved.title}</h1>
           <button className="icobtn right" onClick={toggleTheme}>◐</button>
         </div>
         <div className="sbody">
-          <div className="setup-intro">
-            <Orb className="s-orb" />
-            <h2>Над чем поработаем?</h2>
-            <p>Ася может просто выслушать — а может провести по шагам, как коуч. Методики внутри, а разговор живой.</p>
+          <div className="synth">
+            <h3>{openSaved.title}</h3>
+            <div className="s-sub">
+              {openSaved.saveTo} · {new Date(openSaved.createdAt).toLocaleDateString("ru-RU")}
+            </div>
+            {pairs.length
+              ? pairs.map(([k, v]) => (<div className="kv" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>))
+              : points.map((p, i) => (<div className="pt" key={i}><span>{p}</span></div>))}
           </div>
-          <div className="grp">Разобраться в себе</div>
-          <button className="opt" onClick={() => start("retro")}><div className="o-ic">🪞</div><div><b>Ретроспектива</b><span>Оглянуться на период и увидеть, что происходило и что повторяется.</span></div></button>
-          <button className="opt" onClick={() => start("retro")}><div className="o-ic">🌊</div><div><b>Разобраться в чувстве</b><span>Что это за состояние и откуда оно.</span></div></button>
-          <div className="grp">Двигаться к цели</div>
-          <button className="opt" onClick={() => start("biz")}><div className="o-ic">🚀</div><div><b>Проработать бизнес-идею</b><span>Собрать идею по полочкам через несколько простых вопросов.</span><span className="badge">9 вопросов · ~15 мин</span></div></button>
-          <button className="opt" onClick={() => start("biz")}><div className="o-ic">⚖️</div><div><b>Принять решение</b><span>Взвесить варианты и понять, чего ты правда хочешь.</span></div></button>
         </div>
       </div>
     );
   }
 
-  const currentIdx = synth ? t.labels.length - 1 : step - 1;
-  const nextLabel = step < t.phases.length ? "Дальше →" : !synth ? "Подвести итог" : "Сессия завершена";
+  // ---------- Экран выбора ----------
+  if (!sessionId || !meta) {
+    const self = templates.filter((t) => t.group === "self");
+    const goal = templates.filter((t) => t.group === "goal");
+    return (
+      <div className="app">
+        <div className="sbar">
+          <a className="icobtn" href="/account" title="назад">‹</a>
+          <h1>Сессия с Асей</h1>
+          <button className="icobtn right" onClick={toggleTheme}>◐</button>
+        </div>
+        <div className="sbody" ref={bodyRef}>
+          <div className="setup-intro">
+            <Orb className="s-orb" />
+            <h2>Над чем поработаем?</h2>
+            <p>Ася может просто выслушать — а может провести по шагам, как коуч. Методики внутри, а разговор живой.</p>
+          </div>
+
+          {!authed && (
+            <div className="gate" style={{ margin: "0 0 18px" }}>
+              <h3>Чтобы вести разборы, войди</h3>
+              <p>Так Ася сохранит ваши сессии и итоги — и ты найдёшь их здесь потом. Это бесплатно.</p>
+              <a className="btn-primary" href="/login">Войти</a>
+            </div>
+          )}
+
+          {error && <div className="auth-error">{error}</div>}
+
+          {loading ? (
+            <div className="grp">Загружаю…</div>
+          ) : (
+            <>
+              <div className="grp">Разобраться в себе</div>
+              {self.map((t) => (
+                <button key={t.id} className="opt" onClick={() => start(t.id)} disabled={busy || !authed}>
+                  <div className="o-ic">{t.icon}</div>
+                  <div>
+                    <b>{t.title}</b>
+                    <span>{t.blurb}</span>
+                    {t.badge && <span className="badge">{t.badge}</span>}
+                  </div>
+                </button>
+              ))}
+              <div className="grp">Двигаться к цели</div>
+              {goal.map((t) => (
+                <button key={t.id} className="opt" onClick={() => start(t.id)} disabled={busy || !authed}>
+                  <div className="o-ic">{t.icon}</div>
+                  <div>
+                    <b>{t.title}</b>
+                    <span>{t.blurb}</span>
+                    {t.badge && <span className="badge">{t.badge}</span>}
+                  </div>
+                </button>
+              ))}
+
+              <div className="grp">Сохранённые разборы</div>
+              {saved.length === 0 ? (
+                <div className="setup-intro" style={{ padding: "10px 4px 0" }}>
+                  <p>Здесь появятся твои разборы — итог каждой сессии, чтобы можно было вернуться.</p>
+                </div>
+              ) : (
+                saved.map((s) => (
+                  <button key={s.id} className="opt" onClick={() => setOpenSaved(s)}>
+                    <div className="o-ic">{s.icon}</div>
+                    <div>
+                      <b>{s.title}</b>
+                      <span>
+                        {s.saveTo} · {new Date(s.createdAt).toLocaleDateString("ru-RU")}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Живая сессия ----------
+  const currentIdx = synth ? meta.labels.length - 1 : Math.min(step - 1, meta.labels.length - 1);
 
   return (
     <div className="app">
       <div className="sbar">
         <button className="icobtn" onClick={reset} title="назад">‹</button>
-        <h1>{t.title}</h1>
+        <h1>{meta.title}</h1>
         <button className="icobtn right" onClick={toggleTheme}>◐</button>
       </div>
+
       <div className="banner">
-        <div className="sb-topic">{t.topic}</div>
+        <div className="sb-topic">{meta.topic}</div>
         <div className="stepper">
-          {t.labels.map((_, i) => (<i key={i} className={i < currentIdx ? "done" : i === currentIdx ? "now" : ""} />))}
+          {meta.labels.map((_, i) => (
+            <i key={i} className={i < currentIdx ? "done" : i === currentIdx ? "now" : ""} />
+          ))}
         </div>
-        <div className="sb-step"><b>{t.labels[currentIdx]}</b> · шаг {currentIdx + 1} из {t.labels.length}</div>
+        <div className="sb-step">
+          <b>{meta.labels[currentIdx]}</b> · шаг {currentIdx + 1} из {meta.labels.length}
+        </div>
       </div>
-      <div className="sbody">
-        {t.phases.slice(0, step).map((p, i) => (
-          <div key={i}>
-            {i > 0 && <div className="phase-tag">{t.labels[i]}</div>}
-            <div className="row assistant"><Orb className="mini-orb" /><div className="bubble">{p.a}</div></div>
-            <div className="row user"><div className="bubble">{p.u}</div></div>
+
+      <div className="sbody" ref={bodyRef}>
+        {turns.map((m, i) => (
+          <div className={`row ${m.role}`} key={i}>
+            {m.role === "assistant" && <Orb className="mini-orb" />}
+            <div className="bubble">{m.content}</div>
           </div>
         ))}
+
+        {busy && !synth && (
+          <div className="row assistant">
+            <Orb className="mini-orb thinking" />
+            <div className="typing"><i /><i /><i /></div>
+          </div>
+        )}
+
         {synth && (
           <>
             <div className="phase-tag">Итог</div>
             <div className="synth">
-              <h3>{t.synthTitle}</h3>
-              <div className="s-sub">{t.synthSub}</div>
-              {t.synthType === "canvas"
-                ? (t.synth as [string, string][]).map(([k, v]) => (<div className="kv" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>))
-                : (t.synth as string[]).map((p, i) => (<div className="pt" key={i}><span>{p}</span></div>))}
+              <h3>{synth.synthTitle}</h3>
+              <div className="s-sub">{synth.synthSub}</div>
+              {(() => {
+                const { points, pairs } = parseSummary(synth.summary);
+                if (pairs.length) return pairs.map(([k, v]) => (<div className="kv" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>));
+                if (points.length) return points.map((p, i) => (<div className="pt" key={i}><span>{p}</span></div>));
+                return <div className="pt"><span>Здесь пока пусто — расскажи чуть больше, и Ася соберёт итог.</span></div>;
+              })()}
               <div className="save">
-                <button className="primary" disabled={savedDone} onClick={() => setSavedDone(true)}>
-                  {savedDone ? `Сохранено в «${t.saveTo}» 🤍` : `Сохранить в тему «${t.saveTo}»`}
+                <button className="primary" disabled={savedDone || busy} onClick={saveSynth}>
+                  {savedDone ? `Сохранено в «${synth.saveTo}» 🤍` : `Сохранить в тему «${synth.saveTo}»`}
                 </button>
                 <button className="ghost" onClick={reset}>Спасибо, Ася</button>
               </div>
             </div>
           </>
         )}
+
+        {error && <div className="auth-error">{error}</div>}
       </div>
-      <div className="foot-btn">
-        <button className="btn-primary" onClick={advance} disabled={synth}>{nextLabel}</button>
-      </div>
+
+      {!synth &&
+        (ready ? (
+          <div className="foot-btn">
+            <button className="btn-primary" onClick={finish} disabled={busy}>
+              {busy ? <span className="spinner" /> : "Подвести итог"}
+            </button>
+          </div>
+        ) : (
+          <div className="composer">
+            <div className="field">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+                placeholder="Ответь своими словами…"
+                autoComplete="off"
+                disabled={busy}
+              />
+            </div>
+            <button className="send" onClick={send} disabled={busy || !input.trim()} aria-label="отправить">
+              <svg viewBox="0 0 24 24"><path d="M3 20.5v-6l8-2-8-2v-6l19 8z" /></svg>
+            </button>
+          </div>
+        ))}
     </div>
   );
 }
