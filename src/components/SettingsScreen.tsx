@@ -11,6 +11,7 @@ export default function SettingsScreen() {
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [historyEnabled, setHistoryEnabled] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [healthEnabled, setHealthEnabled] = useState(false);
   const [chips, setChips] = useState<Chip[]>([]);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [toastMsg, setToastMsg] = useState("");
@@ -28,6 +29,7 @@ export default function SettingsScreen() {
         setMemoryEnabled(Boolean(d.user.memoryEnabled));
         setHistoryEnabled(Boolean(d.user.historyEnabled));
         setRemindersEnabled(Boolean(d.user.remindersEnabled));
+        setHealthEnabled(Boolean(d.user.healthEnabled));
         setChips(Array.isArray(d.memories) ? d.memories : []);
       })
       .catch(() => {})
@@ -67,6 +69,26 @@ export default function SettingsScreen() {
   function onReminders(v: boolean) {
     setRemindersEnabled(v);
     saveFlag({ remindersEnabled: v });
+  }
+
+  // Медданные — особая категория: своё согласие и своё удаление.
+  function onHealth(v: boolean) {
+    setHealthEnabled(v);
+    fetch("/api/health/consent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(v ? { confirm: true } : { enabled: false }),
+    }).catch(() => {});
+    toast(v ? "Ася снова собирает историю здоровья 🤍" : "Новые медицинские документы не собираются");
+  }
+
+  async function wipeHealth() {
+    await fetch("/api/health/data", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {});
+    toast("Готово 🤍 Все медицинские данные удалены");
   }
 
   function removeChip(id: string) {
@@ -169,6 +191,41 @@ export default function SettingsScreen() {
             </div>
             <span className="rico">↓</span>
           </a>
+        </div>
+
+        <div className="sec">Здоровье</div>
+        <div className="scard">
+          <div className="srow">
+            <div className="ti">
+              <b>Собирать историю здоровья</b>
+              <span>Анализы и заключения — особая категория данных, поэтому согласие отдельное</span>
+            </div>
+            <label className="switch">
+              <input type="checkbox" checked={healthEnabled} onChange={(e) => onHealth(e.target.checked)} />
+              <span className="sl" />
+            </label>
+          </div>
+          <a className="srow tap" href="/account/health" style={{ textDecoration: "none" }}>
+            <div className="ti">
+              <b>Мои документы и показатели</b>
+              <span>История анализов, динамика и напоминания</span>
+            </div>
+            <span className="rico">›</span>
+          </a>
+          <div
+            className="drow"
+            onClick={() =>
+              confirm({
+                title: "Удалить медицинские данные?",
+                text: "Все документы, показатели и напоминания о здоровье будут удалены навсегда. Остальная переписка и память останутся.",
+                btn: "Удалить медданные",
+                action: wipeHealth,
+              })
+            }
+          >
+            <div className="di">🩺</div>
+            <div className="dt"><b>Удалить все медицинские данные</b><span>Отдельно от остального — в один клик</span></div>
+          </div>
         </div>
 
         <div className="sec">Удаление</div>

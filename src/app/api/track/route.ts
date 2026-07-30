@@ -22,6 +22,9 @@ const ALLOWED = new Set([
   "booking_service_picked",
   "booking_created",
   "bookings_checked",
+  "health_open",
+  "health_consent",
+  "health_doc_added",
 ]);
 
 type EventDb = {

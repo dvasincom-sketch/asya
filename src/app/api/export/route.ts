@@ -8,9 +8,18 @@ export async function GET() {
   const u = await getCurrentUser().catch(() => null);
   if (!u) return Response.json({ error: "auth" }, { status: 401 });
 
-  const [messages, memories] = await Promise.all([
+  type HDoc = { title: string; kind: string; docDate: Date | null; lab: string | null; summary: string | null; createdAt: Date };
+  type HMark = { name: string; code: string; value: number | null; valueText: string | null; unit: string | null; refText: string | null; flag: string | null; takenAt: Date | null };
+  const hdb = prisma as unknown as {
+    healthDoc: { findMany: (a: unknown) => Promise<HDoc[]> };
+    healthMarker: { findMany: (a: unknown) => Promise<HMark[]> };
+  };
+
+  const [messages, memories, healthDocs, healthMarkers] = await Promise.all([
     prisma.message.findMany({ where: { userId: u.id }, orderBy: { createdAt: "asc" } }).catch(() => []),
     prisma.memory.findMany({ where: { userId: u.id }, orderBy: { createdAt: "asc" } }).catch(() => []),
+    hdb.healthDoc.findMany({ where: { userId: u.id }, orderBy: { createdAt: "asc" } }).catch(() => [] as HDoc[]),
+    hdb.healthMarker.findMany({ where: { userId: u.id }, orderBy: { takenAt: "asc" } }).catch(() => [] as HMark[]),
   ]);
 
   const payload = {
@@ -30,6 +39,15 @@ export async function GET() {
       content: m.content,
       createdAt: m.createdAt,
     })),
+    health: {
+      documents: healthDocs.map((d) => ({
+        title: d.title, kind: d.kind, docDate: d.docDate, lab: d.lab, summary: d.summary, createdAt: d.createdAt,
+      })),
+      markers: healthMarkers.map((m) => ({
+        name: m.name, code: m.code, value: m.value, valueText: m.valueText,
+        unit: m.unit, reference: m.refText, flag: m.flag, takenAt: m.takenAt,
+      })),
+    },
   };
 
   return new Response(JSON.stringify(payload, null, 2), {

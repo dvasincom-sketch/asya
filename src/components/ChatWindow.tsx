@@ -6,6 +6,7 @@ import { CrisisCard } from "./CrisisCard";
 import type { Contact } from "@/lib/crisis";
 import { initTelegramMiniApp } from "@/lib/telegramWebApp";
 import { track } from "@/lib/track";
+import MenuSheet from "./MenuSheet";
 import BookingCard from "./BookingCard";
 import MyBookingsCard from "./MyBookingsCard";
 import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
@@ -38,6 +39,7 @@ export default function ChatWindow() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [count, setCount] = useState(0);
   const [gated, setGated] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [salonName, setSalonName] = useState("");
   const salonReady = salonName !== "";
   const chatRef = useRef<HTMLDivElement>(null);
@@ -108,11 +110,6 @@ export default function ChatWindow() {
       cancelled = true;
     };
   }, []);
-
-  function toggleTheme() {
-    const el = document.documentElement;
-    el.dataset.theme = el.dataset.theme === "day" ? "dusk" : "day";
-  }
 
   function updateLastAssistant(content: string) {
     setMessages((prev) => {
@@ -260,8 +257,15 @@ export default function ChatWindow() {
           <h1>Ася</h1>
           <div className="status"><span className="dotlive" /> онлайн</div>
         </div>
-        <a className="theme-btn" href="/account/settings" title="настройки" style={{ marginLeft: "auto", textDecoration: "none" }}>⚙</a>
-        <button className="theme-btn" onClick={toggleTheme} title="день / вечер" style={{ marginLeft: 8 }}>◐</button>
+        <button
+          className="theme-btn burger"
+          onClick={() => setMenuOpen(true)}
+          title="меню"
+          aria-label="меню"
+          style={{ marginLeft: "auto" }}
+        >
+          <i /><i /><i />
+        </button>
       </header>
 
       <div className="chat" ref={chatRef}>
@@ -335,6 +339,8 @@ export default function ChatWindow() {
           </button>
         </div>
       )}
+
+      <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   );
 }

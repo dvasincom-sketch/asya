@@ -534,3 +534,86 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .bc-err a { color: var(--accent); }
 .bcard .auth-input { font-size: 16px; }
 .bcard .btn-primary, .bcard .btn-ghost { margin-top: 2px; }
+
+/* --- здоровье --- */
+.hrow { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.hrow:last-child { border-bottom: none; }
+.hrow .hic { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 11px; display: flex; align-items: center;
+  justify-content: center; background: var(--glass); border: 1px solid var(--line); font-size: 16px; }
+.hrow div { display: flex; flex-direction: column; gap: 3px; }
+.hrow b { font-size: 14px; color: var(--text); }
+.hrow span { font-size: 12.5px; color: var(--text-soft); line-height: 1.5; }
+
+.hmark { width: 100%; text-align: left; font-family: inherit; cursor: pointer; color: var(--text);
+  background: var(--glass); border: 1px solid var(--line); border-radius: 16px; padding: 13px 15px;
+  display: flex; flex-direction: column; gap: 5px; transition: 0.2s; }
+.hmark:hover { border-color: var(--accent); transform: translateY(-1px); }
+.hm-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hm-top b { font-size: 14.5px; }
+.hm-badge { font-size: 11px; padding: 3px 8px; border-radius: 9px; white-space: nowrap;
+  background: var(--crisis); border: 1px solid var(--crisis-border); color: var(--text); }
+.hm-delta { font-size: 12px; padding: 3px 8px; border-radius: 9px; background: var(--glass);
+  border: 1px solid var(--line); color: var(--text-soft); white-space: nowrap; }
+.hm-val { font-size: 15px; font-weight: 600; color: var(--text); }
+.hm-val em { font-style: normal; font-weight: 400; font-size: 12.5px; color: var(--text-soft); }
+.hm-date { font-size: 11.5px; color: var(--text-dim); }
+.off-val { color: var(--text); }
+
+.hrem { display: flex; align-items: center; gap: 12px; background: var(--glass); border: 1px solid var(--line);
+  border-radius: 16px; padding: 13px 15px; }
+.hrem div { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.hrem b { font-size: 14px; color: var(--text); }
+.hrem span { font-size: 12px; color: var(--text-soft); }
+.hrem button { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 11px; cursor: pointer;
+  background: var(--glass); border: 1px solid var(--line); color: var(--text-soft); font-size: 15px; transition: 0.2s; }
+.hrem button:hover { border-color: var(--accent); color: var(--text); }
+
+.hupload { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.hupload-note { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+.hupload-ok { font-size: 13px; color: var(--text); background: var(--glass); border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px 12px; }
+
+.hchart { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.spark { width: 100%; height: auto; display: block; }
+.spark-band { fill: var(--accent); opacity: 0.1; }
+.spark-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.spark-dot { fill: var(--accent); }
+.spark-dot.off { fill: var(--bubble-u1); }
+.hchart-foot { font-size: 12px; color: var(--text-soft); }
+
+.hdoc { display: flex; gap: 10px; align-items: flex-start; background: var(--glass); border: 1px solid var(--line);
+  border-radius: 16px; padding: 13px 15px; }
+.hdoc-body { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.hdoc-body b { font-size: 14px; color: var(--text); }
+.hdoc-body span { font-size: 12px; color: var(--text-soft); }
+.hdoc-body em { font-style: normal; font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-top: 3px; }
+.hdoc-del { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 10px; cursor: pointer; background: none;
+  border: 1px solid var(--line); color: var(--text-dim); font-size: 13px; transition: 0.2s; }
+.hdoc-del:hover { border-color: var(--crisis-border); color: var(--text); }
+
+.hchip { cursor: pointer; font-family: inherit; transition: 0.2s; }
+.hchip:hover { border-color: var(--accent); }
+.hchip em { font-style: normal; color: var(--text-dim); }
+.hnote { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin: 18px 4px 8px; }
+.hnote a { color: var(--accent); }
+
+/* --- меню в шапке чата --- */
+.theme-btn.burger { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.theme-btn.burger i { display: block; width: 16px; height: 1.6px; border-radius: 2px; background: var(--text-soft);
+  transition: background 0.2s ease, transform 0.2s ease; }
+.theme-btn.burger:hover i { background: var(--text); }
+.theme-btn.burger:hover i:first-child { transform: translateY(-1px); }
+.theme-btn.burger:hover i:last-child { transform: translateY(1px); }
+
+.menu-sheet { text-align: left; }
+.menu-grip { width: 38px; height: 4px; border-radius: 3px; background: var(--line); margin: 0 auto 16px; }
+.menu-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 13px 14px; margin-bottom: 8px;
+  background: var(--glass); border: 1px solid var(--line); border-radius: 16px; cursor: pointer;
+  font-family: inherit; text-align: left; text-decoration: none; color: var(--text); transition: 0.2s; }
+.menu-item:hover { border-color: var(--accent); transform: translateY(-1px); }
+.menu-item .mi-ic { width: 36px; height: 36px; flex: 0 0 auto; border-radius: 12px; display: flex;
+  align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--line); font-size: 17px; }
+.menu-item .mi-body { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.menu-item .mi-body b { font-size: 14px; font-weight: 600; }
+.menu-item .mi-body span { font-size: 12px; color: var(--text-soft); line-height: 1.4; }
+.menu-item .mi-go { color: var(--text-dim); font-size: 18px; }

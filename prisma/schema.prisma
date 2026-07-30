@@ -23,9 +23,16 @@ model User {
   remindersEnabled Boolean  @default(true)
   portrait         String?
   portraitAt       DateTime?
+  // Медданные — особая категория ПД: отдельное согласие и отдельное отключение.
+  healthEnabled    Boolean  @default(false)
+  healthConsentAt  DateTime?
+  healthConsentVer String?
 
   messages     Message[]
   memories     Memory[]
+  healthDocs   HealthDoc[]
+  healthMarkers HealthMarker[]
+  healthReminders HealthReminder[]
   consents     Consent[]
   subscription Subscription?
   crisisEvents CrisisEvent[]
@@ -111,6 +118,66 @@ model CrisisEvent {
   level     String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// --- Здоровье ---
+// Документ: анализ, заключение врача, исследование. Сам файл не храним —
+// только извлечённый текст и разобранные показатели.
+model HealthDoc {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String   @default("lab") // lab | conclusion | imaging | other
+  title     String
+  docDate   DateTime? // дата документа (когда сдан анализ)
+  lab       String? // лаборатория или клиника
+  fileName  String?
+  textRaw   String? // извлечённый текст — источник правды для показателей
+  summary   String? // о чём документ, простыми словами (из модели, по фактам)
+  status    String   @default("parsed") // parsed | failed
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  markers   HealthMarker[]
+
+  @@index([userId, docDate])
+}
+
+// Один показатель из документа. Всё, что здесь есть, напечатано в документе.
+model HealthMarker {
+  id        String   @id @default(cuid())
+  userId    String
+  docId     String
+  code      String // нормализованный ключ, чтобы сравнивать между документами
+  name      String // как назван в документе
+  value     Float?
+  valueText String? // если значение не число («отрицательно», «следы»)
+  unit      String?
+  refLow    Float?
+  refHigh   Float?
+  refText   String? // референс как напечатан
+  flag      String? // norm | low | high — только если следует из документа
+  takenAt   DateTime?
+  createdAt DateTime @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doc       HealthDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@index([userId, code, takenAt])
+  @@index([docId])
+}
+
+// Напоминание о повторном обследовании. Создаётся только из текста документа
+// или вручную — Ася не назначает обследования сама.
+model HealthReminder {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  dueAt     DateTime
+  source    String? // откуда: "документ" или "вручную"
+  note      String?
+  doneAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dueAt])
 }
 
 // События воронки: чтобы видеть, сколько людей дошло до первого сообщения и вернулось.

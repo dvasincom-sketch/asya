@@ -18,6 +18,7 @@ export async function GET() {
       memoryEnabled: u.memoryEnabled,
       historyEnabled: u.historyEnabled,
       remindersEnabled: u.remindersEnabled,
+      healthEnabled: Boolean((u as unknown as { healthEnabled?: boolean }).healthEnabled),
     },
     memories: memories.map((m: { id: string; fact: string }) => ({ id: m.id, fact: m.fact })),
   });
