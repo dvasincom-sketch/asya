@@ -18,6 +18,9 @@ const ALLOWED = new Set([
   "miniapp_open",
   "gate_shown",
   "paywall_view",
+  "booking_card_shown",
+  "booking_service_picked",
+  "booking_created",
 ]);
 
 type EventDb = {

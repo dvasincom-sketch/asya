@@ -6,11 +6,14 @@ import { CrisisCard } from "./CrisisCard";
 import type { Contact } from "@/lib/crisis";
 import { initTelegramMiniApp } from "@/lib/telegramWebApp";
 import { track } from "@/lib/track";
+import BookingCard from "./BookingCard";
+import { wantsBooking } from "@/lib/bookingIntent";
 
 type Msg =
   | { role: "user"; kind: "text"; content: string }
   | { role: "assistant"; kind: "text"; content: string }
-  | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] };
+  | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] }
+  | { role: "assistant"; kind: "booking"; content: string };
 
 // Первый контакт: как обращаться (для правильного рода).
 const FIRST_CHIPS = [
@@ -33,6 +36,8 @@ export default function ChatWindow() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [count, setCount] = useState(0);
   const [gated, setGated] = useState(false);
+  const [salonName, setSalonName] = useState("");
+  const salonReady = salonName !== "";
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +60,11 @@ export default function ChatWindow() {
     let cancelled = false;
     (async () => {
       track("chat_open", undefined, true);
+      // Узнаём, доступна ли запись в салон (и как он называется).
+      fetch("/api/salon?action=info")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d?.salon) setSalonName(d.salon); })
+        .catch(() => {});
       // Если открыто как Telegram Mini App — авторизуемся по Telegram до /api/me.
       const inTg = await initTelegramMiniApp();
       if (inTg) track("miniapp_open", undefined, true);
@@ -113,6 +123,15 @@ export default function ChatWindow() {
     });
   }
 
+  // Показываем карточку записи после ответа Асей — но не две подряд.
+  function offerBooking() {
+    setMessages((m) => {
+      const last = m[m.length - 1];
+      if (last && last.kind === "booking") return m;
+      return [...m, { role: "assistant", kind: "booking", content: "" }];
+    });
+  }
+
   function bumpCount() {
     const next = count + 1;
     setCount(next);
@@ -134,6 +153,7 @@ export default function ChatWindow() {
     setInput("");
     setBusy(true);
 
+    const askedBooking = salonReady && wantsBooking(text);
     const userMsg: Msg = { role: "user", kind: "text", content: text };
     if (messages.length === 0) track("first_message");
     track("message_sent");
@@ -167,6 +187,7 @@ export default function ChatWindow() {
           else setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "На сегодня достаточно 🤍" }]);
         } else {
           setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "…" }]);
+          if (askedBooking) offerBooking();
         }
         return;
       }
@@ -208,6 +229,7 @@ export default function ChatWindow() {
         }
       }
       if (!full) updateLastAssistant("…");
+      if (askedBooking) offerBooking();
     } catch {
       setTyping(false);
       setMessages((m) => [...m, { role: "assistant", kind: "text", content: "Кажется, я не смогла ответить. Попробуй ещё раз чуть позже 🤍" }]);
@@ -244,7 +266,12 @@ export default function ChatWindow() {
         )}
 
         {messages.map((m, i) =>
-          m.kind === "crisis" ? (
+          m.kind === "booking" ? (
+            <div className="row assistant" key={i}>
+              <Orb className="mini-orb" />
+              <BookingCard salonName={salonName} />
+            </div>
+          ) : m.kind === "crisis" ? (
             <div className="row assistant" key={i}>
               <Orb className="mini-orb" />
               <CrisisCard text={m.content} contacts={m.contacts} />
