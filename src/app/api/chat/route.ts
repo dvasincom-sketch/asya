@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { usageKey, checkAndCount, ANON_LIMIT, USER_LIMIT } from "@/lib/ratelimit";
 import { rememberFrom } from "@/lib/memory";
+import { asksAboutServices, buildProgramsContext } from "@/lib/salonKnowledge";
+import { SALON } from "@/lib/salon";
 
 export const runtime = "nodejs";
 
@@ -72,6 +74,11 @@ export async function POST(req: NextRequest) {
         "\n\nЧто ты уже знаешь об этом человеке (помни это и обращайся бережно, не перечисляй списком): " +
         mems.map((m: { fact: string }) => m.fact).join("; ");
     }
+  }
+
+  // Спросили про программы салона — подмешиваем справку, чтобы Ася не выдумывала.
+  if (SALON.enabled && lastUser && asksAboutServices(String(lastUser.content))) {
+    systemExtra += buildProgramsContext();
   }
 
   try {
