@@ -9,8 +9,17 @@ import {
   getStaff,
   getNearestSlot,
   createBooking,
+  getActiveBookings,
   type CreateBooking,
 } from "@/lib/salon";
+
+// Сравниваем телефоны по цифрам: в базах они лежат в разном формате.
+function digits(p: string): string {
+  let d = (p || "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("8")) d = "7" + d.slice(1);
+  if (d.length === 10) d = "7" + d;
+  return d;
+}
 
 export const runtime = "nodejs";
 
@@ -46,6 +55,21 @@ export async function GET(req: NextRequest) {
         });
       case "nearest":
         return Response.json(await getNearestSlot(Number(p.get("duration") || 3600), Number(p.get("service_id") || 0)));
+      case "bookings": {
+        // Записи — персональные данные. Отдаём только на номер, подтверждённый входом по SMS.
+        const user = await getCurrentUser().catch(() => null);
+        if (!user) return Response.json({ needAuth: true, items: [] });
+        if (!user.phone) return Response.json({ needPhone: true, items: [] });
+
+        const asked = p.get("phone");
+        if (asked && digits(asked) !== digits(user.phone)) {
+          // Спросили про чужой номер — не раскрываем и мягко объясняем почему.
+          return Response.json({ otherPhone: true, items: [] });
+        }
+
+        const items = await getActiveBookings(user.phone);
+        return Response.json({ items, phone: user.phone });
+      }
       default:
         return Response.json({ error: "bad_action" }, { status: 400 });
     }

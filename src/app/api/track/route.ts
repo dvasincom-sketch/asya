@@ -21,6 +21,7 @@ const ALLOWED = new Set([
   "booking_card_shown",
   "booking_service_picked",
   "booking_created",
+  "bookings_checked",
 ]);
 
 type EventDb = {

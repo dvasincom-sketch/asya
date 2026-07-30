@@ -71,6 +71,30 @@ export type CreateBooking = {
   client_email?: string;
 };
 
+export type ActiveBooking = {
+  id: number;
+  service_title: string;
+  datetime: string;
+  duration?: number;
+  master_name?: string;
+  total_price?: number;
+  status?: string;
+  client_name?: string;
+};
+
+// Активные записи по телефону. Это персональные данные — эндпоинт закрыт внутренним ключом,
+// и вызывать его можно только для номера, подтверждённого входом по SMS.
+export async function getActiveBookings(phone: string): Promise<ActiveBooking[]> {
+  const key = process.env.SALON_INTERNAL_KEY;
+  if (!key) throw new Error("no_internal_key");
+  const d = await req<{ count: number; items: ActiveBooking[] }>(
+    `/active?phone=${encodeURIComponent(phone)}`,
+    { headers: { "X-Internal-Key": key } },
+    30000,
+  );
+  return d.items || [];
+}
+
 export function createBooking(
   data: CreateBooking,
 ): Promise<{ booking_id: number; payment_url: string; confirmation_token: string | null }> {
