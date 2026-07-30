@@ -142,7 +142,7 @@ export default function HealthScreen() {
       const r = await fetch("/api/health/upload", { method: "POST", body: fd });
       const d = await r.json();
       if (!r.ok) {
-        setUploadErr(d.text || "Не получилось разобрать документ.");
+        setUploadErr((d.text || "Не получилось разобрать документ.") + (d.detail ? ` (${d.detail})` : ""));
         return;
       }
       track("health_doc_added");

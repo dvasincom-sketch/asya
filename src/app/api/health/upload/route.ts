@@ -54,8 +54,12 @@ export async function POST(req: NextRequest) {
     const res = await extractPdfText(buf);
     text = res.text;
   } catch (e) {
+    const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     console.error("[health/upload] не удалось прочитать PDF:", e);
-    return Response.json({ error: "pdf_failed", text: "Не получилось прочитать этот PDF." }, { status: 422 });
+    return Response.json(
+      { error: "pdf_failed", text: "Не получилось прочитать этот PDF.", detail: detail.slice(0, 300) },
+      { status: 422 },
+    );
   }
 
   if (text.length < MIN_TEXT) {
