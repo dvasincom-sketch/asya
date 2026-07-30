@@ -6,6 +6,7 @@ import { CrisisCard } from "./CrisisCard";
 import type { Contact } from "@/lib/crisis";
 import { initTelegramMiniApp } from "@/lib/telegramWebApp";
 import { track } from "@/lib/track";
+import { clean } from "@/lib/text";
 import MenuSheet from "./MenuSheet";
 import BookingCard from "./BookingCard";
 import MyBookingsCard from "./MyBookingsCard";
@@ -302,7 +303,7 @@ export default function ChatWindow() {
           ) : (
             <div className={`row ${m.role}`} key={i}>
               {m.role === "assistant" && <Orb className="mini-orb" />}
-              <div className="bubble">{m.content}</div>
+              <div className="bubble">{m.role === "assistant" ? clean(m.content) : m.content}</div>
             </div>
           ),
         )}

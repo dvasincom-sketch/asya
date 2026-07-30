@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Orb } from "./Orb";
+import { clean, trim } from "@/lib/text";
 
 type Theme = { name: string; icon: string; line: string; count: number; updatedAt: string; big?: boolean };
 type SavedItem = { id: string; title: string; icon: string; synthType: "points" | "canvas"; summary: string; date: string };
@@ -31,9 +32,9 @@ function parseSummary(raw: string): { points: string[]; pairs: [string, string][
     const p: unknown = JSON.parse(raw);
     if (!Array.isArray(p)) return { points: [], pairs: [] };
     if (p.length && Array.isArray(p[0])) {
-      return { points: [], pairs: p.map((x) => [String((x as unknown[])[0]), String((x as unknown[])[1])]) };
+      return { points: [], pairs: p.map((x) => [clean(String((x as unknown[])[0])), clean(String((x as unknown[])[1]))]) };
     }
-    return { points: p.map((x) => String(x)), pairs: [] };
+    return { points: p.map((x) => clean(String(x))), pairs: [] };
   } catch {
     return { points: [], pairs: [] };
   }
@@ -109,14 +110,14 @@ export default function MemoryScreen() {
           {detail.summary && (
             <>
               <div className="sec">Что я понимаю</div>
-              <div className="d-summary">{detail.summary}</div>
+              <div className="d-summary">{trim(detail.summary, 600)}</div>
             </>
           )}
 
           {detail.insights.length > 0 && (
             <>
               <div className="sec" style={{ marginTop: detail.summary ? 24 : 0 }}>Что я помню</div>
-              {detail.insights.map((i, idx) => (<div className="insight" key={idx}><span>{i}</span></div>))}
+              {detail.insights.map((i, idx) => (<div className="insight" key={idx}><span>{clean(i)}</span></div>))}
             </>
           )}
 
@@ -134,7 +135,7 @@ export default function MemoryScreen() {
                 {detail.moments.map((m, i) => (
                   <div className="moment" key={i}>
                     <div className="m-date">{ago(m.date)}</div>
-                    <div className="m-text">{m.text}</div>
+                    <div className="m-text">{clean(m.text)}</div>
                   </div>
                 ))}
               </div>
@@ -172,7 +173,7 @@ export default function MemoryScreen() {
                 <p>
                   {loading
                     ? "Собираю…"
-                    : portrait ||
+                    : trim(portrait, 500) ||
                       "Мы ещё только знакомимся — поговори со мной, и здесь появится то, что я о тебе понимаю 🤍"}
                 </p>
               </div>

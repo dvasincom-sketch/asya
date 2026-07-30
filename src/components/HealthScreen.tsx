@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
 import { track } from "@/lib/track";
+import { clean, trim } from "@/lib/text";
 
 type Attention = { code: string; name: string; value: number | null; valueText: string | null; unit: string | null; refText: string | null; flag: string | null; takenAt: string | null };
 type Change = { code: string; name: string; unit: string | null; prev: number; prevAt: string | null; last: number; lastAt: string | null; deltaPct: number; direction: "up" | "down"; wasFlag: string | null; nowFlag: string | null };
@@ -97,6 +98,13 @@ export default function HealthScreen() {
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploadErr, setUploadErr] = useState("");
   const [marker, setMarker] = useState<MarkerHistory | null>(null);
+  // Главный экран должен отвечать на три вопроса сразу, а не быть длинной портянкой:
+  // показываем главное, остальное — по запросу.
+  const [allAtt, setAllAtt] = useState(false);
+  const [allCh, setAllCh] = useState(false);
+  const [allDocs, setAllDocs] = useState(false);
+  const [allChips, setAllChips] = useState(false);
+  const [allNx, setAllNx] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -331,7 +339,7 @@ export default function HealthScreen() {
             {/* Что сейчас важно */}
             <div className="sec">Что сейчас важно</div>
             {att.length ? (
-              att.map((a) => (
+              (allAtt ? att : att.slice(0, 3)).map((a) => (
                 <button className="hmark" key={a.code} onClick={() => openMarker(a.code)}>
                   <div className="hm-top">
                     <b>{a.name}</b>
@@ -347,11 +355,16 @@ export default function HealthScreen() {
             ) : (
               <div className="d-summary">По последним результатам всё в пределах норм, указанных лабораторией.</div>
             )}
+            {att.length > 3 && (
+              <button className="hmore" onClick={() => setAllAtt(!allAtt)}>
+                {allAtt ? "Свернуть" : `Ещё ${att.length - 3}`}
+              </button>
+            )}
 
             {/* Что изменилось */}
             <div className="sec">Что изменилось с прошлого раза</div>
             {ch.length ? (
-              ch.map((c) => (
+              (allCh ? ch : ch.slice(0, 3)).map((c) => (
                 <button className="hmark" key={c.code} onClick={() => openMarker(c.code)}>
                   <div className="hm-top">
                     <b>{c.name}</b>
@@ -372,19 +385,24 @@ export default function HealthScreen() {
             ) : (
               <div className="d-summary">Заметных изменений нет — либо пока не с чем сравнивать.</div>
             )}
+            {ch.length > 3 && (
+              <button className="hmore" onClick={() => setAllCh(!allCh)}>
+                {allCh ? "Свернуть" : `Ещё ${ch.length - 3}`}
+              </button>
+            )}
 
             {/* Объяснение простым языком */}
             {data.plain && (
               <>
                 <div className="sec">Простыми словами</div>
-                <div className="d-summary">{data.plain}</div>
+                <div className="d-summary">{trim(data.plain, 700)}</div>
               </>
             )}
 
             {/* Что дальше */}
             <div className="sec">Что дальше</div>
             {nx.length ? (
-              nx.map((n) => (
+              (allNx ? nx : nx.slice(0, 3)).map((n) => (
                 <div className="hrem" key={n.id}>
                   <div>
                     <b>{n.title}</b>
@@ -398,6 +416,11 @@ export default function HealthScreen() {
                 Напоминаний нет. Я добавляю их, только если о повторе написано в самом документе — своих обследований не
                 назначаю.
               </div>
+            )}
+            {nx.length > 3 && (
+              <button className="hmore" onClick={() => setAllNx(!allNx)}>
+                {allNx ? "Свернуть" : `Ещё ${nx.length - 3}`}
+              </button>
             )}
           </>
         )}
@@ -431,12 +454,17 @@ export default function HealthScreen() {
           <>
             <div className="sec">Показатели <small>нажми, чтобы посмотреть динамику</small></div>
             <div className="chips">
-              {data.trackedCodes.map((t) => (
+              {(allChips ? data.trackedCodes : data.trackedCodes.slice(0, 8)).map((t) => (
                 <button className="chip hchip" key={t.code} onClick={() => openMarker(t.code)}>
                   {t.name}
                   {t.points > 1 ? <em> · {t.points}</em> : null}
                 </button>
               ))}
+              {data.trackedCodes.length > 8 && (
+                <button className="chip hchip" onClick={() => setAllChips(!allChips)}>
+                  {allChips ? "Свернуть" : `Все ${data.trackedCodes.length}`}
+                </button>
+              )}
             </div>
           </>
         )}
@@ -444,17 +472,22 @@ export default function HealthScreen() {
         {/* Документы */}
         {!!data?.docs?.length && (
           <>
-            <div className="sec">Документы</div>
-            {data.docs.map((d) => (
+            <div className="sec">Документы <small>{data.docsCount} всего</small></div>
+            {(allDocs ? data.docs : data.docs.slice(0, 3)).map((d) => (
               <div className="hdoc" key={d.id}>
                 <div className="hdoc-body">
                   <b>{d.title}</b>
                   <span>{dateRu(d.docDate)}{d.lab ? ` · ${d.lab}` : ""}</span>
-                  {d.summary ? <em>{d.summary}</em> : null}
+                  {d.summary ? <em>{trim(d.summary, 220)}</em> : null}
                 </div>
                 <button className="hdoc-del" onClick={() => removeDoc(d.id)} title="удалить документ">✕</button>
               </div>
             ))}
+            {data.docs.length > 3 && (
+              <button className="hmore" onClick={() => setAllDocs(!allDocs)}>
+                {allDocs ? "Свернуть" : `Все документы (${data.docs.length})`}
+              </button>
+            )}
           </>
         )}
 

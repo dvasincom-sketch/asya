@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
 import { track } from "@/lib/track";
+import { clean } from "@/lib/text";
 
 type Tpl = { id: string; title: string; icon: string; group: "self" | "goal"; blurb: string; badge?: string; steps: number };
 type Saved = {
@@ -23,9 +24,9 @@ function parseSummary(raw: string): { points: string[]; pairs: [string, string][
     const p: unknown = JSON.parse(raw);
     if (!Array.isArray(p)) return { points: [], pairs: [] };
     if (p.length && Array.isArray(p[0])) {
-      return { points: [], pairs: p.map((x) => [String((x as unknown[])[0]), String((x as unknown[])[1])]) };
+      return { points: [], pairs: p.map((x) => [clean(String((x as unknown[])[0])), clean(String((x as unknown[])[1]))]) };
     }
-    return { points: p.map((x) => String(x)), pairs: [] };
+    return { points: p.map((x) => clean(String(x))), pairs: [] };
   } catch {
     return { points: [], pairs: [] };
   }
@@ -296,7 +297,7 @@ export default function SessionsScreen() {
         {turns.map((m, i) => (
           <div className={`row ${m.role}`} key={i}>
             {m.role === "assistant" && <Orb className="mini-orb" />}
-            <div className="bubble">{m.content}</div>
+            <div className="bubble">{m.role === "assistant" ? clean(m.content) : m.content}</div>
           </div>
         ))}
 
