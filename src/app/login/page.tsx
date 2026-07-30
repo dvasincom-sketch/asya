@@ -2,6 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Orb } from "@/components/Orb";
+import { track } from "@/lib/track";
+
+// Куда вести после входа: если согласие ещё не дано (или вышла новая редакция) — в онбординг.
+async function afterLogin(): Promise<void> {
+  track("login_done");
+  try {
+    const c = await fetch("/api/consent").then((r) => r.json());
+    window.location.href = c?.needsConsent ? "/onboarding" : "/account";
+  } catch {
+    window.location.href = "/account";
+  }
+}
 
 // Маска российского номера: показываем +7 900 000-00-00.
 function formatRuPhone(raw: string): string {
@@ -30,13 +42,14 @@ export default function LoginPage() {
   const codeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    track("login_view", undefined, true);
     (window as unknown as { onTelegramAuth?: (u: unknown) => void }).onTelegramAuth = async (user) => {
       const r = await fetch("/api/auth/telegram", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(user),
       });
-      if (r.ok) window.location.href = "/account";
+      if (r.ok) await afterLogin();
       else setError("Не получилось войти через Telegram. Попробуй ещё раз.");
     };
     const username = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
@@ -100,7 +113,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, code }),
       });
-      if (r.ok) window.location.href = "/account";
+      if (r.ok) await afterLogin();
       else {
         const d = await r.json().catch(() => ({}));
         setError(d.text || "Код неверный или истёк. Попробуй ещё раз.");

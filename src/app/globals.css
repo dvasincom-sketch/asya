@@ -475,3 +475,24 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   .bento .btile, .bento .btile.big, .bento .btile.wide { grid-column: auto; min-height: 0; }
   .btile.big h3 { font-size: 23px; }
 }
+
+/* --- юридические страницы --- */
+.legal { padding-bottom: 40px; }
+.legal .legal-lead { font-size: 15.5px; line-height: 1.6; color: var(--text); background: var(--glass);
+  border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; margin: 4px 0 12px; }
+.legal .legal-meta { font-size: 12.5px; color: var(--text-soft); margin: 0 0 18px; }
+.legal h2 { font-size: 15px; margin: 22px 0 8px; color: var(--text); }
+.legal p { font-size: 14.5px; line-height: 1.65; color: var(--text-soft); margin: 0 0 10px; }
+.legal a { color: var(--accent); }
+.legal .legal-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
+
+/* --- сводка (админ) --- */
+.stat-tabs { display: flex; gap: 8px; margin: 4px 0 18px; }
+.opt-tab { flex: 1; padding: 10px 8px; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--glass); color: var(--text-soft); font-size: 13.5px; cursor: pointer; transition: 0.2s; }
+.opt-tab:hover { border-color: var(--accent); color: var(--text); }
+.opt-tab.on { background: var(--accent); color: #fff; border-color: transparent; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--glass); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.stat b { display: block; font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.15; }
+.stat span { display: block; font-size: 12.5px; color: var(--text-soft); margin-top: 4px; }

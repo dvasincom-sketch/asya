@@ -1,4 +1,5 @@
 import { Orb } from "@/components/Orb";
+import { LandingTracker } from "@/components/LandingTracker";
 
 const STARTERS = [
   { label: "Мне тревожно", msg: "Мне тревожно" },
@@ -81,8 +82,9 @@ export default function Home() {
           Если тебе по-настоящему тяжело, рядом всегда есть люди, готовые помочь.
         </p>
         <div className="landing-foot">
-          <a href="#">Политика конфиденциальности</a> · <a href="#">Оферта</a>
+          <a href="/privacy">Политика конфиденциальности</a> · <a href="/terms">Оферта</a>
         </div>
+        <LandingTracker />
       </section>
     </main>
   );

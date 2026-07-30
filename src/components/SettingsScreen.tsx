@@ -240,7 +240,7 @@ export default function SettingsScreen() {
 
         <div className="settings-foot">
           Ася — это поддержка и общение, не медицинская и не психологическая помощь.<br />
-          <a href="#">Политика конфиденциальности</a> · <a href="#">Оферта</a>
+          <a href="/privacy">Политика конфиденциальности</a> · <a href="/terms">Оферта</a>
         </div>
       </div>
 

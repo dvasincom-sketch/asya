@@ -5,6 +5,7 @@ import { Orb } from "./Orb";
 import { CrisisCard } from "./CrisisCard";
 import type { Contact } from "@/lib/crisis";
 import { initTelegramMiniApp } from "@/lib/telegramWebApp";
+import { track } from "@/lib/track";
 
 type Msg =
   | { role: "user"; kind: "text"; content: string }
@@ -53,8 +54,10 @@ export default function ChatWindow() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      track("chat_open", undefined, true);
       // Если открыто как Telegram Mini App — авторизуемся по Telegram до /api/me.
-      await initTelegramMiniApp();
+      const inTg = await initTelegramMiniApp();
+      if (inTg) track("miniapp_open", undefined, true);
       if (cancelled) return;
       try {
         const d = await fetch("/api/me").then((r) => r.json());
@@ -62,6 +65,13 @@ export default function ChatWindow() {
         const isAuthed = Boolean(d.user);
         setAuthed(isAuthed);
         if (isAuthed) {
+          // Согласие на условия обязательно до сохранения переписки.
+          const c = await fetch("/api/consent").then((r) => r.json()).catch(() => null);
+          if (c?.needsConsent) {
+            window.location.href = "/onboarding";
+            return;
+          }
+          if (cancelled) return;
           const h = await fetch("/api/history").then((r) => r.json());
           if (cancelled) return;
           const rows: { role: string; content: string }[] = Array.isArray(h.messages) ? h.messages : [];
@@ -125,6 +135,8 @@ export default function ChatWindow() {
     setBusy(true);
 
     const userMsg: Msg = { role: "user", kind: "text", content: text };
+    if (messages.length === 0) track("first_message");
+    track("message_sent");
     setMessages((m) => [...m, userMsg]);
     bumpCount();
 
@@ -148,7 +160,10 @@ export default function ChatWindow() {
           setMessages((m) => [...m, { role: "assistant", kind: "crisis", content: data.text, contacts: data.contacts || [] }]);
         } else if (resp.status === 429 && data.error === "limit") {
           // Дневной лимит исчерпан. Анониму — предлагаем войти (гейт), вошедшему — мягкое сообщение.
-          if (data.needAuth) setGated(true);
+          if (data.needAuth) {
+            track("gate_shown");
+            setGated(true);
+          }
           else setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "На сегодня достаточно 🤍" }]);
         } else {
           setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "…" }]);

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
+import { track } from "@/lib/track";
 
 type Tpl = { id: string; title: string; icon: string; group: "self" | "goal"; blurb: string; badge?: string; steps: number };
 type Saved = {
@@ -87,6 +88,7 @@ export default function SessionsScreen() {
     setError("");
     try {
       const d = await post({ action: "start", template: id });
+      track("session_start", id);
       setSessionId(d.sessionId);
       setMeta({ title: d.title, topic: d.topic, labels: d.labels, total: d.total });
       setTurns([{ role: "assistant", content: d.question }]);
@@ -141,6 +143,7 @@ export default function SessionsScreen() {
     setBusy(true);
     try {
       await post({ action: "save", sessionId });
+      track("session_saved");
       setSavedDone(true);
       load();
     } catch {

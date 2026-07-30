@@ -113,6 +113,20 @@ model CrisisEvent {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// События воронки: чтобы видеть, сколько людей дошло до первого сообщения и вернулось.
+// Персональных данных не храним — только имя события и обезличенный id посетителя.
+model Event {
+  id     String   @id @default(cuid())
+  name   String
+  anonId String?
+  userId String?
+  meta   String?
+  ts     DateTime @default(now())
+
+  @@index([name, ts])
+  @@index([anonId])
+}
+
 model OtpCode {
   id        String   @id @default(cuid())
   phone     String
