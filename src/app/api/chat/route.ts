@@ -8,6 +8,7 @@ import { rememberFrom } from "@/lib/memory";
 import { asksAboutServices, buildProgramsContext, asksLogistics, buildSalonInfoContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
+import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
 import { buildProfileContext } from "@/lib/profileForms";
 
 export const runtime = "nodejs";
@@ -120,6 +121,14 @@ export async function POST(req: NextRequest) {
   // Навык: подмешиваем грунтовку (метод, границы, справку), чтобы Ася держалась темы и не фантазировала.
   if (skill) systemExtra += buildSkillContext(skill);
 
+  // Таро: если человек просит расклад — тянем карты, подмешиваем их значения в промпт
+  // и вернём id клиенту заголовком, чтобы он нарисовал карты в нашем стиле.
+  let taroCards: string[] = [];
+  if (skill?.id === "taro" && lastUser && wantsDraw(String(lastUser.content))) {
+    taroCards = drawCards(drawCount(String(lastUser.content))).map((c) => c.id);
+    systemExtra += buildTaroContext(taroCards);
+  }
+
   try {
     // Модели отдаём только последнее окно переписки — контекст не пухнет с ростом истории.
     // Долгую память несёт отдельный механизм фактов (systemExtra выше).
@@ -180,13 +189,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
+    const headers: Record<string, string> = {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    };
+    if (taroCards.length) headers["X-Taro-Cards"] = taroCards.join(",");
+    return new Response(stream, { headers });
   } catch (e) {
     console.error("[api/chat] Не удалось выполнить запрос к модели:", e);
     return Response.json({ error: "server", text: "Что-то пошло не так на сервере." }, { status: 500 });

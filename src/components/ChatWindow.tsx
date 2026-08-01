@@ -12,13 +12,15 @@ import BookingCard from "./BookingCard";
 import MyBookingsCard from "./MyBookingsCard";
 import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
 import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
+import TaroCards from "./TaroCards";
 
 type Msg =
   | { role: "user"; kind: "text"; content: string; at?: string }
   | { role: "assistant"; kind: "text"; content: string; at?: string }
   | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] }
   | { role: "assistant"; kind: "booking"; content: string }
-  | { role: "assistant"; kind: "mybookings"; content: string };
+  | { role: "assistant"; kind: "mybookings"; content: string }
+  | { role: "assistant"; kind: "taro"; cards: string[] };
 
 // Первый контакт: как обращаться (для правильного рода).
 const FIRST_CHIPS = [
@@ -360,6 +362,11 @@ export default function ChatWindow() {
       }
 
       setTyping(false);
+      const taroHeader = resp.headers.get("X-Taro-Cards");
+      if (taroHeader) {
+        const ids = taroHeader.split(",").filter(Boolean);
+        if (ids.length) setMessages((m) => [...m, { role: "assistant", kind: "taro", cards: ids }]);
+      }
       setMessages((m) => [...m, { role: "assistant", kind: "text", content: "" }]);
       const reader = resp.body?.getReader();
       if (!reader) {
@@ -506,7 +513,12 @@ export default function ChatWindow() {
           // Дни показываем только когда человек полез в архив — обычная лента остаётся сплошной.
           const showDay = archiveOpen && m.kind === "text" && !!m.at && dayKeyOf(prevAt) !== dayKeyOf(m.at);
           const node =
-            m.kind === "mybookings" ? (
+            m.kind === "taro" ? (
+              <div className="row assistant">
+                <Orb className="mini-orb" />
+                <TaroCards cards={m.cards} />
+              </div>
+            ) : m.kind === "mybookings" ? (
               <div className="row assistant">
                 <Orb className="mini-orb" />
                 <MyBookingsCard salonName={salonName} />

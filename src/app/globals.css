@@ -684,3 +684,32 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   font-family: inherit; line-height: 1.5; resize: vertical; min-height: 48px; }
 .profile-input::placeholder { color: var(--text-soft); }
 .profile-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(220, 174, 240, 0.14); }
+
+/* --- карты Таро в чате (в стиле Аси) --- */
+.taro-row { display: flex; gap: 8px; flex-wrap: wrap; max-width: 84%; }
+.taro-card { width: 84px; height: 138px; perspective: 800px; flex: 0 0 auto; animation: taroPop 0.5s ease both; }
+.taro-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d;
+  animation: taroReveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.taro-back, .taro-face { position: absolute; inset: 0; border-radius: 12px; backface-visibility: hidden; overflow: hidden; }
+.taro-back { border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(circle at 30% 26%, var(--orb1), transparent 55%),
+    radial-gradient(circle at 72% 72%, var(--orb2), transparent 58%),
+    radial-gradient(circle at 50% 50%, var(--orb3), transparent 76%),
+    linear-gradient(135deg, var(--orb1), var(--orb2)); }
+.taro-back::after { content: ""; position: absolute; inset: 6px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.35); }
+.taro-mono { font-family: Georgia, serif; font-size: 24px; color: rgba(255, 255, 255, 0.92); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); }
+.taro-face { transform: rotateY(180deg); border: 1px solid var(--line); padding: 9px 6px 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)), var(--surface); }
+[data-theme="day"] .taro-face { background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.6)), var(--surface); }
+.taro-face::before { content: ""; position: absolute; inset: 4px; border-radius: 8px; border: 1px solid rgba(220, 174, 240, 0.28); pointer-events: none; }
+.taro-num { font-family: Georgia, serif; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); position: relative; }
+.taro-glyph { width: 46px; height: 46px; filter: drop-shadow(0 0 6px rgba(220, 174, 240, 0.5)); }
+.taro-glyph * { stroke: var(--accent); stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.taro-glyph .dot { fill: var(--gold, #e7cfa0); stroke: none; }
+.taro-name { text-align: center; position: relative; }
+.taro-name b { display: block; font-family: Georgia, serif; font-weight: 500; font-size: 10.5px; color: var(--text); line-height: 1.12; }
+.taro-name span { display: block; font-size: 7px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); margin-top: 2px; }
+@keyframes taroReveal { from { transform: rotateY(0); } to { transform: rotateY(180deg); } }
+@keyframes taroPop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
