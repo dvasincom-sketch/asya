@@ -12,6 +12,7 @@ export default function SettingsScreen() {
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [historyEnabled, setHistoryEnabled] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderCadence, setReminderCadence] = useState("rare");
   const [healthEnabled, setHealthEnabled] = useState(false);
   const [chips, setChips] = useState<Chip[]>([]);
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -30,6 +31,7 @@ export default function SettingsScreen() {
         setMemoryEnabled(Boolean(d.user.memoryEnabled));
         setHistoryEnabled(Boolean(d.user.historyEnabled));
         setRemindersEnabled(Boolean(d.user.remindersEnabled));
+        setReminderCadence(d.user.reminderCadence || "rare");
         setHealthEnabled(Boolean(d.user.healthEnabled));
         setChips(Array.isArray(d.memories) ? d.memories : []);
       })
@@ -70,6 +72,15 @@ export default function SettingsScreen() {
   function onReminders(v: boolean) {
     setRemindersEnabled(v);
     saveFlag({ remindersEnabled: v });
+  }
+  function onCadence(v: string) {
+    setReminderCadence(v);
+    fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reminderCadence: v }),
+    }).catch(() => {});
+    toast("Готово 🤍 Ася учтёт");
   }
 
   // Медданные — особая категория: своё согласие и своё удаление.
@@ -307,13 +318,36 @@ export default function SettingsScreen() {
           <div className="srow">
             <div className="ti">
               <b>Бережные напоминания</b>
-              <span>Изредка «как ты сегодня?» — только с твоего согласия</span>
+              <span>Ася иногда сама напишет первой в Telegram — тепло и без давления</span>
             </div>
             <label className="switch">
               <input type="checkbox" checked={remindersEnabled} onChange={(e) => onReminders(e.target.checked)} />
               <span className="sl" />
             </label>
           </div>
+          {remindersEnabled && (
+            <div className="srow" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+              <div className="ti">
+                <b>Как часто писать первой</b>
+                <span>Не чаще выбранного и только когда тебя какое-то время не было</span>
+              </div>
+              <div className="stat-tabs" style={{ margin: 0 }}>
+                {[
+                  { id: "rare", label: "Изредка" },
+                  { id: "weekly", label: "Раз в неделю" },
+                  { id: "often", label: "Почаще" },
+                ].map((o) => (
+                  <button
+                    key={o.id}
+                    className={`opt-tab ${reminderCadence === o.id ? "on" : ""}`}
+                    onClick={() => onCadence(o.id)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="settings-foot">

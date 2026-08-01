@@ -21,6 +21,9 @@ model User {
   memoryEnabled    Boolean  @default(true)
   historyEnabled   Boolean  @default(true)
   remindersEnabled Boolean  @default(true)
+  // Частота бережных касаний, которую человек выбирает сам: rare | weekly | often (null = rare).
+  reminderCadence  String?
+  lastRemindedAt   DateTime?
   portrait         String?
   portraitAt       DateTime?
   // Медданные — особая категория ПД: отдельное согласие и отдельное отключение.
