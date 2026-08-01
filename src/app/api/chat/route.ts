@@ -34,10 +34,16 @@ export async function POST(req: NextRequest) {
   // Но то, что Ася уже знает о человеке, по-прежнему подмешиваем — она остаётся собой.
   const incognito = (body as { incognito?: unknown }).incognito === true;
 
+  // Таро: расклад — эфемерный ритуал (не сохраняем в историю). Карты тянем заранее.
+  let taroCards: string[] = [];
+  if (skill?.id === "taro" && lastUser && wantsDraw(String(lastUser.content))) {
+    taroCards = drawCards(drawCount(String(lastUser.content))).map((c) => c.id);
+  }
+
   // Текущий пользователь (если вошёл). Для анонимных — быстро вернёт null, без БД.
   const user = await getCurrentUser().catch(() => null);
-  const saveHistory = Boolean(user && user.historyEnabled && !incognito);
-  const saveMemory = Boolean(user && user.memoryEnabled && !incognito);
+  const saveHistory = Boolean(user && user.historyEnabled && !incognito && !taroCards.length);
+  const saveMemory = Boolean(user && user.memoryEnabled && !incognito && !taroCards.length);
 
   // Забота+: полная память; бесплатно — только последнее окно (когда оплата настроена).
   const memSince = user ? retentionSince(await getSub(user.id).catch(() => null)) : null;
@@ -129,13 +135,8 @@ export async function POST(req: NextRequest) {
   // Навык: подмешиваем грунтовку (метод, границы, справку), чтобы Ася держалась темы и не фантазировала.
   if (skill) systemExtra += buildSkillContext(skill);
 
-  // Таро: если человек просит расклад — тянем карты, подмешиваем их значения в промпт
-  // и вернём id клиенту заголовком, чтобы он нарисовал карты в нашем стиле.
-  let taroCards: string[] = [];
-  if (skill?.id === "taro" && lastUser && wantsDraw(String(lastUser.content))) {
-    taroCards = drawCards(drawCount(String(lastUser.content))).map((c) => c.id);
-    systemExtra += buildTaroContext(taroCards);
-  }
+  // Таро: подмешиваем значения выпавших карт (сам расклад вытянут заранее, выше).
+  if (taroCards.length) systemExtra += buildTaroContext(taroCards);
 
   try {
     // Модели отдаём только последнее окно переписки — контекст не пухнет с ростом истории.

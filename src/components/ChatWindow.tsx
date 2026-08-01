@@ -12,15 +12,14 @@ import BookingCard from "./BookingCard";
 import MyBookingsCard from "./MyBookingsCard";
 import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
 import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
-import TaroCards from "./TaroCards";
+import TaroSpread from "./TaroSpread";
 
 type Msg =
   | { role: "user"; kind: "text"; content: string; at?: string }
   | { role: "assistant"; kind: "text"; content: string; at?: string }
   | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] }
   | { role: "assistant"; kind: "booking"; content: string }
-  | { role: "assistant"; kind: "mybookings"; content: string }
-  | { role: "assistant"; kind: "taro"; cards: string[] };
+  | { role: "assistant"; kind: "mybookings"; content: string };
 
 // Первый контакт: как обращаться (для правильного рода).
 const FIRST_CHIPS = [
@@ -80,6 +79,7 @@ export default function ChatWindow() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const skipAutoScroll = useRef(false);
+  const [spread, setSpread] = useState<{ cards: string[]; text: string } | null>(null);
   const salonReady = salonName !== "";
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -363,14 +363,18 @@ export default function ChatWindow() {
 
       setTyping(false);
       const taroHeader = resp.headers.get("X-Taro-Cards");
-      if (taroHeader) {
-        const ids = taroHeader.split(",").filter(Boolean);
-        if (ids.length) setMessages((m) => [...m, { role: "assistant", kind: "taro", cards: ids }]);
+      const taroIds = taroHeader ? taroHeader.split(",").filter(Boolean) : [];
+      const isReading = taroIds.length > 0;
+      if (isReading) {
+        // Расклад — отдельная сцена; убираем оптимистичный запрос из ленты чата.
+        setMessages((m) => m.slice(0, -1));
+        setSpread({ cards: taroIds, text: "" });
+      } else {
+        setMessages((m) => [...m, { role: "assistant", kind: "text", content: "" }]);
       }
-      setMessages((m) => [...m, { role: "assistant", kind: "text", content: "" }]);
       const reader = resp.body?.getReader();
       if (!reader) {
-        updateLastAssistant("…");
+        if (!isReading) updateLastAssistant("…");
         return;
       }
       const dec = new TextDecoder();
@@ -394,7 +398,8 @@ export default function ChatWindow() {
               const d = j?.choices?.[0]?.delta?.content;
               if (d) {
                 full += d;
-                updateLastAssistant(full);
+                if (isReading) setSpread((sp) => (sp ? { ...sp, text: full } : sp));
+                else updateLastAssistant(full);
               }
             } catch {
               /* неполный фрагмент */
@@ -402,10 +407,14 @@ export default function ChatWindow() {
           }
         }
       }
-      if (!full) updateLastAssistant("…");
-      else storePrivate("assistant", full);
-      if (askedMine) showMyBookings();
-      else if (askedBooking) offerBooking();
+      if (isReading) {
+        setSpread((sp) => (sp ? { ...sp, text: full || "Карты легли, но слова сейчас не подобрались. Попробуй ещё раз чуть позже 🤍" } : sp));
+      } else {
+        if (!full) updateLastAssistant("…");
+        else storePrivate("assistant", full);
+        if (askedMine) showMyBookings();
+        else if (askedBooking) offerBooking();
+      }
     } catch {
       setTyping(false);
       setMessages((m) => [...m, { role: "assistant", kind: "text", content: "Кажется, я не смогла ответить. Попробуй ещё раз чуть позже 🤍" }]);
@@ -513,12 +522,7 @@ export default function ChatWindow() {
           // Дни показываем только когда человек полез в архив — обычная лента остаётся сплошной.
           const showDay = archiveOpen && m.kind === "text" && !!m.at && dayKeyOf(prevAt) !== dayKeyOf(m.at);
           const node =
-            m.kind === "taro" ? (
-              <div className="row assistant">
-                <Orb className="mini-orb" />
-                <TaroCards cards={m.cards} />
-              </div>
-            ) : m.kind === "mybookings" ? (
+            m.kind === "mybookings" ? (
               <div className="row assistant">
                 <Orb className="mini-orb" />
                 <MyBookingsCard salonName={salonName} />
@@ -587,6 +591,8 @@ export default function ChatWindow() {
         <p>В этом режиме я не сохраняю разговор в историю и не запоминаю его. Если ты в аккаунте, переписка хранится только зашифрованной — ключ создаётся на твоём устройстве и никогда не попадает к нам на сервер, поэтому прочитать её там нельзя. Чтобы ответить, мне нужно прочитать сообщение в этот момент, но после ответа читаемого следа не остаётся. Если очистишь браузер или это устройство — доступ к этим записям пропадёт, так и задумано.</p>
         <button className="sheet-btn ghost" onClick={() => setIncInfo(false)}>Понятно 🤍</button>
       </div>
+
+      {spread && <TaroSpread cards={spread.cards} text={spread.text} onClose={() => setSpread(null)} />}
 
       <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
