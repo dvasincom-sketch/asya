@@ -415,16 +415,13 @@ export default function ChatWindow() {
           <h1>Ася</h1>
           <div className="status"><span className="dotlive" /> {incognito ? "инкогнито" : "онлайн"}</div>
         </div>
-        <button
-          className={`theme-btn${incognito ? " on" : ""}`}
-          onClick={toggleIncognito}
-          title={incognito ? "выключить инкогнито" : "инкогнито — секретный разговор"}
-          aria-label="инкогнито"
-          aria-pressed={incognito}
-          style={{ marginLeft: "auto" }}
-        >
-          🕶️
-        </button>
+        <label className="hdr-switch" title="секретный разговор — ничего не сохраняется" style={{ marginLeft: "auto" }}>
+          <span className="hdr-switch-t">Инкогнито</span>
+          <span className="switch sm">
+            <input type="checkbox" checked={incognito} onChange={toggleIncognito} aria-label="инкогнито" />
+            <span className="sl" />
+          </span>
+        </label>
         <button
           className="theme-btn burger"
           onClick={() => setMenuOpen(true)}
