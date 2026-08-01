@@ -77,7 +77,7 @@ export const PROFILE_FORMS: ProfileForm[] = [
     icon: "🌊",
     blurb: "Какой ты и что на тебя влияет.",
     questions: [
-      { id: "describe", label: "Как бы ты себя описала?", placeholder: "Несколько слов о себе" },
+      { id: "describe", label: "Как ты себя опишешь?", placeholder: "Несколько слов о себе" },
       { id: "trigger", label: "Что чаще всего выбивает из колеи?", placeholder: "Что задевает" },
       { id: "calm", label: "Что тебя успокаивает?", placeholder: "Что возвращает опору" },
     ],

@@ -67,7 +67,7 @@ export default function Onboarding() {
               </div>
               <div className="point">
                 <span className="pic">💬</span>
-                <div><b>Иду вглубь бережно</b><span>Это не допрос, а тёплый разговор. Ты сама решаешь, насколько открыться.</span></div>
+                <div><b>Иду вглубь бережно</b><span>Это не допрос, а тёплый разговор. Ты решаешь, насколько открыться.</span></div>
               </div>
               <div className="point">
                 <span className="pic">🤍</span>
@@ -80,7 +80,7 @@ export default function Onboarding() {
               <span>
                 Понимаю, что Ася — это поддержка и общение, <b>не медицинская и не психологическая помощь</b>. Принимаю{" "}
                 <a href="/terms" target="_blank">условия</a> и{" "}
-                <a href="/privacy" target="_blank">политику конфиденциальности</a>, согласна на бережное хранение
+                <a href="/privacy" target="_blank">политику конфиденциальности</a> и даю согласие на бережное хранение
                 переписки.
               </span>
             </label>

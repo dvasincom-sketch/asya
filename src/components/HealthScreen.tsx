@@ -246,8 +246,8 @@ export default function HealthScreen() {
           <label className="consent" style={{ marginTop: 16 }}>
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
             <span>
-              Согласна на обработку и хранение моих данных о здоровье, чтобы Ася собирала историю анализов. Понимаю, что
-              это не медицинская помощь. Читала <a href="/privacy" target="_blank">политику конфиденциальности</a>.
+              Даю согласие на обработку и хранение моих данных о здоровье, чтобы Ася собирала историю анализов. Понимаю,
+              что это не медицинская помощь, и принимаю <a href="/privacy" target="_blank">политику конфиденциальности</a>.
             </span>
           </label>
           <button className="btn-primary" disabled={!agree || busyConsent} onClick={giveConsent}>

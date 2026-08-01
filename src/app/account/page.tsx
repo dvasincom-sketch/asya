@@ -16,7 +16,7 @@ export default async function AccountPage() {
       <div className="auth-card">
         <Orb className="auth-orb" />
         <h2>С возвращением 🌙</h2>
-        <p className="sub">Ты вошла. Здесь скоро появится «Забота+», история и настройки приватности.</p>
+        <p className="sub">Здесь скоро появится «Забота+», история и настройки приватности.</p>
         <div className="account-who">{who}</div>
         <a className="btn-primary" href="/chat">Открыть чат с Асей</a>
         <a className="btn-ghost" href="/account/memory">То, что Ася о тебе знает</a>
