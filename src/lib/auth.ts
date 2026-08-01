@@ -1,6 +1,7 @@
 // Серверные сессии: непрозрачный токен в httpOnly-куке, запись в БД.
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import type { User } from "@prisma/client";
 import { prisma } from "./prisma";
 
 const COOKIE = "asya_session";
@@ -19,12 +20,46 @@ export async function createSession(userId: string): Promise<void> {
   });
 }
 
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<User | null> {
   const id = cookies().get(COOKIE)?.value;
   if (!id) return null;
-  const session = await prisma.session.findUnique({ where: { id }, include: { user: true } });
-  if (!session || session.expiresAt < new Date()) return null;
-  return session.user;
+  const alive = (expiresAt: Date) => expiresAt >= new Date();
+  try {
+    const session = await prisma.session.findUnique({ where: { id }, include: { user: true } });
+    if (!session || !alive(session.expiresAt)) return null;
+    return session.user;
+  } catch {
+    // Схема БД могла отстать от Prisma-клиента: свежая миграция ещё не применилась на проде,
+    // и include: { user: true } тянет колонки, которых в базе пока нет (Prisma P2022).
+    // Берём только базовые поля, которые есть всегда, — чтобы кабинет открывался, пока
+    // миграции догоняют. Недостающие поля (portrait, healthEnabled и т.п.) будут undefined
+    // и обрабатываются вызывающим кодом как «пусто/выключено».
+    try {
+      const session = await prisma.session.findUnique({
+        where: { id },
+        select: {
+          expiresAt: true,
+          user: {
+            select: {
+              id: true,
+              tgId: true,
+              phone: true,
+              createdAt: true,
+              consentAt: true,
+              consentVersion: true,
+              memoryEnabled: true,
+              historyEnabled: true,
+              remindersEnabled: true,
+            },
+          },
+        },
+      });
+      if (!session || !alive(session.expiresAt)) return null;
+      return session.user as unknown as User;
+    } catch {
+      return null;
+    }
+  }
 }
 
 export async function destroySession(): Promise<void> {
