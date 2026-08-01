@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
 import { CrisisCard } from "./CrisisCard";
 import type { Contact } from "@/lib/crisis";
@@ -14,8 +14,8 @@ import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
 import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
 
 type Msg =
-  | { role: "user"; kind: "text"; content: string }
-  | { role: "assistant"; kind: "text"; content: string }
+  | { role: "user"; kind: "text"; content: string; at?: string }
+  | { role: "assistant"; kind: "text"; content: string; at?: string }
   | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] }
   | { role: "assistant"; kind: "booking"; content: string }
   | { role: "assistant"; kind: "mybookings"; content: string };
@@ -31,6 +31,28 @@ const FIRST_CHIPS = [
 const FREE_LIMIT = 20;
 function dayKey() {
   return "asya_c_" + new Date().toISOString().slice(0, 10);
+}
+
+// Разделители по дням в архиве истории (появляются, только когда человек лезет в прошлое).
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function dayKeyOf(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function dayLabel(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const yest = new Date(now);
+  yest.setDate(now.getDate() - 1);
+  if (sameDay(d, now)) return "Сегодня";
+  if (sameDay(d, yest)) return "Вчера";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
 export default function ChatWindow() {
@@ -50,11 +72,21 @@ export default function ChatWindow() {
   const [incInfo, setIncInfo] = useState(false);
   const incRef = useRef<IncCrypto | null>(null);
   const normalRef = useRef<Msg[] | null>(null);
+  const [booted, setBooted] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const skipAutoScroll = useRef(false);
   const salonReady = salonName !== "";
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (skipAutoScroll.current) {
+      skipAutoScroll.current = false;
+      return;
+    }
     const el = chatRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, typing]);
@@ -113,17 +145,21 @@ export default function ChatWindow() {
           if (cancelled) return;
           const h = await fetch("/api/history" + (skillParam ? `?skill=${encodeURIComponent(skillParam)}` : "")).then((r) => r.json());
           if (cancelled) return;
-          const rows: { role: string; content: string }[] = Array.isArray(h.messages) ? h.messages : [];
+          const rows: { role: string; content: string; at?: string }[] = Array.isArray(h.messages) ? h.messages : [];
           if (rows.length) {
             setMessages(
               rows
                 .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
-                .map((m) => ({ role: m.role as "user" | "assistant", kind: "text", content: m.content })),
+                .map((m) => ({ role: m.role as "user" | "assistant", kind: "text", content: m.content, at: m.at })),
             );
           }
+          setHasMore(Boolean(h.hasMore));
+          setCursor(h.cursor ?? null);
         }
       } catch {
         if (!cancelled) setAuthed(false);
+      } finally {
+        if (!cancelled) setBooted(true);
       }
     })();
     try {
@@ -174,6 +210,32 @@ export default function ChatWindow() {
       /* ignore */
     }
     if (authed === false && next >= FREE_LIMIT) setGated(true);
+  }
+
+  // Одна лента: свежее грузим сразу, старое «архивируется» и подтягивается по запросу.
+  async function loadOlder() {
+    if (loadingMore || !cursor || incognito) return;
+    setLoadingMore(true);
+    setArchiveOpen(true);
+    try {
+      const url =
+        "/api/history?before=" + encodeURIComponent(cursor) + (skill ? `&skill=${encodeURIComponent(skill)}` : "");
+      const h = await fetch(url).then((r) => r.json());
+      const rows: { role: string; content: string; at?: string }[] = Array.isArray(h.messages) ? h.messages : [];
+      const older: Msg[] = rows
+        .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
+        .map((m) => ({ role: m.role as "user" | "assistant", kind: "text", content: m.content, at: m.at }));
+      if (older.length) {
+        skipAutoScroll.current = true;
+        setMessages((cur) => [...older, ...cur]);
+      }
+      setHasMore(Boolean(h.hasMore));
+      setCursor(h.cursor ?? null);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   // --- Инкогнито ---------------------------------------------------------
@@ -391,7 +453,20 @@ export default function ChatWindow() {
       )}
 
       <div className="chat" ref={chatRef}>
-        {messages.length === 0 &&
+        {!booted && (
+          <div className="chat-loading">
+            <Orb className="big-orb thinking" />
+            <p>Секунду, возвращаю наш разговор…</p>
+          </div>
+        )}
+
+        {booted && hasMore && messages.length > 0 && (
+          <button className="load-older" onClick={loadOlder} disabled={loadingMore}>
+            {loadingMore ? "Загружаю…" : "↑ Показать более раннее"}
+          </button>
+        )}
+
+        {booted && messages.length === 0 &&
           (incognito ? (
             <div className="intro">
               <div className="inc-badge">🕶️ Инкогнито</div>
@@ -428,29 +503,40 @@ export default function ChatWindow() {
             </div>
           ))}
 
-        {messages.map((m, i) =>
-          m.kind === "mybookings" ? (
-            <div className="row assistant" key={i}>
-              <Orb className="mini-orb" />
-              <MyBookingsCard salonName={salonName} />
-            </div>
-          ) : m.kind === "booking" ? (
-            <div className="row assistant" key={i}>
-              <Orb className="mini-orb" />
-              <BookingCard salonName={salonName} />
-            </div>
-          ) : m.kind === "crisis" ? (
-            <div className="row assistant" key={i}>
-              <Orb className="mini-orb" />
-              <CrisisCard text={m.content} contacts={m.contacts} />
-            </div>
-          ) : (
-            <div className={`row ${m.role}`} key={i}>
-              {m.role === "assistant" && <Orb className="mini-orb" />}
-              <div className="bubble">{m.role === "assistant" ? clean(m.content) : m.content}</div>
-            </div>
-          ),
-        )}
+        {messages.map((m, i) => {
+          const prev = i > 0 ? messages[i - 1] : null;
+          const prevAt = prev && prev.kind === "text" ? prev.at : undefined;
+          // Дни показываем только когда человек полез в архив — обычная лента остаётся сплошной.
+          const showDay = archiveOpen && m.kind === "text" && !!m.at && dayKeyOf(prevAt) !== dayKeyOf(m.at);
+          const node =
+            m.kind === "mybookings" ? (
+              <div className="row assistant">
+                <Orb className="mini-orb" />
+                <MyBookingsCard salonName={salonName} />
+              </div>
+            ) : m.kind === "booking" ? (
+              <div className="row assistant">
+                <Orb className="mini-orb" />
+                <BookingCard salonName={salonName} />
+              </div>
+            ) : m.kind === "crisis" ? (
+              <div className="row assistant">
+                <Orb className="mini-orb" />
+                <CrisisCard text={m.content} contacts={m.contacts} />
+              </div>
+            ) : (
+              <div className={`row ${m.role}`}>
+                {m.role === "assistant" && <Orb className="mini-orb" />}
+                <div className="bubble">{m.role === "assistant" ? clean(m.content) : m.content}</div>
+              </div>
+            );
+          return (
+            <Fragment key={i}>
+              {showDay && <div className="day-sep">{dayLabel(m.at)}</div>}
+              {node}
+            </Fragment>
+          );
+        })}
 
         {typing && (
           <div className="row assistant">

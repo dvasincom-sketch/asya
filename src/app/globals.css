@@ -653,3 +653,17 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 
 .inc-badge { display: inline-block; margin: 0 auto 14px; padding: 5px 13px; border-radius: 14px; font-size: 12px;
   background: rgba(28, 24, 40, 0.62); border: 1px solid var(--line); color: var(--text-soft); }
+
+/* --- загрузка истории и лента по дням --- */
+.chat-loading { margin: auto; text-align: center; padding: 20px 24px; animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.chat-loading .big-orb { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 16px; }
+.chat-loading p { color: var(--text-soft); font-size: 14px; }
+
+.load-older { align-self: center; margin: 2px auto 8px; padding: 7px 16px; border-radius: 16px; cursor: pointer;
+  font-family: inherit; font-size: 12.5px; color: var(--text-soft); background: var(--glass);
+  border: 1px solid var(--line); backdrop-filter: blur(6px); transition: 0.2s; }
+.load-older:hover { border-color: var(--accent); color: var(--text); }
+.load-older:disabled { opacity: 0.6; cursor: default; }
+
+.day-sep { align-self: center; margin: 14px auto 6px; padding: 4px 14px; border-radius: 12px;
+  font-size: 11.5px; color: var(--text-dim); background: var(--glass); border: 1px solid var(--line); }

@@ -100,7 +100,11 @@ export async function POST(req: NextRequest) {
   if (skill) systemExtra += buildSkillContext(skill);
 
   try {
-    const upstream = await streamChat(messages, systemExtra);
+    // Модели отдаём только последнее окно переписки — контекст не пухнет с ростом истории.
+    // Долгую память несёт отдельный механизм фактов (systemExtra выше).
+    const CONTEXT_WINDOW = 40;
+    const context = messages.slice(-CONTEXT_WINDOW);
+    const upstream = await streamChat(context, systemExtra);
     if (!upstream.ok || !upstream.body) {
       const detail = await upstream.text().catch(() => "");
       console.error(`[api/chat] Модель ответила ошибкой ${upstream.status}: ${detail.slice(0, 800)}`);
