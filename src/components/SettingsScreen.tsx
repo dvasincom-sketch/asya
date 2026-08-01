@@ -308,7 +308,7 @@ export default function SettingsScreen() {
 
         <div className="sec">Забота+</div>
         <div className="scard">
-          <a className="srow tap" href="/account" style={{ textDecoration: "none" }}>
+          <a className="srow tap" href="/account/plus" style={{ textDecoration: "none" }}>
             <div className="ti">
               <b>Забота+</b>
               <span>Хранение истории и памяти · 300 ₽ / месяц</span>

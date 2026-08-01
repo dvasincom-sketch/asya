@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { complete, hasKey } from "@/lib/timeweb";
 import { topicIcon, normalizeTopic, TOPIC_NAMES } from "@/lib/topics";
 import { getForm } from "@/lib/profileForms";
+import { getSub, retentionSince } from "@/lib/plus";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ type FactRow = { id: string; fact: string; topic: string | null; createdAt: Date
 // Мягкий доступ к полям, которых может не быть в локально сгенерированном клиенте.
 type MemDb = {
   findMany: (a: {
-    where: { userId: string };
+    where: { userId: string; createdAt?: { gte: Date } };
     orderBy: { createdAt: "desc" };
     take?: number;
   }) => Promise<FactRow[]>;
@@ -87,8 +88,14 @@ export async function GET() {
   const user = await getCurrentUser().catch(() => null);
   if (!user) return Response.json({ user: null, portrait: "", themes: [] });
 
+  // Забота+: вся память; бесплатно — только последнее окно (когда оплата настроена).
+  const since = retentionSince(await getSub(user.id));
   let facts = await memDb()
-    .findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 300 })
+    .findMany({
+      where: { userId: user.id, ...(since ? { createdAt: { gte: since } } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    })
     .catch(() => [] as FactRow[]);
 
   facts = await backfillTopics(facts).catch(() => facts);

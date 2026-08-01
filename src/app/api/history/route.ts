@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSub, retentionSince } from "@/lib/plus";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
   const skill = url.searchParams.get("skill");
   const before = url.searchParams.get("before"); // курсор: грузим то, что старше этой отметки
 
-  type Where = { userId: string; skill: string | null; createdAt?: { lt: Date } };
+  type Where = { userId: string; skill: string | null; createdAt?: { lt?: Date; gte?: Date } };
   const msgDb = prisma.message as unknown as {
     findMany: (a: {
       where: Where;
@@ -26,11 +27,17 @@ export async function GET(req: Request) {
     }) => Promise<{ role: string; content: string; createdAt: Date }[]>;
   };
 
+  // Забота+: бессрочно; бесплатно — только последнее окно (когда оплата настроена).
+  const since = retentionSince(await getSub(user.id));
+
   const where: Where = { userId: user.id, skill: skill ?? null };
+  const createdAt: { lt?: Date; gte?: Date } = {};
   if (before) {
     const d = new Date(before);
-    if (!isNaN(d.getTime())) where.createdAt = { lt: d };
+    if (!isNaN(d.getTime())) createdAt.lt = d;
   }
+  if (since) createdAt.gte = since;
+  if (createdAt.lt || createdAt.gte) where.createdAt = createdAt;
 
   // Берём на одну запись больше страницы, чтобы понять, есть ли ещё старое.
   const rows = await msgDb

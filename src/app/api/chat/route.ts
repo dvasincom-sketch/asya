@@ -10,6 +10,7 @@ import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
 import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
 import { buildProfileContext } from "@/lib/profileForms";
+import { getSub, retentionSince } from "@/lib/plus";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser().catch(() => null);
   const saveHistory = Boolean(user && user.historyEnabled && !incognito);
   const saveMemory = Boolean(user && user.memoryEnabled && !incognito);
+
+  // Забота+: полная память; бесплатно — только последнее окно (когда оплата настроена).
+  const memSince = user ? retentionSince(await getSub(user.id).catch(() => null)) : null;
 
   // Prisma-клиент в песочнице собран без поля skill — тегируем сообщения через приведение типов.
   const msgDb = prisma.message as unknown as {
@@ -84,7 +88,11 @@ export async function POST(req: NextRequest) {
   let systemExtra = "";
   if (user && user.memoryEnabled) {
     const mems = await prisma.memory
-      .findMany({ where: { userId: user.id }, take: 40, orderBy: { createdAt: "desc" } })
+      .findMany({
+        where: { userId: user.id, ...(memSince ? { createdAt: { gte: memSince } } : {}) },
+        take: 40,
+        orderBy: { createdAt: "desc" },
+      })
       .catch(() => [] as { fact: string }[]);
     if (mems.length) {
       systemExtra =
