@@ -36,7 +36,7 @@ body {
 @keyframes drift2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-7vw, -5vw) scale(1.2); } }
 @keyframes drift3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-4vw, 6vw) scale(0.85); } }
 
-.app { position: relative; z-index: 1; width: 100%; max-width: 460px; height: 100dvh; display: flex; flex-direction: column; }
+.app { position: relative; z-index: 1; width: 100%; max-width: 460px; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
 /* На десктопе — уютная контейнерная панель, как в согласованном прототипе v3.
    На телефоне (<560px) — во весь экран. */
@@ -144,7 +144,7 @@ header .status { font-size: 12px; color: var(--text-soft); margin-top: 1px; disp
 .send svg { width: 20px; height: 20px; fill: #fff; }
 
 /* --- вход / личный кабинет --- */
-.auth { align-items: center; justify-content: center; }
+.auth { align-items: center; justify-content: center; overflow: visible; }
 .auth-card {
   margin: auto; width: 100%; max-width: 360px; text-align: center; padding: 28px 26px;
   background: var(--glass); border: 1px solid var(--line); border-radius: 28px; backdrop-filter: blur(12px);
