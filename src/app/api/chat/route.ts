@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { usageKey, checkAndCount, ANON_LIMIT, USER_LIMIT } from "@/lib/ratelimit";
 import { rememberFrom } from "@/lib/memory";
-import { asksAboutServices, buildProgramsContext } from "@/lib/salonKnowledge";
+import { asksAboutServices, buildProgramsContext, asksLogistics, buildSalonInfoContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
 import { buildProfileContext } from "@/lib/profileForms";
@@ -110,6 +110,11 @@ export async function POST(req: NextRequest) {
   // Спросили про программы салона — подмешиваем справку, чтобы Ася не выдумывала.
   if (SALON.enabled && !skill && !incognito && lastUser && asksAboutServices(String(lastUser.content))) {
     systemExtra += buildProgramsContext();
+  }
+
+  // Администратор салона: логистика и подготовка — тоже строго по справке.
+  if (SALON.enabled && !skill && !incognito && lastUser && asksLogistics(String(lastUser.content))) {
+    systemExtra += buildSalonInfoContext();
   }
 
   // Навык: подмешиваем грунтовку (метод, границы, справку), чтобы Ася держалась темы и не фантазировала.
