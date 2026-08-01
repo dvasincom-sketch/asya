@@ -7,6 +7,7 @@ import { usageKey, checkAndCount, ANON_LIMIT, USER_LIMIT } from "@/lib/ratelimit
 import { rememberFrom } from "@/lib/memory";
 import { asksAboutServices, buildProgramsContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
+import { getSkill, buildSkillContext } from "@/lib/skills";
 
 export const runtime = "nodejs";
 
@@ -21,15 +22,25 @@ export async function POST(req: NextRequest) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
 
+  // Навык, в режиме которого идёт разговор (null = обычная Ася).
+  const rawSkill = (body as { skill?: unknown }).skill;
+  const skill = getSkill(typeof rawSkill === "string" ? rawSkill : null);
+  const skillId = skill?.id ?? null;
+
   // Текущий пользователь (если вошёл). Для анонимных — быстро вернёт null, без БД.
   const user = await getCurrentUser().catch(() => null);
   const saveHistory = Boolean(user && user.historyEnabled);
   const saveMemory = Boolean(user && user.memoryEnabled);
 
+  // Prisma-клиент в песочнице собран без поля skill — тегируем сообщения через приведение типов.
+  const msgDb = prisma.message as unknown as {
+    create: (a: { data: { userId: string; role: string; content: string; skill?: string | null } }) => Promise<unknown>;
+  };
+
   // Кризисный путь — модель не вызываем и лимит не применяем (безопасность важнее).
   if (lastUser && detectCrisis(String(lastUser.content))) {
     if (saveHistory && user) {
-      await prisma.message.create({ data: { userId: user.id, role: "user", content: String(lastUser.content) } }).catch(() => {});
+      await msgDb.create({ data: { userId: user.id, role: "user", content: String(lastUser.content), skill: skillId } }).catch(() => {});
     }
     if (user) await prisma.crisisEvent.create({ data: { userId: user.id, level: "keyword" } }).catch(() => {});
     return Response.json(CRISIS_REPLY);
@@ -56,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   // Сохраняем сообщение пользователя (после лимита — чтобы не копить заблокированные).
   if (saveHistory && user && lastUser) {
-    await prisma.message.create({ data: { userId: user.id, role: "user", content: String(lastUser.content) } }).catch(() => {});
+    await msgDb.create({ data: { userId: user.id, role: "user", content: String(lastUser.content), skill: skillId } }).catch(() => {});
   }
 
   if (!hasKey()) {
@@ -77,9 +88,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Спросили про программы салона — подмешиваем справку, чтобы Ася не выдумывала.
-  if (SALON.enabled && lastUser && asksAboutServices(String(lastUser.content))) {
+  if (SALON.enabled && !skill && lastUser && asksAboutServices(String(lastUser.content))) {
     systemExtra += buildProgramsContext();
   }
+
+  // Навык: подмешиваем грунтовку (метод, границы, справку), чтобы Ася держалась темы и не фантазировала.
+  if (skill) systemExtra += buildSkillContext(skill);
 
   try {
     const upstream = await streamChat(messages, systemExtra);
@@ -104,7 +118,7 @@ export async function POST(req: NextRequest) {
         const { done, value } = await reader.read();
         if (done) {
           if (saveHistory && uid && full) {
-            await prisma.message.create({ data: { userId: uid, role: "assistant", content: full } }).catch(() => {});
+            await msgDb.create({ data: { userId: uid, role: "assistant", content: full, skill: skillId } }).catch(() => {});
           }
           controller.close();
           // Авто-память: извлекаем факты из реплики пользователя (не блокирует поток).

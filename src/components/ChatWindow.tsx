@@ -42,6 +42,8 @@ export default function ChatWindow() {
   const [gated, setGated] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [salonName, setSalonName] = useState("");
+  const [skill, setSkill] = useState<string | null>(null);
+  const [skillMeta, setSkillMeta] = useState<{ title: string; icon: string; tagline: string; starters: string[] } | null>(null);
   const salonReady = salonName !== "";
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -65,6 +67,21 @@ export default function ChatWindow() {
     let cancelled = false;
     (async () => {
       track("chat_open", undefined, true);
+      // Навык из URL (?skill=nutri): свой режим, своя история, своя грунтовка.
+      const skillParam = new URLSearchParams(window.location.search).get("skill");
+      if (skillParam) {
+        setSkill(skillParam);
+        track("skill_chat_open", skillParam, true);
+        fetch("/api/skills")
+          .then((r) => r.json())
+          .then((d) => {
+            const found = Array.isArray(d.skills)
+              ? d.skills.find((x: { id: string }) => x.id === skillParam)
+              : null;
+            if (found) setSkillMeta(found);
+          })
+          .catch(() => {});
+      }
       // Узнаём, доступна ли запись в салон (и как он называется).
       fetch("/api/salon?action=info")
         .then((r) => (r.ok ? r.json() : null))
@@ -87,7 +104,7 @@ export default function ChatWindow() {
             return;
           }
           if (cancelled) return;
-          const h = await fetch("/api/history").then((r) => r.json());
+          const h = await fetch("/api/history" + (skillParam ? `?skill=${encodeURIComponent(skillParam)}` : "")).then((r) => r.json());
           if (cancelled) return;
           const rows: { role: string; content: string }[] = Array.isArray(h.messages) ? h.messages : [];
           if (rows.length) {
@@ -162,8 +179,8 @@ export default function ChatWindow() {
     setInput("");
     setBusy(true);
 
-    const askedMine = salonReady && asksMyBookings(text);
-    const askedBooking = !askedMine && salonReady && wantsBooking(text);
+    const askedMine = !skill && salonReady && asksMyBookings(text);
+    const askedBooking = !skill && !askedMine && salonReady && wantsBooking(text);
     const userMsg: Msg = { role: "user", kind: "text", content: text };
     if (messages.length === 0) track("first_message");
     track("message_sent");
@@ -179,7 +196,7 @@ export default function ChatWindow() {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, skill }),
       });
       const ct = resp.headers.get("content-type") || "";
 
@@ -269,20 +286,43 @@ export default function ChatWindow() {
         </button>
       </header>
 
+      {skillMeta && (
+        <div className="skill-strip">
+          <span className="ss-ic">{skillMeta.icon}</span>
+          <span className="ss-t">Навык · <b>{skillMeta.title}</b></span>
+          <a className="ss-exit" href="/chat" title="вернуться в обычный чат">Выйти</a>
+        </div>
+      )}
+
       <div className="chat" ref={chatRef}>
-        {messages.length === 0 && (
-          <div className="intro">
-            <Orb className="big-orb" />
-            <h2>Привет, я Ася</h2>
-            <p>Чтобы говорить с тобой по-настоящему — подскажи, как к тебе обращаться: в женском роде или мужском? Спрашиваю только для этого, и это останется между нами.</p>
-            <div className="starters-row intro-chips">
-              {FIRST_CHIPS.map((c) => (
-                <button key={c.label} className="starter" onClick={() => send(c.msg)}>{c.label}</button>
-              ))}
+        {messages.length === 0 &&
+          (skillMeta ? (
+            <div className="intro">
+              <Orb className="big-orb" />
+              <h2>{skillMeta.icon} {skillMeta.title}</h2>
+              <p>{skillMeta.tagline}</p>
+              {skillMeta.starters.length > 0 && (
+                <div className="starters-row intro-chips">
+                  {skillMeta.starters.map((st) => (
+                    <button key={st} className="starter" onClick={() => send(st)}>{st}</button>
+                  ))}
+                </div>
+              )}
+              <div className="safe-chip">🌸 Это поддержка и общение, не профессиональная помощь</div>
             </div>
-            <div className="safe-chip">🌸 Это общение и поддержка, не медицинская помощь</div>
-          </div>
-        )}
+          ) : (
+            <div className="intro">
+              <Orb className="big-orb" />
+              <h2>Привет, я Ася</h2>
+              <p>Чтобы говорить с тобой по-настоящему — подскажи, как к тебе обращаться: в женском роде или мужском? Спрашиваю только для этого, и это останется между нами.</p>
+              <div className="starters-row intro-chips">
+                {FIRST_CHIPS.map((c) => (
+                  <button key={c.label} className="starter" onClick={() => send(c.msg)}>{c.label}</button>
+                ))}
+              </div>
+              <div className="safe-chip">🌸 Это общение и поддержка, не медицинская помощь</div>
+            </div>
+          ))}
 
         {messages.map((m, i) =>
           m.kind === "mybookings" ? (

@@ -74,10 +74,13 @@ model Message {
   userId    String
   role      String
   content   String
+  // Навык, в режиме которого написано сообщение (null = обычная Ася).
+  skill     String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([userId, skill, createdAt])
 }
 
 model Memory {
