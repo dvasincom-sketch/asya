@@ -39,6 +39,7 @@ model User {
   sessions     Session[]
   coachSessions CoachSession[]
   privateMessages PrivateMessage[]
+  profileAnswers  ProfileAnswer[]
 }
 
 // Структурированная сессия («разбор»): шаблон задаёт невидимый каркас вопросов,
@@ -96,6 +97,20 @@ model PrivateMessage {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+// Профиль «о себе»: человек сам заполняет грани по вопросам. Дополняет авто-память, не заменяет.
+model ProfileAnswer {
+  id         String   @id @default(cuid())
+  userId     String
+  formId     String
+  questionId String
+  value      String
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, formId, questionId])
+  @@index([userId])
 }
 
 model Memory {

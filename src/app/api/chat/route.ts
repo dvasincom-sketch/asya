@@ -8,6 +8,7 @@ import { rememberFrom } from "@/lib/memory";
 import { asksAboutServices, buildProgramsContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
+import { buildProfileContext } from "@/lib/profileForms";
 
 export const runtime = "nodejs";
 
@@ -89,6 +90,21 @@ export async function POST(req: NextRequest) {
         "\n\nЧто ты уже знаешь об этом человеке (помни это и обращайся бережно, не перечисляй списком): " +
         mems.map((m: { fact: string }) => m.fact).join("; ");
     }
+  }
+
+  // Профиль «о себе» — то, что человек заполнил сам. Уважает тот же тумблер памяти;
+  // в инкогнито (как и авто-память) читается, но ничего не пишется.
+  if (user && user.memoryEnabled) {
+    const paRows = await (
+      prisma as unknown as {
+        profileAnswer: {
+          findMany: (a: { where: { userId: string } }) => Promise<{ formId: string; questionId: string; value: string }[]>;
+        };
+      }
+    ).profileAnswer
+      .findMany({ where: { userId: user.id } })
+      .catch(() => [] as { formId: string; questionId: string; value: string }[]);
+    systemExtra += buildProfileContext(paRows);
   }
 
   // Спросили про программы салона — подмешиваем справку, чтобы Ася не выдумывала.

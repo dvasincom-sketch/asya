@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Orb } from "./Orb";
 import { clean, trim } from "@/lib/text";
+import { PROFILE_FORMS, type ProfileForm } from "@/lib/profileForms";
 
 type Theme = { name: string; icon: string; line: string; count: number; updatedAt: string; big?: boolean };
 type SavedItem = { id: string; title: string; icon: string; synthType: "points" | "canvas"; summary: string; date: string };
@@ -62,6 +63,10 @@ export default function MemoryScreen() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({});
+  const [activeForm, setActiveForm] = useState<ProfileForm | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     fetch("/api/knowledge")
@@ -73,6 +78,10 @@ export default function MemoryScreen() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((d) => setAnswers(d.answers || {}))
+      .catch(() => {});
   }, []);
 
   async function open(topic: string) {
@@ -85,6 +94,77 @@ export default function MemoryScreen() {
     } finally {
       setDetailLoading(false);
     }
+  }
+
+  function openForm(f: ProfileForm) {
+    setDraft({ ...(answers[f.id] || {}) });
+    setActiveForm(f);
+  }
+  function filledCount(formId: string): number {
+    const a = answers[formId] || {};
+    return Object.values(a).filter((v) => (v || "").trim()).length;
+  }
+  async function saveProfile() {
+    if (!activeForm || savingProfile) return;
+    setSavingProfile(true);
+    try {
+      await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formId: activeForm.id, answers: draft }),
+      });
+      setAnswers((a) => ({ ...a, [activeForm.id]: { ...draft } }));
+      setActiveForm(null);
+    } catch {
+      /* ignore */
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  // ---------- Заполнение грани профиля ----------
+  if (activeForm) {
+    const seed = `Хочу рассказать тебе о себе — про: ${activeForm.title.toLowerCase()}`;
+    return (
+      <div className="app">
+        <div className="sbar">
+          <button className="icobtn" onClick={() => setActiveForm(null)} title="назад">‹</button>
+          <h1>{activeForm.title}</h1>
+          <button className="icobtn right" onClick={toggleTheme}>◐</button>
+        </div>
+        <div className="sbody">
+          <div className="d-head">
+            <div className="d-ic">{activeForm.icon}</div>
+            <div>
+              <h2>{activeForm.title}</h2>
+              <div className="d-sub">{activeForm.blurb}</div>
+            </div>
+          </div>
+
+          {activeForm.questions.map((q) => (
+            <div key={q.id}>
+              <div className="q-label">{q.label}</div>
+              <textarea
+                className="profile-input"
+                value={draft[q.id] || ""}
+                placeholder={q.placeholder}
+                onChange={(e) => setDraft((d) => ({ ...d, [q.id]: e.target.value }))}
+                rows={2}
+              />
+            </div>
+          ))}
+
+          <button className="btn-primary" onClick={saveProfile} disabled={savingProfile} style={{ marginTop: 18 }}>
+            {savingProfile ? <span className="spinner" /> : "Сохранить"}
+          </button>
+          <a className="btn-ghost" href={`/chat?start=${encodeURIComponent(seed)}`}>Обсудить с Асей</a>
+          <div className="hnote">
+            Можно заполнить не всё и вернуться позже — что напишешь, то Ася и учтёт. Убрать сказанное можно здесь же или
+            в настройках.
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // ---------- Детали темы ----------
@@ -216,6 +296,27 @@ export default function MemoryScreen() {
                 </div>
               )
             )}
+
+            <div className="sec" style={{ marginTop: 24 }}>
+              Рассказать о себе <small>Заполни, что хочешь — Ася учтёт это в разговоре. Можно и просто обсудить с ней.</small>
+            </div>
+            <div className="themes">
+              {PROFILE_FORMS.map((f) => {
+                const n = filledCount(f.id);
+                return (
+                  <button className="theme" key={f.id} onClick={() => openForm(f)}>
+                    <div className="t-ic">{f.icon}</div>
+                    <div className="t-body">
+                      <h3>{f.title}</h3>
+                      <div className="t-line">{f.blurb}</div>
+                      <div className="t-meta">
+                        {n > 0 ? `заполнено ${n} из ${f.questions.length}` : "рассказать"}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </>
         )}
       </div>

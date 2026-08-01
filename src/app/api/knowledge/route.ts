@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { complete, hasKey } from "@/lib/timeweb";
 import { topicIcon, normalizeTopic, TOPIC_NAMES } from "@/lib/topics";
+import { getForm } from "@/lib/profileForms";
 
 export const runtime = "nodejs";
 
@@ -63,17 +64,18 @@ async function backfillTopics(rows: FactRow[]): Promise<FactRow[]> {
 async function ensurePortrait(
   user: { id: string; portrait?: string | null; portraitAt?: Date | null },
   facts: FactRow[],
+  extra: string[] = [],
 ): Promise<string> {
   const cached = user.portrait || "";
   const fresh = user.portraitAt && Date.now() - new Date(user.portraitAt).getTime() < 24 * 3600 * 1000;
   if (cached && fresh) return cached;
-  if (!facts.length || !hasKey()) return cached;
+  if ((!facts.length && !extra.length) || !hasKey()) return cached;
 
   const sys =
     `Ты — Ася, тёплая подружка. По списку того, что ты знаешь о человеке, напиши короткий бережный портрет: ` +
     `2–3 предложения, обращение на «ты», живым языком, без списков и без оценок свысока. ` +
     `Опирайся только на факты из списка, ничего не додумывай. Начни не с «ты», а естественно. Пиши обычным текстом, без разметки: никаких звёздочек для выделения, решёток, дефисов-списков и таблиц.`;
-  const text = await complete([{ role: "user", content: facts.map((f) => f.fact).join("; ") }], sys, 260);
+  const text = await complete([{ role: "user", content: [...facts.map((f) => f.fact), ...extra].join("; ") }], sys, 260);
   const portrait = text.trim();
   if (!portrait) return cached;
 
@@ -118,7 +120,25 @@ export async function GET() {
     }
   }
 
-  const portrait = await ensurePortrait(user, facts).catch(() => user.portrait || "");
+  // Профиль «о себе» тоже питает портрет.
+  const paRows = await (
+    prisma as unknown as {
+      profileAnswer: {
+        findMany: (a: { where: { userId: string } }) => Promise<{ formId: string; questionId: string; value: string }[]>;
+      };
+    }
+  ).profileAnswer
+    .findMany({ where: { userId: user.id } })
+    .catch(() => [] as { formId: string; questionId: string; value: string }[]);
+  const profileStrings = paRows
+    .map((r) => {
+      const f = getForm(r.formId);
+      const q = f?.questions.find((x) => x.id === r.questionId);
+      return q && r.value ? `${q.label} ${r.value}` : "";
+    })
+    .filter(Boolean);
+
+  const portrait = await ensurePortrait(user, facts, profileStrings).catch(() => user.portrait || "");
 
   const themes = [...groups.entries()]
     .map(([name, g]) => ({
