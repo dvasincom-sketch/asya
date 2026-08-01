@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
+import { forgetAllIncKeys } from "@/lib/incognito";
 
 type Sheet = { title: string; text: string; btn: string; action: () => void | Promise<void> };
 type Chip = { id: string; fact: string };
@@ -114,6 +115,12 @@ export default function SettingsScreen() {
   async function wipeHistory() {
     await fetch("/api/history", { method: "DELETE" }).catch(() => {});
     toast("Готово 🤍 История разговоров удалена");
+  }
+
+  async function wipePrivate() {
+    forgetAllIncKeys();
+    await fetch("/api/private", { method: "DELETE" }).catch(() => {});
+    toast("Готово 🤍 Приватные записи удалены");
   }
 
   async function deleteAccount() {
@@ -257,6 +264,20 @@ export default function SettingsScreen() {
           >
             <div className="di">🗑</div>
             <div className="dt"><b>Удалить всю историю — в один клик</b><span>Вся переписка стирается безвозвратно</span></div>
+          </div>
+          <div
+            className="drow"
+            onClick={() =>
+              confirm({
+                title: "Стереть приватные записи?",
+                text: "Все инкогнито-разговоры на сервере будут удалены, а ключ шифрования на этом устройстве — забыт. Обычная переписка и память останутся.",
+                btn: "Стереть приватные записи",
+                action: wipePrivate,
+              })
+            }
+          >
+            <div className="di">🕶️</div>
+            <div className="dt"><b>Стереть приватные записи</b><span>Инкогнито-разговоры и ключ этого устройства</span></div>
           </div>
           <div
             className="drow"

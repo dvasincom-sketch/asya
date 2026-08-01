@@ -631,3 +631,25 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .skill-strip .ss-exit { margin-left: auto; flex: 0 0 auto; text-decoration: none; color: var(--text-soft);
   border: 1px solid var(--line); border-radius: 12px; padding: 5px 12px; transition: 0.2s; }
 .skill-strip .ss-exit:hover { border-color: var(--accent); color: var(--text); background: rgba(255, 255, 255, 0.06); }
+
+/* --- инкогнито: тумблер, полоска и приватный визуал --- */
+.theme-btn.on { color: var(--text); border-color: var(--accent); background: rgba(255, 255, 255, 0.1); }
+
+/* В инкогнито меняем «фирменные» акценты на графит — сигнал приватности, работает в обеих темах. */
+.app.incognito { --bubble-u1: #6b6f86; --bubble-u2: #494c62; --bubble-u-text: #f4f2f8; --accent: #aab3c9; }
+
+.inc-strip { display: flex; align-items: center; gap: 10px; padding: 9px 18px; position: relative; z-index: 4;
+  background: rgba(28, 24, 40, 0.62); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px);
+  font-size: 12.5px; color: var(--text-soft); }
+.inc-strip .ss-ic { font-size: 15px; flex: 0 0 auto; }
+.inc-strip .ss-t b { color: var(--text); font-weight: 600; }
+.inc-strip .ss-info { margin-left: auto; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--glass); color: var(--text-soft); cursor: pointer;
+  font-family: inherit; font-size: 12.5px; line-height: 1; transition: 0.2s; }
+.inc-strip .ss-info:hover { color: var(--text); border-color: var(--accent); }
+.inc-strip .ss-exit { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 12px; padding: 5px 12px;
+  background: var(--glass); color: var(--text-soft); cursor: pointer; font-family: inherit; font-size: 12.5px; transition: 0.2s; }
+.inc-strip .ss-exit:hover { color: var(--text); border-color: var(--accent); }
+
+.inc-badge { display: inline-block; margin: 0 auto 14px; padding: 5px 13px; border-radius: 14px; font-size: 12px;
+  background: rgba(28, 24, 40, 0.62); border: 1px solid var(--line); color: var(--text-soft); }

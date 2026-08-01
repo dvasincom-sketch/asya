@@ -11,6 +11,7 @@ import MenuSheet from "./MenuSheet";
 import BookingCard from "./BookingCard";
 import MyBookingsCard from "./MyBookingsCard";
 import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
+import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
 
 type Msg =
   | { role: "user"; kind: "text"; content: string }
@@ -44,6 +45,11 @@ export default function ChatWindow() {
   const [salonName, setSalonName] = useState("");
   const [skill, setSkill] = useState<string | null>(null);
   const [skillMeta, setSkillMeta] = useState<{ title: string; icon: string; tagline: string; starters: string[] } | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [incognito, setIncognito] = useState(false);
+  const [incInfo, setIncInfo] = useState(false);
+  const incRef = useRef<IncCrypto | null>(null);
+  const normalRef = useRef<Msg[] | null>(null);
   const salonReady = salonName !== "";
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +102,7 @@ export default function ChatWindow() {
         if (cancelled) return;
         const isAuthed = Boolean(d.user);
         setAuthed(isAuthed);
+        setUserId(d.user?.id ?? null);
         if (isAuthed) {
           // Согласие на условия обязательно до сохранения переписки.
           const c = await fetch("/api/consent").then((r) => r.json()).catch(() => null);
@@ -169,6 +176,73 @@ export default function ChatWindow() {
     if (authed === false && next >= FREE_LIMIT) setGated(true);
   }
 
+  // --- Инкогнито ---------------------------------------------------------
+  // Разговор нигде не сохраняется в открытом виде. Вошедшему — шифруем ключом устройства
+  // и храним нечитаемым шифротекстом; анониму — чисто эфемерно (только в этой вкладке).
+  async function enterIncognito() {
+    track("incognito_on");
+    normalRef.current = messages;
+    setInput("");
+    setMessages([]);
+    setIncognito(true);
+    try {
+      if (!localStorage.getItem("asya_inc_seen")) {
+        setIncInfo(true);
+        localStorage.setItem("asya_inc_seen", "1");
+      }
+    } catch {
+      /* ignore */
+    }
+    if (userId) {
+      const ic = await getIncCrypto(userId);
+      incRef.current = ic;
+      if (ic) {
+        try {
+          const d = await fetch("/api/private").then((r) => r.json());
+          const rows: { role: string; iv: string; data: string }[] = Array.isArray(d.messages) ? d.messages : [];
+          const decoded: Msg[] = [];
+          for (const r of rows) {
+            const text = await ic.decrypt(r.iv, r.data);
+            if (text) decoded.push({ role: r.role === "user" ? "user" : "assistant", kind: "text", content: text });
+          }
+          if (decoded.length) setMessages(decoded);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
+  function exitIncognito() {
+    track("incognito_off");
+    setIncognito(false);
+    setInput("");
+    setMessages(normalRef.current ?? []);
+    normalRef.current = null;
+  }
+
+  function toggleIncognito() {
+    if (busy) return;
+    if (incognito) exitIncognito();
+    else void enterIncognito();
+  }
+
+  // Сохранить одно сообщение инкогнито зашифрованным (только вошедшему; аноним — эфемерно).
+  function storePrivate(role: "user" | "assistant", text: string) {
+    if (!incognito || !userId || !text) return;
+    const ic = incRef.current;
+    if (!ic) return;
+    void (async () => {
+      const enc = await ic.encrypt(text);
+      if (!enc) return;
+      fetch("/api/private", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, iv: enc.iv, data: enc.data }),
+      }).catch(() => {});
+    })();
+  }
+
   async function send(textArg?: string) {
     const text = (textArg ?? input).trim();
     if (!text || busy) return;
@@ -179,13 +253,14 @@ export default function ChatWindow() {
     setInput("");
     setBusy(true);
 
-    const askedMine = !skill && salonReady && asksMyBookings(text);
-    const askedBooking = !skill && !askedMine && salonReady && wantsBooking(text);
+    const askedMine = !skill && !incognito && salonReady && asksMyBookings(text);
+    const askedBooking = !skill && !incognito && !askedMine && salonReady && wantsBooking(text);
     const userMsg: Msg = { role: "user", kind: "text", content: text };
     if (messages.length === 0) track("first_message");
     track("message_sent");
     setMessages((m) => [...m, userMsg]);
     bumpCount();
+    storePrivate("user", text);
 
     const history = [...messages, userMsg]
       .filter((m) => m.kind === "text")
@@ -196,7 +271,7 @@ export default function ChatWindow() {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, skill }),
+        body: JSON.stringify({ messages: history, skill, incognito }),
       });
       const ct = resp.headers.get("content-type") || "";
 
@@ -205,6 +280,7 @@ export default function ChatWindow() {
         setTyping(false);
         if (data.type === "crisis") {
           setMessages((m) => [...m, { role: "assistant", kind: "crisis", content: data.text, contacts: data.contacts || [] }]);
+          storePrivate("assistant", data.text || "");
         } else if (resp.status === 429 && data.error === "limit") {
           // Дневной лимит исчерпан. Анониму — предлагаем войти (гейт), вошедшему — мягкое сообщение.
           if (data.needAuth) {
@@ -214,6 +290,7 @@ export default function ChatWindow() {
           else setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "На сегодня достаточно 🤍" }]);
         } else {
           setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "…" }]);
+          storePrivate("assistant", data.text || "");
           if (askedMine) showMyBookings();
           else if (askedBooking) offerBooking();
         }
@@ -257,6 +334,7 @@ export default function ChatWindow() {
         }
       }
       if (!full) updateLastAssistant("…");
+      else storePrivate("assistant", full);
       if (askedMine) showMyBookings();
       else if (askedBooking) offerBooking();
     } catch {
@@ -268,19 +346,28 @@ export default function ChatWindow() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${incognito ? " incognito" : ""}`}>
       <header>
         <Orb className="mini-orb" />
         <div>
           <h1>Ася</h1>
-          <div className="status"><span className="dotlive" /> онлайн</div>
+          <div className="status"><span className="dotlive" /> {incognito ? "инкогнито" : "онлайн"}</div>
         </div>
+        <button
+          className={`theme-btn${incognito ? " on" : ""}`}
+          onClick={toggleIncognito}
+          title={incognito ? "выключить инкогнито" : "инкогнито — секретный разговор"}
+          aria-label="инкогнито"
+          aria-pressed={incognito}
+          style={{ marginLeft: "auto" }}
+        >
+          🕶️
+        </button>
         <button
           className="theme-btn burger"
           onClick={() => setMenuOpen(true)}
           title="меню"
           aria-label="меню"
-          style={{ marginLeft: "auto" }}
         >
           <i /><i /><i />
         </button>
@@ -294,9 +381,26 @@ export default function ChatWindow() {
         </div>
       )}
 
+      {incognito && (
+        <div className="inc-strip">
+          <span className="ss-ic">🕶️</span>
+          <span className="ss-t">Инкогнито · <b>не сохраняется</b></span>
+          <button className="ss-info" onClick={() => setIncInfo(true)} title="как это работает" aria-label="как это работает">?</button>
+          <button className="ss-exit" onClick={exitIncognito}>Выключить</button>
+        </div>
+      )}
+
       <div className="chat" ref={chatRef}>
         {messages.length === 0 &&
-          (skillMeta ? (
+          (incognito ? (
+            <div className="intro">
+              <div className="inc-badge">🕶️ Инкогнито</div>
+              <Orb className="big-orb" />
+              <h2>Здесь можно посекретничать</h2>
+              <p>Этот разговор не попадает ни в историю, ни в память. Если ты вошла, он хранится только зашифрованным ключом, который есть лишь на твоём устройстве, — на сервере его не прочитать. Чтобы ответить, я читаю сообщение в моменте, но читаемого следа не остаётся.</p>
+              <div className="safe-chip">🔒 Ключ не уходит на сервер · выключишь — вернётся обычный чат</div>
+            </div>
+          ) : skillMeta ? (
             <div className="intro">
               <Orb className="big-orb" />
               <h2>{skillMeta.icon} {skillMeta.title}</h2>
@@ -371,7 +475,7 @@ export default function ChatWindow() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-              placeholder="Напиши, что чувствуешь…"
+              placeholder={incognito ? "Здесь можно посекретничать…" : "Напиши, что чувствуешь…"}
               autoComplete="off"
             />
           </div>
@@ -380,6 +484,14 @@ export default function ChatWindow() {
           </button>
         </div>
       )}
+
+      <div className={`overlay ${incInfo ? "on" : ""}`} onClick={() => setIncInfo(false)} />
+      <div className={`sheet ${incInfo ? "on" : ""}`}>
+        <Orb className="sh-orb" />
+        <h3>Инкогнито — честно, как это работает</h3>
+        <p>В этом режиме я не сохраняю разговор в историю и не запоминаю его. Если ты вошла, переписка хранится только зашифрованной — ключ создаётся на твоём устройстве и никогда не попадает к нам на сервер, поэтому прочитать её там нельзя. Чтобы ответить, мне нужно прочитать сообщение в этот момент, но после ответа читаемого следа не остаётся. Если очистишь браузер или это устройство — доступ к этим записям пропадёт, так и задумано.</p>
+        <button className="sheet-btn ghost" onClick={() => setIncInfo(false)}>Понятно 🤍</button>
+      </div>
 
       <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>

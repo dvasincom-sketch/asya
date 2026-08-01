@@ -38,6 +38,7 @@ model User {
   crisisEvents CrisisEvent[]
   sessions     Session[]
   coachSessions CoachSession[]
+  privateMessages PrivateMessage[]
 }
 
 // Структурированная сессия («разбор»): шаблон задаёт невидимый каркас вопросов,
@@ -81,6 +82,20 @@ model Message {
 
   @@index([userId, createdAt])
   @@index([userId, skill, createdAt])
+}
+
+// Инкогнито-переписка: хранится ТОЛЬКО зашифрованной (AES-GCM) ключом устройства.
+// Сервер видит лишь iv и шифротекст (data) и прочитать содержимое не может.
+model PrivateMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  iv        String
+  data      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Memory {

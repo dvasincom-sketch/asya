@@ -27,10 +27,14 @@ export async function POST(req: NextRequest) {
   const skill = getSkill(typeof rawSkill === "string" ? rawSkill : null);
   const skillId = skill?.id ?? null;
 
+  // Инкогнито: этот разговор нигде не сохраняем (ни история, ни память, ни кризис-флаг).
+  // Но то, что Ася уже знает о человеке, по-прежнему подмешиваем — она остаётся собой.
+  const incognito = (body as { incognito?: unknown }).incognito === true;
+
   // Текущий пользователь (если вошёл). Для анонимных — быстро вернёт null, без БД.
   const user = await getCurrentUser().catch(() => null);
-  const saveHistory = Boolean(user && user.historyEnabled);
-  const saveMemory = Boolean(user && user.memoryEnabled);
+  const saveHistory = Boolean(user && user.historyEnabled && !incognito);
+  const saveMemory = Boolean(user && user.memoryEnabled && !incognito);
 
   // Prisma-клиент в песочнице собран без поля skill — тегируем сообщения через приведение типов.
   const msgDb = prisma.message as unknown as {
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest) {
     if (saveHistory && user) {
       await msgDb.create({ data: { userId: user.id, role: "user", content: String(lastUser.content), skill: skillId } }).catch(() => {});
     }
-    if (user) await prisma.crisisEvent.create({ data: { userId: user.id, level: "keyword" } }).catch(() => {});
+    if (user && !incognito) await prisma.crisisEvent.create({ data: { userId: user.id, level: "keyword" } }).catch(() => {});
     return Response.json(CRISIS_REPLY);
   }
 
@@ -88,7 +92,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Спросили про программы салона — подмешиваем справку, чтобы Ася не выдумывала.
-  if (SALON.enabled && !skill && lastUser && asksAboutServices(String(lastUser.content))) {
+  if (SALON.enabled && !skill && !incognito && lastUser && asksAboutServices(String(lastUser.content))) {
     systemExtra += buildProgramsContext();
   }
 
