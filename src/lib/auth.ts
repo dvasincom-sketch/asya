@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import crypto from "crypto";
 import type { User } from "@prisma/client";
 import { prisma } from "./prisma";
+import { withDb, isTransient } from "./db";
 
 const COOKIE = "asya_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 дней
@@ -20,46 +21,54 @@ export async function createSession(userId: string): Promise<void> {
   });
 }
 
+type SessionLite = { expiresAt: Date; user: User } | null;
+
+// Одна попытка прочитать сессию. Транзиентную ошибку БД (недоступность/сеть) пробрасываем,
+// чтобы withDb её ретраил, — иначе краткий блип Postgres мгновенно «разлогинивал» человека.
+// А вот дрейф схемы (P2022: свежая миграция ещё не догнала прод и include тянет несуществующую
+// колонку) не транзиентный — тут же читаем безопасное подмножество полей, чтобы кабинет открывался.
+async function loadSession(id: string): Promise<SessionLite> {
+  try {
+    const s = await prisma.session.findUnique({ where: { id }, include: { user: true } });
+    return s as SessionLite;
+  } catch (e) {
+    if (isTransient(e)) throw e;
+    const s = await prisma.session.findUnique({
+      where: { id },
+      select: {
+        expiresAt: true,
+        user: {
+          select: {
+            id: true,
+            tgId: true,
+            phone: true,
+            createdAt: true,
+            consentAt: true,
+            consentVersion: true,
+            memoryEnabled: true,
+            historyEnabled: true,
+            remindersEnabled: true,
+          },
+        },
+      },
+    });
+    return s as unknown as SessionLite;
+  }
+}
+
 export async function getCurrentUser(): Promise<User | null> {
   const id = cookies().get(COOKIE)?.value;
   if (!id) return null;
-  const alive = (expiresAt: Date) => expiresAt >= new Date();
-  try {
-    const session = await prisma.session.findUnique({ where: { id }, include: { user: true } });
-    if (!session || !alive(session.expiresAt)) return null;
-    return session.user;
-  } catch {
-    // Схема БД могла отстать от Prisma-клиента: свежая миграция ещё не применилась на проде,
-    // и include: { user: true } тянет колонки, которых в базе пока нет (Prisma P2022).
-    // Берём только базовые поля, которые есть всегда, — чтобы кабинет открывался, пока
-    // миграции догоняют. Недостающие поля (portrait, healthEnabled и т.п.) будут undefined
-    // и обрабатываются вызывающим кодом как «пусто/выключено».
-    try {
-      const session = await prisma.session.findUnique({
-        where: { id },
-        select: {
-          expiresAt: true,
-          user: {
-            select: {
-              id: true,
-              tgId: true,
-              phone: true,
-              createdAt: true,
-              consentAt: true,
-              consentVersion: true,
-              memoryEnabled: true,
-              historyEnabled: true,
-              remindersEnabled: true,
-            },
-          },
-        },
-      });
-      if (!session || !alive(session.expiresAt)) return null;
-      return session.user as unknown as User;
-    } catch {
-      return null;
-    }
-  }
+  // Блип БД переживаем ретраями (не роняем сессию); при устойчивой недоступности — null,
+  // и вызывающий код (в мини-аппе — AuthGate) мягко переавторизует.
+  const session = await withDb(() => loadSession(id), {
+    fallback: null as SessionLite,
+    timeoutMs: 2500,
+    retries: 2,
+    label: "auth.session",
+  });
+  if (!session || session.expiresAt < new Date()) return null;
+  return session.user;
 }
 
 export async function destroySession(): Promise<void> {

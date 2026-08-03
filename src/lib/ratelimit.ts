@@ -1,6 +1,7 @@
 // Серверный дневной лимит сообщений. Источник правды — БД (таблица DailyUsage),
 // а не localStorage, который легко обойти.
 import { prisma } from "./prisma";
+import { withDb } from "./db";
 import type { NextRequest } from "next/server";
 
 // Лимиты в день.
@@ -37,15 +38,17 @@ export async function checkAndCount(
   key: string,
   limit: number,
 ): Promise<{ allowed: boolean; count: number }> {
-  try {
-    const row = await delegate().upsert({
-      where: { key },
-      create: { key, count: 1 },
-      update: { count: { increment: 1 } },
-    });
-    return { allowed: row.count <= limit, count: row.count };
-  } catch {
-    // Если счётчик недоступен — не блокируем пользователя (fail-open).
-    return { allowed: true, count: 0 };
-  }
+  // Таймаут + короткий ретрай: зависший upsert не должен морозить отправку сообщения.
+  // Если счётчик недоступен даже после ретраев — не блокируем человека (fail-open).
+  const row = await withDb(
+    () =>
+      delegate().upsert({
+        where: { key },
+        create: { key, count: 1 },
+        update: { count: { increment: 1 } },
+      }),
+    { fallback: null as { count: number } | null, timeoutMs: 2000, retries: 1, label: "ratelimit" },
+  );
+  if (!row) return { allowed: true, count: 0 };
+  return { allowed: row.count <= limit, count: row.count };
 }
