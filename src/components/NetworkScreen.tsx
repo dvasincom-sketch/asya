@@ -198,7 +198,7 @@ export default function NetworkScreen() {
             <div className="srow" key={c.id}>
               <div className="ti">
                 <b className="net-cat-h">
-                  <span>{c.icon} {c.label}</span>
+                  {c.icon} {c.label}
                   {c.badge && <span className={`badge-soon ${c.badge === "бета" ? "beta" : ""}`}>{c.badge}</span>}
                 </b>
                 <span>{c.note}</span>

@@ -68,6 +68,34 @@ function dayLabel(iso?: string): string {
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
+// Локальный кеш последней истории на устройстве — чтобы после деплоя, когда бэкенд
+// на секунды недоступен, чат не был пустым. Инкогнито и режим навыка не кешируем.
+const HIST_KEY = "asya_hist_v1";
+type CachedMsg = { role: "user" | "assistant"; content: string; at?: string };
+function writeHistCache(uid: string, rows: { role: string; content: string; at?: string }[] | null) {
+  if (!rows) return;
+  try {
+    const msgs = rows
+      .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
+      .slice(-60)
+      .map((m) => ({ role: m.role, content: m.content, at: m.at }));
+    localStorage.setItem(HIST_KEY, JSON.stringify({ uid, msgs }));
+  } catch {
+    /* приватный режим браузера / переполнение — не критично */
+  }
+}
+function readHistCache(uid: string): CachedMsg[] | null {
+  try {
+    const raw = localStorage.getItem(HIST_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (o?.uid !== uid || !Array.isArray(o.msgs)) return null;
+    return o.msgs as CachedMsg[];
+  } catch {
+    return null;
+  }
+}
+
 export default function ChatWindow() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
@@ -158,18 +186,26 @@ export default function ChatWindow() {
             return;
           }
           if (cancelled) return;
-          const h = await fetch("/api/history" + (skillParam ? `?skill=${encodeURIComponent(skillParam)}` : "")).then((r) => r.json());
+          let rows: { role: string; content: string; at?: string }[] | null = null;
+          try {
+            const h = await fetch("/api/history" + (skillParam ? `?skill=${encodeURIComponent(skillParam)}` : "")).then((r) => r.json());
+            if (cancelled) return;
+            rows = Array.isArray(h.messages) ? h.messages : [];
+            setHasMore(Boolean(h.hasMore));
+            setCursor(h.cursor ?? null);
+            if (!skillParam && d.user.id) writeHistCache(d.user.id, rows);
+          } catch {
+            // Бэкенд моргнул (частый случай сразу после деплоя) — показываем последнее из кеша устройства.
+            if (!skillParam && d.user.id) rows = readHistCache(d.user.id);
+          }
           if (cancelled) return;
-          const rows: { role: string; content: string; at?: string }[] = Array.isArray(h.messages) ? h.messages : [];
-          if (rows.length) {
+          if (rows && rows.length) {
             setMessages(
               rows
                 .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
                 .map((m) => ({ role: m.role as "user" | "assistant", kind: "text", content: m.content, at: m.at })),
             );
           }
-          setHasMore(Boolean(h.hasMore));
-          setCursor(h.cursor ?? null);
           // Счётчик активности сети для бейджа на меню («твой ход»).
           fetch("/api/network/summary")
             .then((r) => r.json())

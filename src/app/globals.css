@@ -767,11 +767,11 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .net-orb { width: 46px; height: 46px; margin: 0 auto 8px; }
 .net-lead b { display: block; font-family: Georgia, serif; font-weight: 500; font-size: 18px; color: var(--text); }
 .net-lead p { color: var(--text-soft); font-size: 13.5px; line-height: 1.55; margin: 8px auto 0; max-width: 340px; }
-.net-cat-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.badge-soon { flex: 0 0 auto; display: inline-flex; align-items: center; width: auto; white-space: nowrap;
-  font-size: 10px; line-height: 1; padding: 3px 7px; border-radius: 8px; font-weight: 600; letter-spacing: .3px;
-  text-transform: uppercase; background: var(--glass); border: 1px solid var(--line); color: var(--text-dim); }
-.badge-soon.beta { color: var(--accent); border-color: var(--accent); }
+.srow .ti b.net-cat-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.srow .ti .badge-soon { flex: 0 0 auto; display: inline-flex; align-items: center; width: auto; margin-top: 0;
+  white-space: nowrap; font-size: 10px; line-height: 1; padding: 3px 8px; border-radius: 8px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; background: var(--glass); border: 1px solid var(--line); color: var(--text-dim); }
+.srow .ti .badge-soon.beta { color: var(--accent); border-color: var(--accent); }
 .net-empty { color: var(--text-soft); font-size: 13.5px; line-height: 1.5; padding: 14px 16px; }
 .ncard { border: 1px solid var(--line); border-radius: 16px; padding: 13px 14px; margin-bottom: 10px;
   background: var(--glass); }
