@@ -8,6 +8,7 @@ import { rememberFrom } from "@/lib/memory";
 import { asksAboutServices, buildProgramsContext, asksLogistics, buildSalonInfoContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
+import { buildTgGuideContext } from "@/lib/tgcatalog";
 import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
 import { buildProfileContext } from "@/lib/profileForms";
 import { getSub, retentionSince } from "@/lib/plus";
@@ -149,6 +150,12 @@ export async function POST(req: NextRequest) {
 
   // Навык: подмешиваем грунтовку (метод, границы, справку), чтобы Ася держалась темы и не фантазировала.
   if (skill) systemExtra += buildSkillContext(skill);
+
+  // Навык «Найти канал»: тянем кандидатов из каталога TGStat под запрос человека
+  // и просим Асю отобрать 5–7. Без токена/результатов — мягкая деградация внутри.
+  if (skill?.id === "tgguide" && lastUser) {
+    systemExtra += await buildTgGuideContext(String(lastUser.content)).catch(() => "");
+  }
 
   // Таро: подмешиваем значения выпавших карт (сам расклад вытянут заранее, выше).
   if (taroCards.length) systemExtra += buildTaroContext(taroCards);
