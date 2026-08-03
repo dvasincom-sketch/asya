@@ -42,7 +42,24 @@ export type SearchResult = { items: CatalogChannel[]; available: boolean };
 // Контракт TGStat channels/search: обязателен token, country и (q или category).
 export type PeerType = "channel" | "chat" | "all";
 
-export async function searchChannels(q: string, peerType: PeerType = "all"): Promise<SearchResult> {
+// Категории каталога TGStat (database/categories) — фиксированный таксон для жёсткого
+// таргетинга темы в навыке. Небезопасные (adult, erotica, gambling, darknet, shock)
+// исключены намеренно: навык их не ищет. Ключ — код TGStat, значение — имя для подсказки модели.
+export const TG_CATEGORIES: Record<string, string> = {
+  tech: "Технологии", news: "Новости и СМИ", food: "Еда и кулинария", blogs: "Блоги",
+  education: "Образование", entertainment: "Юмор и развлечения", pics: "Картинки и фото",
+  apps: "Софт и приложения", economics: "Экономика", video: "Видео и фильмы",
+  business: "Бизнес и стартапы", music: "Музыка", sales: "Продажи", books: "Книги",
+  quotes: "Цитаты", sport: "Спорт", language: "Лингвистика", crypto: "Криптовалюты",
+  career: "Карьера", travels: "Путешествия", handmade: "Рукоделие", beauty: "Мода и красота",
+  medicine: "Медицина", transport: "Транспорт", marketing: "Маркетинг, PR, реклама",
+  telegram: "Telegram", psychology: "Психология", design: "Дизайн", babies: "Семья и дети",
+  nature: "Природа", politics: "Политика", religion: "Религия", edutainment: "Познавательное",
+  games: "Игры", health: "Здоровье и фитнес", instagram: "Инстаграм", courses: "Курсы и гайды",
+  art: "Искусство", law: "Право", construction: "Интерьер и строительство", esoterics: "Эзотерика",
+};
+
+export async function searchChannels(q: string, peerType: PeerType = "all", category = ""): Promise<SearchResult> {
   const token = process.env.TGSTAT_TOKEN;
   if (!token) return { items: [], available: false };
   const query = q.trim().slice(0, 200);
@@ -56,6 +73,8 @@ export async function searchChannels(q: string, peerType: PeerType = "all"): Pro
     search_by_description: "1", // шире охват: искать и по описаниям
     limit: "40",
   });
+  // Категория (если распознана и безопасна) — жёстко сужает поиск в нужную тему.
+  if (category && TG_CATEGORIES[category]) params.set("category", category);
   const url = `https://api.tgstat.ru/channels/search?${params.toString()}`;
 
   const ctrl = new AbortController();
@@ -116,40 +135,48 @@ import { complete } from "./timeweb";
 import { clean } from "./text";
 import type { ChatMessage } from "./crisis";
 
-export type SearchSpec = { q: string; peerType: PeerType };
+export type SearchSpec = { q: string; peerType: PeerType; category: string };
 
 // Строим запрос к каталогу из разговора: TGStat ищет по СЛОВАМ в названии/описании,
 // поэтому сырая фраза («почему Ставрополь? я в Москве») даёт мусор. Модель извлекает
 // чистые ключевые слова (тема + город) и тип: сообщество (chat) или контентный канал (channel).
 export async function extractSearchSpec(messages: ChatMessage[]): Promise<SearchSpec> {
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
-  const fallback: SearchSpec = { q: String(lastUser?.content || "").trim().slice(0, 60), peerType: "all" };
+  const fallback: SearchSpec = { q: String(lastUser?.content || "").trim().slice(0, 60), peerType: "all", category: "" };
   if (!hasTgCatalog()) return fallback;
 
   const convo = messages
     .slice(-8)
     .map((m) => `${m.role === "user" ? "Человек" : "Ася"}: ${m.content}`)
     .join("\n");
+  const catList = Object.entries(TG_CATEGORIES)
+    .map(([c, n]) => `${c} (${n})`)
+    .join(", ");
   const sys =
-    "Ты формируешь короткий поисковый запрос к каталогу Telegram по разговору. " +
-    'Верни СТРОГО JSON без пояснений: {"q":"...","peerType":"chat|channel|all"}. ' +
+    "Ты формируешь точный поисковый запрос к каталогу Telegram по разговору. Это режим-навык: цель одна — " +
+    "найти релевантный канал или чат, без свободной беседы. " +
+    'Верни СТРОГО JSON без пояснений: {"q":"...","peerType":"chat|channel|all","category":"код|пусто"}. ' +
     "q — 2–4 ключевых слова: тема и город/локация, если человек их назвал, в именительном падеже, " +
     "без слов «канал», «чат», «группа», «ищу», «хочу», без кавычек и знаков препинания. " +
     'peerType: "chat" — если человек ищет чат, группу, сообщество для общения; ' +
     '"channel" — если ищет канал с контентом, новостями, блог; "all" — если неясно. ' +
+    "category — код из списка ниже, если тема ясно в него попадает, иначе пустая строка. " +
+    `Категории: ${catList}. ` +
     "Учитывай весь разговор: если в новой реплике человек уточняет город или тему — соедини с тем, что искали раньше. " +
-    'Примеры: «хочу чат мам в декрете, я в Москве» -> {"q":"мамы декрет москва","peerType":"chat"}; ' +
-    '«новости про ИИ» -> {"q":"новости искусственный интеллект","peerType":"channel"}; ' +
-    '«канал про бег» -> {"q":"бег","peerType":"channel"}.';
+    'Примеры: «хочу чат мам в декрете, я в Москве» -> {"q":"мамы декрет москва","peerType":"chat","category":"babies"}; ' +
+    '«новости про ИИ» -> {"q":"новости искусственный интеллект","peerType":"channel","category":"tech"}; ' +
+    '«канал про бег» -> {"q":"бег","peerType":"channel","category":"sport"}.';
   const raw = await complete([{ role: "user", content: convo }], sys, 120).catch(() => "");
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) return fallback;
   try {
-    const o = JSON.parse(m[0]) as { q?: unknown; peerType?: unknown };
+    const o = JSON.parse(m[0]) as { q?: unknown; peerType?: unknown; category?: unknown };
     const q = String(o.q ?? "").trim().slice(0, 80);
     const peerType: PeerType = o.peerType === "chat" || o.peerType === "channel" ? o.peerType : "all";
+    // Категория валидируется по безопасному таксону; неизвестная/небезопасная -> пусто.
+    const category = typeof o.category === "string" && TG_CATEGORIES[o.category] ? o.category : "";
     if (q.length < 2) return fallback;
-    return { q, peerType };
+    return { q, peerType, category };
   } catch {
     return fallback;
   }

@@ -98,8 +98,8 @@ export async function POST(req: NextRequest) {
     const query = String(lastUser.content);
     // TGStat ищет по словам в названии/описании — сырую фразу он не понимает. Сначала
     // извлекаем из разговора чистый запрос (тема + город) и тип (сообщество/канал).
-    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const }));
-    const found = await searchChannels(spec.q, spec.peerType).catch(() => ({ items: [] as CatalogChannel[], available: false }));
+    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const, category: "" }));
+    const found = await searchChannels(spec.q, spec.peerType, spec.category).catch(() => ({ items: [] as CatalogChannel[], available: false }));
     let picked: { intro: string; channels: CatalogChannel[] };
     if (!found.available) {
       // Сбой уровня каталога (нет токена/подписки, сеть) — честно, а не «ничего не нашлось».
