@@ -39,7 +39,8 @@ function eventDb(): EventDb {
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const name = String(body.name || "");
-  if (!ALLOWED.has(name)) return Response.json({ ok: false }, { status: 204 });
+  // 204 не может нести тело — иначе undici бросает TypeError. Отвечаем пустым 204.
+  if (!ALLOWED.has(name)) return new Response(null, { status: 204 });
 
   const user = await getCurrentUser().catch(() => null);
   const anonId = String(body.anonId || "").slice(0, 40) || null;
