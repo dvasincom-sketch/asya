@@ -101,6 +101,20 @@ function readHistCache(uid: string): CachedMsg[] | null {
   }
 }
 
+// Кеш без привязки к uid — чтобы показать последнюю переписку ДО того, как узнаем,
+// кто вошёл (окно прогрева бэкенда/БД после деплоя). uid лежит внутри самого кеша.
+function readHistCacheAny(): { uid: string; msgs: CachedMsg[] } | null {
+  try {
+    const raw = localStorage.getItem(HIST_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || typeof o.uid !== "string" || !Array.isArray(o.msgs)) return null;
+    return { uid: o.uid, msgs: o.msgs as CachedMsg[] };
+  } catch {
+    return null;
+  }
+}
+
 export default function ChatWindow() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
@@ -119,6 +133,7 @@ export default function ChatWindow() {
   const incRef = useRef<IncCrypto | null>(null);
   const normalRef = useRef<Msg[] | null>(null);
   const [booted, setBooted] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [netCount, setNetCount] = useState(0);
   const [roomsUnread, setRoomsUnread] = useState(0);
   const [roomsOpen, setRoomsOpen] = useState(false);
@@ -175,37 +190,54 @@ export default function ChatWindow() {
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => { if (d?.salon) setSalonName(d.salon); })
         .catch(() => {});
+
+      // Оптимистично показываем последнюю переписку из кеша устройства ещё до входа —
+      // чтобы в окно прогрева бэкенда/БД после деплоя не было пустого экрана.
+      if (!skillParam) {
+        const cached = readHistCacheAny();
+        if (cached && cached.msgs.length) {
+          setUserId(cached.uid);
+          setMessages(cached.msgs.map((m) => ({ role: m.role, kind: "text", content: m.content, at: m.at })));
+          setBooted(true); // есть что показать — не держим экран загрузки
+        }
+      }
+
       // Если открыто как Telegram Mini App — авторизуемся по Telegram до /api/me.
       const inTg = await initTelegramMiniApp();
       if (inTg) track("miniapp_open", undefined, true);
       if (cancelled) return;
-      try {
-        const d = await fetch("/api/me").then((r) => r.json());
-        if (cancelled) return;
-        const isAuthed = Boolean(d.user);
-        setAuthed(isAuthed);
-        setUserId(d.user?.id ?? null);
-        if (isAuthed) {
+
+      // Одна попытка загрузить сессию. true — вошли и всё подтянули (или намеренно ушли на онбординг);
+      // false — бэкенд/БД недоступны или user:null (после деплоя база прогревается несколько минут) — снаружи ретрайнем.
+      async function loadSession(): Promise<boolean> {
+        try {
+          const d = await fetch("/api/me").then((r) => r.json());
+          if (cancelled) return true;
+          if (!d.user) {
+            setAuthed(false);
+            return false; // возможно, БД ещё встаёт — дадим переподключиться
+          }
+          setAuthed(true);
+          setUserId(d.user.id ?? null);
           // Согласие на условия обязательно до сохранения переписки.
           const c = await fetch("/api/consent").then((r) => r.json()).catch(() => null);
           if (c?.needsConsent) {
             window.location.href = "/onboarding";
-            return;
+            return true;
           }
-          if (cancelled) return;
+          if (cancelled) return true;
           let rows: { role: string; content: string; at?: string }[] | null = null;
           try {
             const h = await fetch("/api/history" + (skillParam ? `?skill=${encodeURIComponent(skillParam)}` : "")).then((r) => r.json());
-            if (cancelled) return;
+            if (cancelled) return true;
             rows = Array.isArray(h.messages) ? h.messages : [];
             setHasMore(Boolean(h.hasMore));
             setCursor(h.cursor ?? null);
             if (!skillParam && d.user.id) writeHistCache(d.user.id, rows);
           } catch {
-            // Бэкенд моргнул (частый случай сразу после деплоя) — показываем последнее из кеша устройства.
             if (!skillParam && d.user.id) rows = readHistCache(d.user.id);
           }
-          if (cancelled) return;
+          if (cancelled) return true;
           if (rows && rows.length) {
             setMessages(
               rows
@@ -218,11 +250,25 @@ export default function ChatWindow() {
             .then((r) => r.json())
             .then((d) => { if (!cancelled) { setNetCount(Number(d?.count) || 0); setRoomsUnread(Number(d?.roomsUnread) || 0); } })
             .catch(() => {});
+          return true;
+        } catch {
+          return false; // сеть/бэкенд недоступны — ретрайнем
         }
-      } catch {
-        if (!cancelled) setAuthed(false);
-      } finally {
-        if (!cancelled) setBooted(true);
+      }
+
+      let ok = await loadSession();
+      // Если не вышло, но есть кеш (значит человек уже входил и бэкенд просто прогревается) —
+      // тихо переподключаемся в фоне, продолжая показывать последнюю переписку. Анонимов не мучаем.
+      const hadCache = !skillParam && !!readHistCacheAny();
+      for (let attempt = 0; !ok && hadCache && attempt < 5 && !cancelled; attempt++) {
+        setReconnecting(true);
+        await new Promise((r) => setTimeout(r, 4000));
+        if (cancelled) break;
+        ok = await loadSession();
+      }
+      if (!cancelled) {
+        setReconnecting(false);
+        setBooted(true);
       }
     })();
     try {
@@ -574,6 +620,13 @@ export default function ChatWindow() {
           <span className="ss-t">Инкогнито · <b>не сохраняется</b></span>
           <button className="ss-info" onClick={() => setIncInfo(true)} title="как это работает" aria-label="как это работает">?</button>
           <button className="ss-exit" onClick={exitIncognito}>Выключить</button>
+        </div>
+      )}
+
+      {reconnecting && (
+        <div className="inc-strip">
+          <span className="ss-ic">↻</span>
+          <span className="ss-t">Восстанавливаю связь — показываю последнее сохранённое</span>
         </div>
       )}
 
