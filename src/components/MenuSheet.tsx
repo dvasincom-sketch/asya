@@ -1,13 +1,15 @@
 "use client";
 
+import { Icon, type IconName } from "./Icon";
+
 // Одно меню вместо россыпи иконок в шапке: разделы + смена темы.
 const ITEMS = [
-  { href: "/account/memory", ic: "🤍", title: "То, что Ася о тебе знает", sub: "Портрет, темы и сохранённые разборы" },
-  { href: "/account/sessions", ic: "🪞", title: "Сессия с Асей", sub: "Разобрать идею, подвести итоги, понять себя" },
-  { href: "/account/skills", ic: "✨", title: "Навыки", sub: "Нутрициолог, астролог и другие роли Асей" },
-  { href: "/account/health", ic: "🩺", title: "Здоровье", sub: "Анализы, динамика и напоминания" },
-  { href: "/account/network", ic: "🤝", title: "Сеть", sub: "Ася знакомит по согласию и берёт рутину на себя" },
-  { href: "/account/settings", ic: "⚙️", title: "Настройки и приватность", sub: "Память, история, удаление данных" },
+  { href: "/account/memory", ic: "memory" as IconName, title: "То, что Ася о тебе знает", sub: "Портрет, темы и сохранённые разборы" },
+  { href: "/account/sessions", ic: "sessions" as IconName, title: "Сессия с Асей", sub: "Разобрать идею, подвести итоги, понять себя" },
+  { href: "/account/skills", ic: "skills" as IconName, title: "Навыки", sub: "Нутрициолог, астролог и другие роли Асей" },
+  { href: "/account/health", ic: "health" as IconName, title: "Здоровье", sub: "Анализы, динамика и напоминания" },
+  { href: "/account/network", ic: "network" as IconName, title: "Сеть", sub: "Ася знакомит по согласию и берёт рутину на себя" },
+  { href: "/account/settings", ic: "settings" as IconName, title: "Настройки и приватность", sub: "Память, история, удаление данных" },
 ];
 
 export default function MenuSheet({ open, onClose, netCount = 0 }: { open: boolean; onClose: () => void; netCount?: number }) {
@@ -23,7 +25,7 @@ export default function MenuSheet({ open, onClose, netCount = 0 }: { open: boole
         <div className="menu-grip" />
         {ITEMS.map((i) => (
           <a className="menu-item" href={i.href} key={i.href}>
-            <span className="mi-ic">{i.ic}</span>
+            <span className="mi-ic"><Icon name={i.ic} /></span>
             <span className="mi-body">
               <b>{i.title}</b>
               <span>{i.sub}</span>
@@ -35,7 +37,7 @@ export default function MenuSheet({ open, onClose, netCount = 0 }: { open: boole
         ))}
 
         <button className="menu-item" onClick={toggleTheme}>
-          <span className="mi-ic">◐</span>
+          <span className="mi-ic"><Icon name="theme" /></span>
           <span className="mi-body">
             <b>День или вечер</b>
             <span>Переключить тему оформления</span>

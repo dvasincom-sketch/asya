@@ -876,3 +876,9 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .account-tile .at-ic { flex: 0 0 auto; width: 24px; text-align: center; font-size: 18px; }
 .account-tile .at-t { flex: 1 1 auto; min-width: 0; font-size: 14.5px; line-height: 1.25; }
 .account-tile .at-go { flex: 0 0 auto; color: var(--text-dim); font-size: 18px; }
+
+/* ---- Линейные иконки в стиле приложения (меню, кабинет) ----------------- */
+.ic { display: block; }
+.menu-item .mi-ic .ic { width: 20px; height: 20px; color: var(--accent); }
+.account-tile .at-ic { display: flex; align-items: center; justify-content: center; }
+.account-tile .at-ic .ic { width: 21px; height: 21px; color: var(--accent); }
