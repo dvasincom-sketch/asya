@@ -804,3 +804,15 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   resize: none; }
 .net-input::placeholder { color: var(--text-dim); }
 .net-input:focus { outline: none; border-color: var(--accent); }
+
+/* ---- Карточка-предложение в чате (детекция офферов/запросов) ------------- */
+.net-suggest { max-width: 82%; border: 1px solid var(--line); border-radius: 18px; padding: 14px 15px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), var(--surface); }
+[data-theme="day"] .net-suggest { background: linear-gradient(160deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6)), var(--surface); }
+.ns-head { display: flex; align-items: center; gap: 8px; }
+.ns-ic { font-size: 17px; }
+.ns-head b { font-size: 14px; color: var(--text); font-weight: 600; }
+.ns-text { color: var(--text-soft); font-size: 14px; line-height: 1.5; margin: 8px 0 0; }
+.ns-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ns-done { margin-top: 11px; padding: 9px 12px; border-radius: 12px; font-size: 13.5px; color: var(--text);
+  background: var(--crisis); border: 1px solid var(--crisis-border); }

@@ -14,12 +14,24 @@ import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
 import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
 import TaroSpread from "./TaroSpread";
 
+type NetSuggest = {
+  kind: "offer" | "request";
+  category: string;
+  categoryLabel: string;
+  categoryIcon: string;
+  title: string;
+  blurb: string;
+  city: string;
+  preview: string;
+};
+
 type Msg =
   | { role: "user"; kind: "text"; content: string; at?: string }
   | { role: "assistant"; kind: "text"; content: string; at?: string }
   | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] }
   | { role: "assistant"; kind: "booking"; content: string }
-  | { role: "assistant"; kind: "mybookings"; content: string };
+  | { role: "assistant"; kind: "mybookings"; content: string }
+  | { role: "assistant"; kind: "netsuggest"; content: string; sid: string; suggest: NetSuggest; done?: string };
 
 // Первый контакт: как обращаться (для правильного рода).
 const FIRST_CHIPS = [
@@ -414,12 +426,65 @@ export default function ChatWindow() {
         else storePrivate("assistant", full);
         if (askedMine) showMyBookings();
         else if (askedBooking) offerBooking();
+        else void maybeDetectNetwork(text);
       }
     } catch {
       setTyping(false);
       setMessages((m) => [...m, { role: "assistant", kind: "text", content: "Кажется, я не смогла ответить. Попробуй ещё раз чуть позже 🤍" }]);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Ася заметила потенциальный оффер/запрос — мягко предлагает оформить (по согласию).
+  async function maybeDetectNetwork(userText: string) {
+    if (authed !== true || incognito || skill) return;
+    try {
+      const r = await fetch("/api/network/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: userText, incognito }),
+      }).then((x) => x.json()).catch(() => null);
+      if (!r || (r.kind !== "offer" && r.kind !== "request")) return;
+      const sid = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      setMessages((m) => [...m, { role: "assistant", kind: "netsuggest", content: "", sid, suggest: r as NetSuggest }]);
+    } catch {
+      /* тихо — детекция не критична */
+    }
+  }
+
+  function markSuggest(sid: string, done: string) {
+    setMessages((m) => m.map((x) => (x.kind === "netsuggest" && x.sid === sid ? { ...x, done } : x)));
+  }
+
+  // Согласие в чате: создаём оффер/запрос ТОЛЬКО по тапу. Стена сохранена.
+  async function confirmSuggest(sid: string, s: NetSuggest, publish: boolean) {
+    if (s.kind === "offer") {
+      if (publish) {
+        await fetch("/api/network/consent", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: s.category, enabled: true }),
+        }).catch(() => {});
+        await fetch("/api/network/offers", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: s.category, title: s.title, blurb: s.blurb, params: { city: s.city }, status: "active" }),
+        }).catch(() => {});
+        markSuggest(sid, "Готово 🤍 Буду иногда предлагать тебя тем, кто ищет — и по каждому спрошу тебя. Управлять можно в разделе «Сеть».");
+      } else {
+        await fetch("/api/network/offers", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: s.category, title: s.title, blurb: s.blurb, params: { city: s.city }, status: "draft" }),
+        }).catch(() => {});
+        markSuggest(sid, "Сохранила черновиком 🤍 Включишь в разделе «Сеть», когда захочешь.");
+      }
+    } else {
+      const res = await fetch("/api/network/requests", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: s.category, criteria: { city: s.city }, note: s.blurb, deadlineDays: 7 }),
+      }).then((x) => x.json()).catch(() => ({}));
+      markSuggest(sid, res && res.matched > 0
+        ? `Уже нашла кое-кого (${res.matched}) 🤍 Загляни в раздел «Сеть».`
+        : "Возьму паузу на неделю и поищу 🤍 Покажу только тех, кто сам согласится. Загляни потом в «Сеть».");
     }
   }
 
@@ -526,6 +591,31 @@ export default function ChatWindow() {
               <div className="row assistant">
                 <Orb className="mini-orb" />
                 <MyBookingsCard salonName={salonName} />
+              </div>
+            ) : m.kind === "netsuggest" ? (
+              <div className="row assistant">
+                <Orb className="mini-orb" />
+                <div className="net-suggest">
+                  <div className="ns-head">
+                    <span className="ns-ic">{m.suggest.categoryIcon}</span>
+                    <b>{m.suggest.kind === "offer" ? "Заметила кое-что 🤍" : "Могу взять это на себя"}</b>
+                  </div>
+                  <p className="ns-text">{m.suggest.preview}</p>
+                  {m.done ? (
+                    <div className="ns-done">{m.done}</div>
+                  ) : m.suggest.kind === "offer" ? (
+                    <div className="ns-actions">
+                      <button className="nbtn accent" onClick={() => confirmSuggest(m.sid, m.suggest, true)}>Да, предлагай меня 🤍</button>
+                      <button className="nbtn" onClick={() => confirmSuggest(m.sid, m.suggest, false)}>Пока черновиком</button>
+                      <button className="nbtn ghost" onClick={() => markSuggest(m.sid, "Хорошо, не буду 🤍")}>Не сейчас</button>
+                    </div>
+                  ) : (
+                    <div className="ns-actions">
+                      <button className="nbtn accent" onClick={() => confirmSuggest(m.sid, m.suggest, true)}>Да, поищи 🤍</button>
+                      <button className="nbtn ghost" onClick={() => markSuggest(m.sid, "Хорошо, не буду 🤍")}>Не сейчас</button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : m.kind === "booking" ? (
               <div className="row assistant">
