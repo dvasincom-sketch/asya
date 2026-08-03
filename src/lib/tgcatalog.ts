@@ -75,37 +75,51 @@ export async function searchChannels(query: string): Promise<CatalogChannel[]> {
   }
 }
 
-// Контекст-грунтовка для навыка: кандидаты из каталога + инструкция отобрать 5–7.
-export async function buildTgGuideContext(query: string): Promise<string> {
+// Структурный отбор каналов: Ася выбирает 5–7 из кандидатов и пишет короткую вводную.
+// Возвращает { intro, channels } — карточки рисуются кликабельными в чате.
+import { complete } from "./timeweb";
+import { clean } from "./text";
+
+export async function selectChannels(
+  query: string,
+  candidates: CatalogChannel[],
+): Promise<{ intro: string; channels: CatalogChannel[] }> {
   if (!hasTgCatalog()) {
-    return (
-      "\n\n[Каталог каналов пока не подключён] Честно и тепло скажи человеку, что поиск каналов сейчас недоступен " +
-      "и вы вернётесь к нему позже. Ничего не выдумывай и не предлагай конкретные каналы."
-    );
+    return { intro: "Пока не могу искать каналы — каталог не подключён. Давай вернёмся к этому чуть позже 🤍", channels: [] };
   }
-  const chs = await searchChannels(query);
-  if (!chs.length) {
-    return (
-      "\n\n[Поиск по каталогу ничего не дал] Мягко скажи, что по этому запросу ничего не нашлось, " +
-      "и предложи переформулировать или уточнить тему. Не выдумывай каналы."
-    );
+  if (!candidates.length) {
+    return {
+      intro: "По этому запросу ничего не нашлось. Скажи чуть иначе или добавь деталей — тему, для чего это тебе, какого размера сообщество 🤍",
+      channels: [],
+    };
   }
-  const list = chs
+  const list = candidates
     .slice(0, 20)
-    .map((c, i) => {
-      const parts = [
-        `${i + 1}. ${c.title}`,
-        c.username ? `(@${c.username})` : "",
-        c.participants ? `— ${c.participants.toLocaleString("ru-RU")} подписчиков` : "",
-        c.about ? `: ${c.about}` : "",
-      ].filter(Boolean);
-      return parts.join(" ");
-    })
+    .map((c, i) => `${i}. ${c.title}${c.username ? ` (@${c.username})` : ""}${c.about ? ` — ${c.about}` : ""}`)
     .join("\n");
-  return (
-    `\n\nКандидаты из каталога Telegram по запросу «${query}» (это данные каталога — не добавляй ничего сверх списка):\n${list}\n\n` +
-    "Отбери 5–7 самых подходящих под запрос человека, отсей нерелевантное и представь их тепло и по делу, живым текстом: " +
-    "для каждого — название, ссылка t.me/username (если есть @username) и одна короткая фраза, чем он подойдёт. " +
-    "Никогда не предлагай каналы, которых нет в списке. Если подходящих меньше пяти — покажи столько, сколько реально подходит."
-  );
+  const sys =
+    "Ты — Ася, тёплая подружка-навигатор по Telegram. Из списка кандидатов выбери 5–7 самых подходящих под запрос человека, " +
+    "отсей нерелевантное и опасное (мошеннические, «сигналы», лёгкий заработок, 18+, азартные). " +
+    "Верни СТРОГО JSON без пояснений: {\"intro\":\"1–2 тёплые фразы вводной, без перечисления каналов\",\"pick\":[индексы выбранных из списка]}. " +
+    "Если подходящих мало — верни столько, сколько реально подходит; если совсем нет — pick пустой, а intro честно об этом.";
+  const usr = `Запрос человека: «${query}».\nКандидаты:\n${list}`;
+  const raw = await complete([{ role: "user", content: usr }], sys, 400).catch(() => "");
+  const m = raw.match(/\{[\s\S]*\}/);
+  let intro = "";
+  let pick: number[] = [];
+  let parsed = false;
+  if (m) {
+    try {
+      const o = JSON.parse(m[0]) as { intro?: unknown; pick?: unknown };
+      parsed = true;
+      intro = clean(String(o.intro ?? "")).trim();
+      pick = Array.isArray(o.pick) ? o.pick.map(Number).filter((n) => Number.isInteger(n) && n >= 0) : [];
+    } catch {
+      parsed = false;
+    }
+  }
+  const chosen = pick.map((i) => candidates[i]).filter(Boolean).slice(0, 7);
+  const channels = parsed ? chosen : candidates.slice(0, 6);
+  if (!intro) intro = channels.length ? "Вот что подобралось под твой запрос 🤍" : "По этому запросу пока ничего подходящего — уточни детали?";
+  return { intro, channels };
 }

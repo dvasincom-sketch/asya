@@ -8,7 +8,7 @@ import { rememberFrom } from "@/lib/memory";
 import { asksAboutServices, buildProgramsContext, asksLogistics, buildSalonInfoContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
-import { buildTgGuideContext } from "@/lib/tgcatalog";
+import { searchChannels, selectChannels } from "@/lib/tgcatalog";
 import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
 import { buildProfileContext } from "@/lib/profileForms";
 import { getSub, retentionSince } from "@/lib/plus";
@@ -92,6 +92,22 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "no_key", text: "Ключ модели не задан." }, { status: 503 });
   }
 
+  // Навык «Найти канал»: не поток, а структурный ответ — Ася подбирает каналы,
+  // клиент рисует их кликабельными плашками (перейти в Telegram в один тап).
+  if (skill?.id === "tgguide" && lastUser) {
+    const query = String(lastUser.content);
+    const candidates = await searchChannels(query).catch(() => []);
+    const picked = await selectChannels(query, candidates).catch(() => ({
+      intro: "Не получилось поискать сейчас — попробуй ещё раз чуть позже 🤍",
+      channels: [] as typeof candidates,
+    }));
+    if (saveHistory && user) {
+      await msgDb.create({ data: { userId: user.id, role: "assistant", content: picked.intro, skill: skillId } }).catch(() => {});
+    }
+    if (saveMemory && user && query) void rememberFrom(user.id, query);
+    return Response.json({ type: "tgchannels", text: picked.intro, channels: picked.channels });
+  }
+
   // Память: что Ася уже знает о человеке — подмешиваем в system-prompt.
   let systemExtra = "";
   if (user && user.memoryEnabled) {
@@ -150,12 +166,6 @@ export async function POST(req: NextRequest) {
 
   // Навык: подмешиваем грунтовку (метод, границы, справку), чтобы Ася держалась темы и не фантазировала.
   if (skill) systemExtra += buildSkillContext(skill);
-
-  // Навык «Найти канал»: тянем кандидатов из каталога TGStat под запрос человека
-  // и просим Асю отобрать 5–7. Без токена/результатов — мягкая деградация внутри.
-  if (skill?.id === "tgguide" && lastUser) {
-    systemExtra += await buildTgGuideContext(String(lastUser.content)).catch(() => "");
-  }
 
   // Таро: подмешиваем значения выпавших карт (сам расклад вытянут заранее, выше).
   if (taroCards.length) systemExtra += buildTaroContext(taroCards);

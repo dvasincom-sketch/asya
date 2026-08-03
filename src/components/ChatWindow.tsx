@@ -16,6 +16,8 @@ import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
 import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
 import TaroSpread from "./TaroSpread";
 
+type TgChannel = { title: string; username: string | null; link: string | null; participants: number | null; about: string | null };
+
 type NetSuggest = {
   kind: "offer" | "request";
   category: string;
@@ -33,7 +35,8 @@ type Msg =
   | { role: "assistant"; kind: "crisis"; content: string; contacts: Contact[] }
   | { role: "assistant"; kind: "booking"; content: string }
   | { role: "assistant"; kind: "mybookings"; content: string }
-  | { role: "assistant"; kind: "netsuggest"; content: string; sid: string; suggest: NetSuggest; done?: string };
+  | { role: "assistant"; kind: "netsuggest"; content: string; sid: string; suggest: NetSuggest; done?: string }
+  | { role: "assistant"; kind: "tgchannels"; content: string; channels: TgChannel[] };
 
 // Первый контакт: как обращаться (для правильного рода).
 const FIRST_CHIPS = [
@@ -109,7 +112,7 @@ export default function ChatWindow() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [salonName, setSalonName] = useState("");
   const [skill, setSkill] = useState<string | null>(null);
-  const [skillMeta, setSkillMeta] = useState<{ title: string; icon: string; tagline: string; starters: string[] } | null>(null);
+  const [skillMeta, setSkillMeta] = useState<{ title: string; icon: string; tagline: string; starters: string[]; note?: string | null } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [incognito, setIncognito] = useState(false);
   const [incInfo, setIncInfo] = useState(false);
@@ -410,6 +413,9 @@ export default function ChatWindow() {
             setGated(true);
           }
           else setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "На сегодня достаточно 🤍" }]);
+        } else if (data.type === "tgchannels") {
+          setMessages((m) => [...m, { role: "assistant", kind: "tgchannels", content: data.text || "", channels: Array.isArray(data.channels) ? data.channels : [] }]);
+          storePrivate("assistant", data.text || "");
         } else {
           setMessages((m) => [...m, { role: "assistant", kind: "text", content: data.text || "…" }]);
           storePrivate("assistant", data.text || "");
@@ -606,7 +612,7 @@ export default function ChatWindow() {
                   ))}
                 </div>
               )}
-              <div className="safe-chip">🌸 Это поддержка и общение, не профессиональная помощь</div>
+              <div className="safe-chip">{skillMeta.note ?? "🌸 Это поддержка и общение, не профессиональная помощь"}</div>
             </div>
           ) : (
             <div className="intro">
@@ -632,6 +638,38 @@ export default function ChatWindow() {
               <div className="row assistant">
                 <Orb className="mini-orb" />
                 <MyBookingsCard salonName={salonName} />
+              </div>
+            ) : m.kind === "tgchannels" ? (
+              <div className="row assistant">
+                <Orb className="mini-orb" />
+                <div className="tg-block">
+                  {m.content && <div className="bubble">{clean(m.content)}</div>}
+                  {m.channels.length > 0 && (
+                    <div className="tg-cards">
+                      {m.channels.map((c, ci) => (
+                        <a
+                          className="tg-card"
+                          key={ci}
+                          href={c.link || (c.username ? `https://t.me/${c.username}` : "#")}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <span className="tg-av">{c.title.trim().slice(0, 1).toUpperCase()}</span>
+                          <span className="tg-cbody">
+                            <b>{c.title}</b>
+                            <span className="tg-meta">
+                              {c.username ? `@${c.username}` : ""}
+                              {c.username && c.participants ? " · " : ""}
+                              {c.participants ? `${c.participants.toLocaleString("ru-RU")} подписчиков` : ""}
+                            </span>
+                            {c.about && <span className="tg-about">{c.about}</span>}
+                          </span>
+                          <span className="tg-open">↗</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : m.kind === "netsuggest" ? (
               <div className="row assistant">

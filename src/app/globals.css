@@ -894,3 +894,21 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .rooms-empty { color: var(--text-soft); font-size: 13px; line-height: 1.5; padding: 8px 6px 12px; }
 .menu-item .mi-go.on { color: var(--accent); font-size: 12px; font-weight: 700; }
 .rooms-cta { margin-top: 14px; }
+
+/* ---- Карточки Telegram-каналов (навык «Найти канал») -------------------- */
+.tg-block { max-width: 88%; display: flex; flex-direction: column; gap: 10px; }
+.tg-cards { display: flex; flex-direction: column; gap: 8px; }
+.tg-card { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 15px;
+  border: 1px solid var(--line); background: var(--glass); text-decoration: none; color: var(--text);
+  transition: border-color 0.15s ease, transform 0.1s ease; }
+.tg-card:hover { border-color: var(--accent); }
+.tg-card:active { transform: scale(0.99); }
+.tg-av { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center;
+  justify-content: center; font-family: Georgia, serif; font-size: 17px; color: #fff;
+  background: linear-gradient(135deg, var(--orb2, var(--accent)), var(--accent)); }
+.tg-cbody { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tg-cbody b { font-size: 14px; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-meta { font-size: 12px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-about { font-size: 12px; color: var(--text-soft); line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tg-open { flex: 0 0 auto; color: var(--text-dim); font-size: 16px; }
