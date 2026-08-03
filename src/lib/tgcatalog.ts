@@ -65,10 +65,13 @@ export async function searchChannels(q: string, peerType: PeerType = "all", cate
   const query = q.trim().slice(0, 200);
   if (query.length < 3) return { items: [], available: true }; // слишком коротко — это «пусто», не сбой
 
+  const country = process.env.TGSTAT_COUNTRY || "ru";
+  // Отпечаток токена (не сам секрет) — чтобы в логах сверить, что в проде стоит рабочий токен.
+  const tokenFp = `${token.slice(0, 3)}…${token.slice(-3)}(${token.length})`;
   const params = new URLSearchParams({
     token,
     q: query,
-    country: process.env.TGSTAT_COUNTRY || "ru", // обязательный параметр контракта
+    country, // обязательный параметр контракта; валидный код из database/countries
     peer_type: peerType, // chat — сообщества/группы, channel — контентные каналы, all — оба
     search_by_description: "1", // шире охват: искать и по описаниям
     limit: "40",
@@ -82,22 +85,24 @@ export async function searchChannels(q: string, peerType: PeerType = "all", cate
   try {
     const res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) {
-      console.warn(`[tgstat] channels/search HTTP ${res.status} — каталог недоступен`);
+      console.warn(`[tgstat] HTTP ${res.status} token=${tokenFp} country=${country} q="${query}" — каталог недоступен`);
       return { items: [], available: false };
     }
     const data = (await res.json()) as {
       status?: string;
       error?: string;
-      response?: { items?: unknown[]; channels?: unknown[] };
+      response?: { items?: unknown[]; channels?: unknown[]; count?: number };
     };
     if (data.status && data.status !== "ok") {
       // Ошибка уровня аккаунта/запроса (token_invalid, no_active_subscription, квота, кривой параметр).
-      // Это НЕ «человек ничего не нашёл» — помечаем каталог недоступным. Причина видна в логах Timeweb.
-      console.warn(`[tgstat] channels/search status=${data.status} error=${data.error ?? "—"} — каталог недоступен`);
+      console.warn(`[tgstat] status=${data.status} error=${data.error ?? "—"} token=${tokenFp} country=${country} q="${query}" — каталог недоступен`);
       return { items: [], available: false };
     }
     const rawItems = (data.response?.items || data.response?.channels || []) as Record<string, unknown>[];
-    if (!rawItems.length) console.warn(`[tgstat] channels/search: 0 результатов по запросу «${query}» (${peerType})`);
+    // Полная диагностика: токен(отпечаток)/страна/тип/категория/запрос -> сколько отдал API.
+    console.warn(
+      `[tgstat] ok token=${tokenFp} country=${country} peer=${peerType} cat=${category || "-"} q="${query}" apiCount=${data.response?.count ?? "?"} items=${rawItems.length}`,
+    );
     const out: CatalogChannel[] = [];
     for (const raw of rawItems) {
       const ch = (raw.channel ?? raw) as Record<string, unknown>;
