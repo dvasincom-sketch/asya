@@ -21,30 +21,56 @@ function usernameFromLink(link: string | null | undefined): string | null {
   return m ? m[1] : null;
 }
 
-// Поиск каналов по запросу. Никогда не бросает — при любой ошибке возвращает [].
+// Нормализуем ссылку канала до полного https-URL, иначе карточка в чате не кликается
+// (TGStat часто отдаёт link как "t.me/name" без схемы).
+function fullLink(link: string | null, username: string | null): string | null {
+  if (link) {
+    const l = String(link).trim();
+    if (/^https?:\/\//i.test(l)) return l;
+    if (l) return `https://${l.replace(/^\/+/, "")}`;
+  }
+  return username ? `https://t.me/${username}` : null;
+}
+
+// Поиск каналов/чатов по запросу. Никогда не бросает — при любой ошибке возвращает [].
+// Контракт TGStat channels/search: обязателен token, country и (q или category).
+// Раньше country не слался — при ужесточении валидации запрос отклонялся и навык «замолкал».
 export async function searchChannels(query: string): Promise<CatalogChannel[]> {
   const token = process.env.TGSTAT_TOKEN;
   if (!token) return [];
   const q = query.trim().slice(0, 200);
-  if (q.length < 2) return [];
+  if (q.length < 3) return []; // TGStat требует минимум 3 символа в q
 
-  const url =
-    "https://api.tgstat.ru/channels/search" +
-    `?token=${encodeURIComponent(token)}` +
-    `&q=${encodeURIComponent(q)}` +
-    "&limit=40&extended=1";
+  const params = new URLSearchParams({
+    token,
+    q,
+    country: process.env.TGSTAT_COUNTRY || "ru", // обязательный параметр контракта
+    peer_type: "all", // и каналы, и чаты — навык обещает «канал или чат»
+    search_by_description: "1", // шире охват: искать и по описаниям
+    limit: "40",
+  });
+  const url = `https://api.tgstat.ru/channels/search?${params.toString()}`;
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 7000);
   try {
     const res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[tgstat] channels/search HTTP ${res.status} — поиск вернул пусто`);
+      return [];
+    }
     const data = (await res.json()) as {
       status?: string;
+      error?: string;
       response?: { items?: unknown[]; channels?: unknown[] };
     };
-    if (data.status && data.status !== "ok") return [];
+    if (data.status && data.status !== "ok") {
+      // Явно логируем причину (невалидный токен, исчерпана квота, кривой параметр) — видно в логах Timeweb.
+      console.warn(`[tgstat] channels/search status=${data.status} error=${data.error ?? "—"}`);
+      return [];
+    }
     const items = (data.response?.items || data.response?.channels || []) as Record<string, unknown>[];
+    if (!items.length) console.warn(`[tgstat] channels/search: 0 результатов по запросу «${q}»`);
     const out: CatalogChannel[] = [];
     for (const raw of items) {
       const ch = (raw.channel ?? raw) as Record<string, unknown>;
@@ -61,14 +87,15 @@ export async function searchChannels(query: string): Promise<CatalogChannel[]> {
       out.push({
         title: title.slice(0, 120),
         username,
-        link: link || (username ? `https://t.me/${username}` : null),
+        link: fullLink(link, username),
         participants,
         about: ch.about ? String(ch.about).slice(0, 220) : null,
         category: ch.category ? String(ch.category) : null,
       });
     }
     return out;
-  } catch {
+  } catch (e) {
+    console.warn(`[tgstat] channels/search исключение: ${e instanceof Error ? e.message : String(e)}`);
     return [];
   } finally {
     clearTimeout(timer);
