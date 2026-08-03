@@ -756,3 +756,51 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   font-size: 15px; line-height: 1.6; color: var(--text); backdrop-filter: blur(6px); animation: rise 0.5s ease both; }
 .taro-reading.dim { text-align: center; color: var(--text-soft); }
 .taro-close { max-width: 260px; margin: 22px auto 4px; }
+
+/* ---- Сеть (Ася — доверенный посредник) ---------------------------------- */
+.net-lead { position: relative; text-align: center; padding: 22px 18px 20px; margin-bottom: 8px;
+  border: 1px solid var(--line); border-radius: 22px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)), var(--surface); }
+[data-theme="day"] .net-lead { background: linear-gradient(160deg, rgba(255,255,255,0.85), rgba(255,255,255,0.55)), var(--surface); }
+.net-orb { width: 46px; height: 46px; margin: 0 auto 8px; }
+.net-lead b { display: block; font-family: Georgia, serif; font-weight: 500; font-size: 18px; color: var(--text); }
+.net-lead p { color: var(--text-soft); font-size: 13.5px; line-height: 1.55; margin: 8px auto 0; max-width: 340px; }
+.badge-soon { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; vertical-align: middle;
+  background: var(--glass); border: 1px solid var(--line); color: var(--text-dim); margin-left: 4px; }
+.net-empty { color: var(--text-soft); font-size: 13.5px; line-height: 1.5; padding: 6px 2px 10px; }
+.ncard { border: 1px solid var(--line); border-radius: 16px; padding: 13px 14px; margin-bottom: 10px;
+  background: var(--glass); }
+.ncard-head { display: flex; align-items: center; gap: 8px; }
+.ncard-head b { font-size: 14.5px; color: var(--text); font-weight: 600; }
+.ncard-blurb { color: var(--text-soft); font-size: 13.5px; line-height: 1.5; margin: 6px 0 0; }
+.ncard-meta { display: inline-block; color: var(--text-dim); font-size: 12px; margin-top: 6px; }
+.ncard-wait { color: var(--text-soft); font-size: 13px; margin-top: 10px; padding: 8px 10px;
+  border-radius: 12px; background: var(--glass); border: 1px solid var(--line); }
+.npill { margin-left: auto; font-size: 11px; padding: 3px 9px; border-radius: 11px;
+  background: var(--glass); border: 1px solid var(--line); color: var(--text-dim); white-space: nowrap; }
+.npill.active, .npill.matched { color: var(--accent); border-color: var(--accent); }
+.nactions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.nbtn { padding: 8px 14px; border-radius: 13px; border: 1px solid var(--line); cursor: pointer;
+  background: var(--glass); color: var(--text); font-size: 13px; }
+.nbtn:hover { border-color: var(--accent); }
+.nbtn.accent { background: var(--accent); color: #fff; border-color: transparent; }
+.nbtn.ghost { background: transparent; color: var(--text-soft); }
+.nbtn.link { background: transparent; border: none; color: var(--text-dim); padding: 8px 4px; margin-left: auto; }
+.nbtn.link:hover { color: var(--accent); }
+.net-add { width: 100%; padding: 12px; border-radius: 14px; border: 1px dashed var(--line);
+  background: transparent; color: var(--accent); font-size: 14px; cursor: pointer; margin-top: 2px; }
+.net-add:hover { border-color: var(--accent); }
+.net-groophead { font-size: 13px; color: var(--text-soft); margin-bottom: 10px; line-height: 1.45; }
+.cand { border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 9px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.04), transparent), var(--surface); }
+[data-theme="day"] .cand { background: linear-gradient(160deg, rgba(255,255,255,0.8), rgba(255,255,255,0.5)), var(--surface); }
+.net-more { color: var(--text-dim); font-size: 12px; text-align: center; margin-top: 4px; }
+.ncontact { margin-top: 11px; padding: 11px 13px; border-radius: 13px;
+  background: var(--crisis); border: 1px solid var(--crisis-border); }
+.ncontact b { display: block; font-size: 13.5px; color: var(--text); }
+.ncontact span { display: block; font-size: 13px; color: var(--text-soft); margin-top: 3px; }
+.net-input { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--glass); color: var(--text); font-size: 14px; margin-bottom: 10px; font-family: inherit;
+  resize: none; }
+.net-input::placeholder { color: var(--text-dim); }
+.net-input:focus { outline: none; border-color: var(--accent); }

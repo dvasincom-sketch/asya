@@ -6,6 +6,7 @@ const ITEMS = [
   { href: "/account/sessions", ic: "🪞", title: "Сессия с Асей", sub: "Разобрать идею, подвести итоги, понять себя" },
   { href: "/account/skills", ic: "✨", title: "Навыки", sub: "Нутрициолог, астролог и другие роли Асей" },
   { href: "/account/health", ic: "🩺", title: "Здоровье", sub: "Анализы, динамика и напоминания" },
+  { href: "/account/network", ic: "🤝", title: "Сеть", sub: "Ася знакомит по согласию и берёт рутину на себя" },
   { href: "/account/settings", ic: "⚙️", title: "Настройки и приватность", sub: "Память, история, удаление данных" },
 ];
 

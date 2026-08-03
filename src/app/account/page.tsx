@@ -23,6 +23,7 @@ export default async function AccountPage() {
         <a className="btn-ghost" href="/account/memory">То, что Ася о тебе знает</a>
         <a className="btn-ghost" href="/account/sessions">Сессия с Асей</a>
         <a className="btn-ghost" href="/account/skills">Навыки</a>
+        <a className="btn-ghost" href="/account/network">Сеть — знакомства по согласию</a>
         <a className="btn-ghost" href="/account/health">Здоровье</a>
         <a className="btn-ghost" href="/account/settings">Настройки и приватность</a>
         <LogoutButton />

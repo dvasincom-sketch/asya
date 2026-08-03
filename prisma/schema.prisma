@@ -46,6 +46,9 @@ model User {
   offers          Offer[]
   requests        RequestPost[]
   networkConsents NetworkConsent[]
+  bornYear        Int?
+  reportsMade     Report[]  @relation("reporter")
+  blocksMade      Block[]   @relation("blocker")
 }
 
 // Структурированная сессия («разбор»): шаблон задаёт невидимый каркас вопросов,
@@ -186,6 +189,30 @@ model Intro {
   @@unique([requestId, offerId])
   @@index([candidateId, status])
   @@index([requesterId, status])
+}
+
+// --- Безопасность сети ---
+model Report {
+  id           String   @id @default(cuid())
+  reporterId   String
+  targetUserId String
+  reason       String
+  note         String?
+  createdAt    DateTime @default(now())
+  reporter     User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId])
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  userId    String
+  blockedId String
+  createdAt DateTime @default(now())
+  user      User     @relation("blocker", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blockedId])
+  @@index([blockedId])
 }
 
 model Memory {
