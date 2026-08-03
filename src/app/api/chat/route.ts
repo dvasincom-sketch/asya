@@ -8,7 +8,7 @@ import { rememberFrom } from "@/lib/memory";
 import { asksAboutServices, buildProgramsContext, asksLogistics, buildSalonInfoContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
-import { searchChannels, selectChannels, type CatalogChannel } from "@/lib/tgcatalog";
+import { searchChannels, selectChannels, extractSearchSpec, type CatalogChannel } from "@/lib/tgcatalog";
 import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
 import { buildProfileContext } from "@/lib/profileForms";
 import { getSub, retentionSince } from "@/lib/plus";
@@ -96,13 +96,17 @@ export async function POST(req: NextRequest) {
   // клиент рисует их кликабельными плашками (перейти в Telegram в один тап).
   if (skill?.id === "tgguide" && lastUser) {
     const query = String(lastUser.content);
-    const found = await searchChannels(query).catch(() => ({ items: [] as CatalogChannel[], available: false }));
+    // TGStat ищет по словам в названии/описании — сырую фразу он не понимает. Сначала
+    // извлекаем из разговора чистый запрос (тема + город) и тип (сообщество/канал).
+    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const }));
+    const found = await searchChannels(spec.q, spec.peerType).catch(() => ({ items: [] as CatalogChannel[], available: false }));
     let picked: { intro: string; channels: CatalogChannel[] };
     if (!found.available) {
       // Сбой уровня каталога (нет токена/подписки, сеть) — честно, а не «ничего не нашлось».
       picked = { intro: "Каталог каналов сейчас недоступен — не хочу выдумывать, вернёмся к поиску чуть позже 🤍", channels: [] };
     } else {
-      picked = await selectChannels(query, found.items).catch(() => ({
+      // Для отбора отдаём распознанный интент (spec.q) — по нему модель судит релевантность точнее.
+      picked = await selectChannels(spec.q || query, found.items).catch(() => ({
         intro: "Не получилось поискать сейчас — попробуй ещё раз чуть позже 🤍",
         channels: [] as CatalogChannel[],
       }));

@@ -40,17 +40,19 @@ export type SearchResult = { items: CatalogChannel[]; available: boolean };
 
 // Поиск каналов/чатов по запросу. Никогда не бросает.
 // Контракт TGStat channels/search: обязателен token, country и (q или category).
-export async function searchChannels(query: string): Promise<SearchResult> {
+export type PeerType = "channel" | "chat" | "all";
+
+export async function searchChannels(q: string, peerType: PeerType = "all"): Promise<SearchResult> {
   const token = process.env.TGSTAT_TOKEN;
   if (!token) return { items: [], available: false };
-  const q = query.trim().slice(0, 200);
-  if (q.length < 3) return { items: [], available: true }; // слишком коротко — это «пусто», не сбой
+  const query = q.trim().slice(0, 200);
+  if (query.length < 3) return { items: [], available: true }; // слишком коротко — это «пусто», не сбой
 
   const params = new URLSearchParams({
     token,
-    q,
+    q: query,
     country: process.env.TGSTAT_COUNTRY || "ru", // обязательный параметр контракта
-    peer_type: "all", // и каналы, и чаты — навык обещает «канал или чат»
+    peer_type: peerType, // chat — сообщества/группы, channel — контентные каналы, all — оба
     search_by_description: "1", // шире охват: искать и по описаниям
     limit: "40",
   });
@@ -76,7 +78,7 @@ export async function searchChannels(query: string): Promise<SearchResult> {
       return { items: [], available: false };
     }
     const rawItems = (data.response?.items || data.response?.channels || []) as Record<string, unknown>[];
-    if (!rawItems.length) console.warn(`[tgstat] channels/search: 0 результатов по запросу «${q}»`);
+    if (!rawItems.length) console.warn(`[tgstat] channels/search: 0 результатов по запросу «${query}» (${peerType})`);
     const out: CatalogChannel[] = [];
     for (const raw of rawItems) {
       const ch = (raw.channel ?? raw) as Record<string, unknown>;
@@ -112,6 +114,46 @@ export async function searchChannels(query: string): Promise<SearchResult> {
 // Возвращает { intro, channels } — карточки рисуются кликабельными в чате.
 import { complete } from "./timeweb";
 import { clean } from "./text";
+import type { ChatMessage } from "./crisis";
+
+export type SearchSpec = { q: string; peerType: PeerType };
+
+// Строим запрос к каталогу из разговора: TGStat ищет по СЛОВАМ в названии/описании,
+// поэтому сырая фраза («почему Ставрополь? я в Москве») даёт мусор. Модель извлекает
+// чистые ключевые слова (тема + город) и тип: сообщество (chat) или контентный канал (channel).
+export async function extractSearchSpec(messages: ChatMessage[]): Promise<SearchSpec> {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const fallback: SearchSpec = { q: String(lastUser?.content || "").trim().slice(0, 60), peerType: "all" };
+  if (!hasTgCatalog()) return fallback;
+
+  const convo = messages
+    .slice(-8)
+    .map((m) => `${m.role === "user" ? "Человек" : "Ася"}: ${m.content}`)
+    .join("\n");
+  const sys =
+    "Ты формируешь короткий поисковый запрос к каталогу Telegram по разговору. " +
+    'Верни СТРОГО JSON без пояснений: {"q":"...","peerType":"chat|channel|all"}. ' +
+    "q — 2–4 ключевых слова: тема и город/локация, если человек их назвал, в именительном падеже, " +
+    "без слов «канал», «чат», «группа», «ищу», «хочу», без кавычек и знаков препинания. " +
+    'peerType: "chat" — если человек ищет чат, группу, сообщество для общения; ' +
+    '"channel" — если ищет канал с контентом, новостями, блог; "all" — если неясно. ' +
+    "Учитывай весь разговор: если в новой реплике человек уточняет город или тему — соедини с тем, что искали раньше. " +
+    'Примеры: «хочу чат мам в декрете, я в Москве» -> {"q":"мамы декрет москва","peerType":"chat"}; ' +
+    '«новости про ИИ» -> {"q":"новости искусственный интеллект","peerType":"channel"}; ' +
+    '«канал про бег» -> {"q":"бег","peerType":"channel"}.';
+  const raw = await complete([{ role: "user", content: convo }], sys, 120).catch(() => "");
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) return fallback;
+  try {
+    const o = JSON.parse(m[0]) as { q?: unknown; peerType?: unknown };
+    const q = String(o.q ?? "").trim().slice(0, 80);
+    const peerType: PeerType = o.peerType === "chat" || o.peerType === "channel" ? o.peerType : "all";
+    if (q.length < 2) return fallback;
+    return { q, peerType };
+  } catch {
+    return fallback;
+  }
+}
 
 export async function selectChannels(
   query: string,
