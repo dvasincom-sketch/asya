@@ -1,12 +1,23 @@
 import { getCurrentUser } from "@/lib/auth";
-import { roomDb, roomMemberDb, roomMsgDb } from "@/lib/networkDb";
+import { roomDb, roomMemberDb, roomMsgDb, introsDb } from "@/lib/networkDb";
+import { ensureRoom } from "@/lib/rooms";
 
 export const runtime = "nodejs";
 
-// Список моих комнат-чатов: собеседник (обезличенно), последнее сообщение, непрочитанное.
+// Список моих комнат-чатов. Заодно бэкфилл: для каждого моего взаимного метча
+// (intro в статусе contact_shared), у которого ещё нет комнаты, создаём её —
+// чтобы «Открыть общий чат» работал и для матчей, случившихся до появления комнат.
 export async function GET() {
   const u = await getCurrentUser().catch(() => null);
   if (!u) return Response.json({ rooms: [] });
+
+  const [asCand, asReq] = await Promise.all([
+    introsDb().findMany({ where: { candidateId: u.id, status: "contact_shared" }, take: 100 }).catch(() => []),
+    introsDb().findMany({ where: { requesterId: u.id, status: "contact_shared" }, take: 100 }).catch(() => []),
+  ]);
+  for (const it of [...asCand, ...asReq]) {
+    await ensureRoom(it.id, it.requesterId, it.candidateId).catch(() => null);
+  }
 
   const myMemberships = await roomMemberDb().findMany({ where: { userId: u.id }, take: 100 }).catch(() => []);
   const rooms = [];

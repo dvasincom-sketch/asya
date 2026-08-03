@@ -882,3 +882,15 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .menu-item .mi-ic .ic { width: 20px; height: 20px; color: var(--accent); }
 .account-tile .at-ic { display: flex; align-items: center; justify-content: center; }
 .account-tile .at-ic .ic { width: 21px; height: 21px; color: var(--accent); }
+
+/* ---- Шапка: группа круглых кнопок (Румы + меню) ------------------------- */
+.hdr-btns { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.hdr-btns .theme-btn { margin-left: 0; position: relative; }
+.theme-btn .ic { width: 19px; height: 19px; color: var(--text-soft); }
+.theme-btn:hover .ic { color: var(--text); }
+
+/* ---- Румы (лист чатов) -------------------------------------------------- */
+.rooms-head { font-family: Georgia, serif; font-size: 17px; color: var(--text); margin: 2px 4px 12px; }
+.rooms-empty { color: var(--text-soft); font-size: 13px; line-height: 1.5; padding: 8px 6px 12px; }
+.menu-item .mi-go.on { color: var(--accent); font-size: 12px; font-weight: 700; }
+.rooms-cta { margin-top: 14px; }

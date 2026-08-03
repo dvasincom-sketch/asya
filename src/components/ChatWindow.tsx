@@ -8,6 +8,8 @@ import { initTelegramMiniApp } from "@/lib/telegramWebApp";
 import { track } from "@/lib/track";
 import { clean } from "@/lib/text";
 import MenuSheet from "./MenuSheet";
+import RoomsSheet from "./RoomsSheet";
+import { Icon } from "./Icon";
 import BookingCard from "./BookingCard";
 import MyBookingsCard from "./MyBookingsCard";
 import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
@@ -115,6 +117,8 @@ export default function ChatWindow() {
   const normalRef = useRef<Msg[] | null>(null);
   const [booted, setBooted] = useState(false);
   const [netCount, setNetCount] = useState(0);
+  const [roomsUnread, setRoomsUnread] = useState(0);
+  const [roomsOpen, setRoomsOpen] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -209,7 +213,7 @@ export default function ChatWindow() {
           // Счётчик активности сети для бейджа на меню («твой ход»).
           fetch("/api/network/summary")
             .then((r) => r.json())
-            .then((d) => { if (!cancelled) setNetCount(Number(d?.count) || 0); })
+            .then((d) => { if (!cancelled) { setNetCount(Number(d?.count) || 0); setRoomsUnread(Number(d?.roomsUnread) || 0); } })
             .catch(() => {});
         }
       } catch {
@@ -538,22 +542,16 @@ export default function ChatWindow() {
           <h1>Ася</h1>
           <div className="status"><span className="dotlive" /> {incognito ? "инкогнито" : "онлайн"}</div>
         </div>
-        <label className="hdr-switch" title="секретный разговор — ничего не сохраняется" style={{ marginLeft: "auto" }}>
-          <span className="hdr-switch-t">Инкогнито</span>
-          <span className="switch sm">
-            <input type="checkbox" checked={incognito} onChange={toggleIncognito} aria-label="инкогнито" />
-            <span className="sl" />
-          </span>
-        </label>
-        <button
-          className="theme-btn burger"
-          onClick={() => setMenuOpen(true)}
-          title="меню"
-          aria-label="меню"
-        >
-          <i /><i /><i />
-          {netCount > 0 && <span className="burger-badge">{netCount > 9 ? "9+" : netCount}</span>}
-        </button>
+        <div className="hdr-btns">
+          <button className="theme-btn" onClick={() => setRoomsOpen(true)} title="Румы — чаты" aria-label="румы">
+            <Icon name="chat" />
+            {roomsUnread > 0 && <span className="burger-badge">{roomsUnread > 9 ? "9+" : roomsUnread}</span>}
+          </button>
+          <button className="theme-btn burger" onClick={() => setMenuOpen(true)} title="меню" aria-label="меню">
+            <i /><i /><i />
+            {netCount > 0 && <span className="burger-badge">{netCount > 9 ? "9+" : netCount}</span>}
+          </button>
+        </div>
       </header>
 
       {skillMeta && (
@@ -728,6 +726,7 @@ export default function ChatWindow() {
       {spread && <TaroSpread cards={spread.cards} text={spread.text} onClose={() => setSpread(null)} />}
 
       <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} netCount={netCount} />
+      <RoomsSheet open={roomsOpen} onClose={() => setRoomsOpen(false)} onIncognito={toggleIncognito} incognito={incognito} />
     </div>
   );
 }
