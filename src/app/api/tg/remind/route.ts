@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { complete, hasKey } from "@/lib/timeweb";
 import { clean } from "@/lib/text";
 import { tgSendWebApp } from "@/lib/tgbot";
+import { resolveGender, g } from "@/lib/address";
 
 export const runtime = "nodejs";
 
@@ -28,10 +29,14 @@ async function composeTouch(userId: string | null): Promise<string> {
         .catch(() => [] as { fact: string }[]);
       mem = facts.map((f: { fact: string }) => f.fact).join("; ");
     }
+    const gender = userId ? await resolveGender(userId).catch(() => null) : null;
+    const genderRule = gender
+      ? `Обращайся к человеку строго в ${g(gender, "женском", "мужском")} роде во всех формах.`
+      : "Обращайся в правильном роде, если он известен из фактов.";
     const sys =
       "Ты — Ася, тёплая внимательная подружка. Напиши ОДНО короткое сообщение первой, чтобы бережно узнать, как человек. " +
       "1–2 фразы, живым тёплым языком, без списков и разметки, без давления; ничего не продавай и не зови на процедуры. " +
-      "Если уместно — мягко вернись к тому, что его волновало. Обращайся в правильном роде, если он известен из фактов.";
+      "Если уместно — мягко вернись к тому, что его волновало. " + genderRule;
     const usr = mem
       ? `Что ты знаешь о человеке: ${mem}. Напиши ему тёплое «как ты?».`
       : "Ты почти не знаешь человека — просто тепло и коротко спроси, как он.";

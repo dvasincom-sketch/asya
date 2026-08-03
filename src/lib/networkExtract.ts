@@ -5,6 +5,7 @@
 import { complete } from "./timeweb";
 import { clean } from "./text";
 import { isCategory, categoryLive, CATEGORIES, type NetCategory } from "./network";
+import { g, type Gender } from "./address";
 
 export type Detected = {
   kind: "offer" | "request";
@@ -21,22 +22,23 @@ const SYSTEM =
   "Ты — модуль-посредник тёплой Аси. По ПОСЛЕДНЕМУ сообщению человека реши, не прозвучало ли одно из двух: " +
   "(1) offer — человек сам умеет/предлагает услугу или навык (я массажист, я репетитор по математике, могу посидеть с ребёнком, я психолог); " +
   "(2) request — человек ищет человека или услугу (ищу няню на выходные, нужен тренер, посоветуйте психолога). " +
-  "Категории: service (услуги и навыки), nanny (няни/уход за детьми), dating (знакомства с партнёром). " +
+  "Категории: service (обычные услуги и навыки), certified (услуги, требующие сертификата/аттестации: няни, репетиторы, врачи, инструкторы), dating (знакомства с партнёром). " +
   "Определяй строго по сказанному, без домыслов. Если человек просто делится чувствами, жалуется, спрашивает совета " +
   "или ничего явно не предлагает и не ищет — верни kind \"none\". Не выдумывай город. " +
   "Верни СТРОГО JSON без пояснений: " +
-  '{"kind":"offer|request|none","category":"service|nanny|dating","title":"…","blurb":"…","city":"…"}. ' +
+  '{"kind":"offer|request|none","category":"service|certified|dating","title":"…","blurb":"…","city":"…"}. ' +
   "title — до 6 слов на русском; blurb — тёплая фраза до 15 слов от лица человека; city — город или пусто.";
 
-function warmPreview(kind: "offer" | "request", title: string): string {
+function warmPreview(kind: "offer" | "request", title: string, gender: Gender): string {
   if (kind === "offer") {
-    return `Слушай, а хочешь — я буду иногда предлагать тебя как «${title}» тем, кто ищет? Ты сама решишь по каждому, я ничего не раскрою без твоего да 🤍`;
+    const decide = g(gender, "Ты сама решишь", "Ты сам решишь", "Ты решишь");
+    return `Слушай, а хочешь — я буду иногда предлагать тебя как «${title}» тем, кто ищет? ${decide} по каждому, я ничего не раскрою без твоего согласия 🤍`;
   }
-  return `Хочешь, я возьму это на себя и поищу — «${title}»? Возьму паузу, посмотрю, кто может подойти, и покажу только тех, кто сам согласится 🤍`;
+  return `Хочешь, я возьму это на себя и поищу — «${title}»? Возьму паузу, посмотрю, кто может подойти, и покажу только тех, кто согласится 🤍`;
 }
 
 // Возвращает найденное намерение или null. Никогда не бросает.
-export async function detectNetworkIntent(userText: string): Promise<Detected | null> {
+export async function detectNetworkIntent(userText: string, gender: Gender): Promise<Detected | null> {
   if (process.env.NETWORK_ENABLED === "0") return null;
   if (process.env.NETWORK_DETECT === "0") return null;
   const text = userText.trim();
@@ -74,6 +76,6 @@ export async function detectNetworkIntent(userText: string): Promise<Detected | 
     title,
     blurb,
     city,
-    preview: warmPreview(kind, title),
+    preview: warmPreview(kind, title, gender),
   };
 }

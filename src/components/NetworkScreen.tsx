@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Orb } from "./Orb";
 
-type Cat = { id: string; label: string; icon: string; live: boolean; note: string };
+type Cat = { id: string; label: string; icon: string; live: boolean; badge: string | null; note: string };
+type Gender = "female" | "male" | null;
 type Offer = { id: string; category: string; title: string; params: Record<string, unknown>; blurb: string | null; status: string };
 type Req = { id: string; category: string; criteria: Record<string, unknown>; note: string | null; status: string; deadline: string | null };
 type Contact = { phone: string | null; tgId: string | null } | null;
@@ -23,6 +24,7 @@ export default function NetworkScreen() {
   const [loading, setLoading] = useState(true);
   const [cats, setCats] = useState<Cat[]>([]);
   const [consents, setConsents] = useState<Record<string, boolean>>({});
+  const [gender, setGender] = useState<Gender>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [reqs, setReqs] = useState<Req[]>([]);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
@@ -56,6 +58,7 @@ export default function NetworkScreen() {
     ]);
     setCats(Array.isArray(c.categories) ? c.categories : []);
     setConsents(c.consents || {});
+    setGender((c.gender as Gender) ?? null);
     setOffers(Array.isArray(o.offers) ? o.offers : []);
     setReqs(Array.isArray(r.requests) ? r.requests : []);
     setIncoming(Array.isArray(i.incoming) ? i.incoming : []);
@@ -65,6 +68,10 @@ export default function NetworkScreen() {
   useEffect(() => {
     loadAll().finally(() => setLoading(false));
   }, []);
+
+  // Выбор формы по роду обращения к человеку (Ася про себя — всегда женский).
+  const gg = (female: string, male: string, neutral?: string) =>
+    gender === "male" ? male : gender === "female" ? female : neutral ?? female;
 
   const liveCats = cats.filter((c) => c.live);
   const catLabel = (id: string | null) => cats.find((c) => c.id === id)?.label || "";
@@ -182,7 +189,7 @@ export default function NetworkScreen() {
         <div className="net-lead">
           <Orb className="net-orb" />
           <b>Ася — непредвзятая сторона</b>
-          <p>Она знакомит людей по обоюдному согласию и берёт рутину на себя: сама ищет, спрашивает, бережно сводит. Ася предлагает только то, что ты сама открыла — из личных разговоров она никогда ничего не берёт.</p>
+          <p>Она знакомит людей по обоюдному согласию и берёт рутину на себя: сама ищет, спрашивает, бережно сводит. Ася предлагает только то, что ты {gg("открыла сама", "открыл сам", "открыл(а) сам(а)")} — из личных разговоров она никогда ничего не берёт.</p>
         </div>
 
         <div className="sec">Где Ася может знакомить</div>
@@ -190,10 +197,13 @@ export default function NetworkScreen() {
           {cats.map((c) => (
             <div className="srow" key={c.id}>
               <div className="ti">
-                <b>{c.icon} {c.label} {!c.live && <span className="badge-soon">скоро</span>}</b>
+                <b className="net-cat-h">
+                  <span>{c.icon} {c.label}</span>
+                  {c.badge && <span className={`badge-soon ${c.badge === "бета" ? "beta" : ""}`}>{c.badge}</span>}
+                </b>
                 <span>{c.note}</span>
               </div>
-              <label className="switch">
+              <label className={`switch ${!c.live ? "muted" : ""}`}>
                 <input type="checkbox" disabled={!c.live} checked={Boolean(consents[c.id])} onChange={(e) => onConsent(c.id, e.target.checked)} />
                 <span className="sl" />
               </label>
@@ -203,7 +213,7 @@ export default function NetworkScreen() {
 
         <div className="sec">Что я предлагаю</div>
         <div className="scard">
-          {offers.length === 0 && <div className="net-empty">{loading ? "Загружаю…" : "Пока пусто. Расскажи, чем можешь быть полезна — Ася предложит тебя тем, кто ищет 🤍"}</div>}
+          {offers.length === 0 && <div className="net-empty">{loading ? "Загружаю…" : "Пока пусто. Расскажи, чем можешь помочь — Ася предложит тебя тем, кто ищет 🤍"}</div>}
           {offers.map((o) => (
             <div className="ncard" key={o.id}>
               <div className="ncard-head">
@@ -335,7 +345,7 @@ export default function NetworkScreen() {
             ))}
           </div>
         )}
-        {form === "offer" && <input className="net-input" placeholder="Коротко: чем можешь быть полезна" value={fTitle} onChange={(e) => setFTitle(e.target.value)} />}
+        {form === "offer" && <input className="net-input" placeholder="Коротко: чем можешь помочь" value={fTitle} onChange={(e) => setFTitle(e.target.value)} />}
         <textarea className="net-input" rows={3} placeholder={form === "offer" ? "Пару слов о себе — по-тёплому" : "Кого или что ищешь — своими словами"} value={fBlurb} onChange={(e) => setFBlurb(e.target.value)} />
         <input className="net-input" placeholder="Город (по желанию)" value={fCity} onChange={(e) => setFCity(e.target.value)} />
         {form === "request" && (

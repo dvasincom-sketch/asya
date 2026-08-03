@@ -47,6 +47,7 @@ model User {
   requests        RequestPost[]
   networkConsents NetworkConsent[]
   bornYear        Int?
+  gender          String?  // "female" | "male" | null — грамматический род обращения
   reportsMade     Report[]  @relation("reporter")
   blocksMade      Block[]   @relation("blocker")
 }

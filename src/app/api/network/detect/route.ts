@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { offersDb, requestsDb } from "@/lib/networkDb";
 import { detectNetworkIntent } from "@/lib/networkExtract";
+import { resolveGender } from "@/lib/address";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,8 @@ export async function POST(req: NextRequest) {
   const text = String(b.text || "");
   if (!text) return Response.json({ kind: "none" });
 
-  const found = await detectNetworkIntent(text).catch(() => null);
+  const gender = await resolveGender(u.id).catch(() => null);
+  const found = await detectNetworkIntent(text, gender).catch(() => null);
   if (!found) return Response.json({ kind: "none" });
 
   // Не надоедаем: если по этой категории уже есть оффер (черновик/актив) — не предлагаем оффер;

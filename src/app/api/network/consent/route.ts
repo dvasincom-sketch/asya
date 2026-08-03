@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { consentDb } from "@/lib/networkDb";
 import { CATEGORIES, isCategory, categoryLive, type NetCategory } from "@/lib/network";
+import { resolveGender } from "@/lib/address";
 
 export const runtime = "nodejs";
 
@@ -12,13 +13,15 @@ export async function GET() {
     label: CATEGORIES[id].label,
     icon: CATEGORIES[id].icon,
     live: categoryLive(id),
+    badge: CATEGORIES[id].badge,
     note: CATEGORIES[id].note,
   }));
-  if (!u) return Response.json({ categories, consents: {} });
+  if (!u) return Response.json({ categories, consents: {}, gender: null });
   const rows = await consentDb().findMany({ where: { userId: u.id } }).catch(() => []);
   const consents: Record<string, boolean> = {};
   for (const r of rows) consents[r.category] = r.enabled;
-  return Response.json({ categories, consents });
+  const gender = await resolveGender(u.id).catch(() => null);
+  return Response.json({ categories, consents, gender });
 }
 
 export async function POST(req: NextRequest) {

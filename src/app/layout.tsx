@@ -19,6 +19,8 @@ export const viewport: Viewport = {
   themeColor: "#181120",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1, // iOS не зумит при фокусе на поле ввода — системно, для всего приложения
+  userScalable: false,
   viewportFit: "cover",
 };
 

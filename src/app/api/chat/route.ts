@@ -11,6 +11,7 @@ import { getSkill, buildSkillContext } from "@/lib/skills";
 import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
 import { buildProfileContext } from "@/lib/profileForms";
 import { getSub, retentionSince } from "@/lib/plus";
+import { g, detectGenderFromText, detectGenderFromFacts, setGenderIfEmpty, type Gender } from "@/lib/address";
 
 export const runtime = "nodejs";
 
@@ -104,6 +105,20 @@ export async function POST(req: NextRequest) {
       systemExtra =
         "\n\nЧто ты уже знаешь об этом человеке (помни это и обращайся бережно, не перечисляй списком): " +
         mems.map((m: { fact: string }) => m.fact).join("; ");
+    }
+
+    // Род обращения — единый системный источник. Берём из User.gender, иначе восстанавливаем
+    // из текущего сообщения и уже известных фактов, сохраняем и жёстко фиксируем в промпте,
+    // чтобы Ася обращалась к человеку в верном роде на всех этапах.
+    let gender: Gender = (user as unknown as { gender?: Gender }).gender ?? null;
+    if (gender !== "male" && gender !== "female") {
+      gender = detectGenderFromText(String(lastUser?.content ?? "")) || detectGenderFromFacts(mems.map((m: { fact: string }) => m.fact));
+      if (gender && !incognito) await setGenderIfEmpty(user.id, gender).catch(() => {});
+    }
+    if (gender === "male" || gender === "female") {
+      systemExtra +=
+        `\n\nВАЖНО про обращение: обращайся к человеку строго в ${g(gender, "женском", "мужском")} роде ` +
+        `во всех формах (глаголы, прилагательные, причастия). Про себя Ася — в женском роде, это не меняется.`;
     }
   }
 

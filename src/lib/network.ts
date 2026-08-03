@@ -3,33 +3,40 @@
 // Ася никогда не рекомендует из личных разговоров/инкогнито по своему усмотрению.
 // Черновики офферов/запросов пишутся в БД только после явного согласия человека (в роутах).
 
-export type NetCategory = "service" | "nanny" | "dating";
+export type NetCategory = "service" | "certified" | "dating";
+
+export type CategoryBadge = "скоро" | "бета" | null;
 
 export const CATEGORIES: Record<
   NetCategory,
-  { label: string; icon: string; live: boolean; needsVerify: boolean; minAge?: number; note: string }
+  { label: string; icon: string; live: boolean; needsVerify: boolean; minAge?: number; badge: CategoryBadge; note: string }
 > = {
   service: {
     label: "Услуги и навыки",
     icon: "🛠",
     live: true,
     needsVerify: false,
-    note: "Тренер, репетитор, мастер, психолог и т.п. Самая безопасная категория — стартуем с неё.",
+    badge: null,
+    note: "Тренер, мастер, специалист без обязательной аттестации. Самая безопасная категория — стартуем с неё.",
   },
-  nanny: {
-    label: "Няни",
-    icon: "🧸",
-    live: false, // предохранитель: живой обмен закрыт, пока нет верификации/дисклеймеров/права
+  // Раньше была отдельная «Няни» — обобщили: услуги, которые по-хорошему требуют
+  // сертификата/аттестации (няни, репетиторы, врачи, инструкторы). Пока за предохранителем.
+  certified: {
+    label: "Услуги с подтверждением",
+    icon: "🎓",
+    live: false, // предохранитель: закрыто, пока нет верификации сертификатов/дисклеймеров/права
     needsVerify: true,
-    note: "Дети — реальный риск. Нужны верификация, дисклеймеры и правовое ревью до запуска.",
+    badge: "скоро",
+    note: "Няни, репетиторы, специалисты — то, что по закону может требовать сертификата или аттестации. Откроем после проверки документов и правового ревью.",
   },
   dating: {
     label: "Знакомства",
     icon: "💗",
-    live: false, // предохранитель: закрыт, пока нет 18+, верификации фото, жалоб/блока, гайда безопасности
+    live: true, // бета: включаемо; работают 18+ и жалобы/блок. Полный запуск — после верификации фото и гайда безопасности.
     needsVerify: true,
     minAge: 18,
-    note: "18+, верификация фото, жалобы/блок, безопасность встреч. Открываем последней.",
+    badge: "бета",
+    note: "Бета: 18+, жалобы и блок работают. Верификация фото и гайд безопасной встречи — на подходе.",
   },
 };
 
@@ -57,7 +64,7 @@ export function categoryLive(cat: string): boolean {
 }
 
 export function isCategory(cat: string): cat is NetCategory {
-  return cat === "service" || cat === "nanny" || cat === "dating";
+  return cat === "service" || cat === "certified" || cat === "dating";
 }
 
 // Стена: брокерить можно только явный активный оффер в live-категории при согласии.
