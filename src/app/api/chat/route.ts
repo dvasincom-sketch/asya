@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     const query = String(lastUser.content);
     // TGStat ищет по словам в названии/описании — сырую фразу он не понимает. Сначала
     // извлекаем из разговора чистый запрос (тема + город) и тип (сообщество/канал).
-    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const, category: "", isSearch: true, broadQ: "" }));
+    const spec = await extractSearchSpec(messages).catch(() => ({ queries: [query], peerType: "all" as const, category: "", isSearch: true }));
     let picked: { intro: string; channels: CatalogChannel[] };
     if (!spec.isSearch) {
       // Не поиск (вопрос о возможностях, приветствие) — навык остаётся собой, но не ищет впустую.
@@ -110,21 +110,28 @@ export async function POST(req: NextRequest) {
         channels: [],
       };
     } else {
-      // Попытка 1 — точный запрос (тема + город + тип + категория).
-      let found = await searchChannels(spec.q, spec.peerType, spec.category).catch(() => ({ items: [] as CatalogChannel[], available: false }));
-      console.warn(`[tgstat] try1 spec=${JSON.stringify(spec)} candidates=${found.items.length} available=${found.available}`);
-      // Мало результатов — авто-расширение: общий ключ (broadQ), любой тип, без категории.
-      if (found.available && found.items.length < 3 && spec.broadQ && spec.broadQ !== spec.q) {
-        const broad = await searchChannels(spec.broadQ, "all", "").catch(() => ({ items: [] as CatalogChannel[], available: false }));
-        console.warn(`[tgstat] try2(broad) q="${spec.broadQ}" candidates=${broad.items.length}`);
-        if (broad.available && broad.items.length > found.items.length) found = broad;
+      console.warn(`[tgstat] spec=${JSON.stringify(spec)}`);
+      // Лестница запросов: от точного к общему. Категория — только на самом точном варианте,
+      // тип поиска расширяем до «all» на последнем. Останавливаемся, когда набрали достаточно.
+      let found: { items: CatalogChannel[]; available: boolean } = { items: [], available: true };
+      for (let i = 0; i < spec.queries.length; i++) {
+        const isLast = i === spec.queries.length - 1;
+        const r = await searchChannels(spec.queries[i], isLast ? "all" : spec.peerType, i === 0 ? spec.category : "").catch(
+          () => ({ items: [] as CatalogChannel[], available: false }),
+        );
+        if (!r.available) {
+          found = r;
+          break;
+        }
+        if (r.items.length > found.items.length) found = r;
+        if (found.items.length >= 6) break; // достаточно кандидатов — не тратим лишние запросы
       }
       if (!found.available) {
         // Сбой уровня каталога (нет токена/подписки, сеть) — честно, а не «ничего не нашлось».
         picked = { intro: "Каталог каналов сейчас недоступен — не хочу выдумывать, вернёмся к поиску чуть позже 🤍", channels: [] };
       } else {
-        // Для отбора отдаём распознанный интент (spec.q) — по нему модель судит релевантность точнее.
-        picked = await selectChannels(spec.q || query, found.items).catch(() => ({
+        // Для отбора отдаём самый точный вариант — по нему модель судит релевантность точнее.
+        picked = await selectChannels(spec.queries[0] || query, found.items).catch(() => ({
           intro: "Не получилось поискать сейчас — попробуй ещё раз чуть позже 🤍",
           channels: [] as CatalogChannel[],
         }));

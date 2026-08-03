@@ -140,15 +140,27 @@ import { complete } from "./timeweb";
 import { clean } from "./text";
 import type { ChatMessage } from "./crisis";
 
-export type SearchSpec = { q: string; peerType: PeerType; category: string; isSearch: boolean; broadQ: string };
+export type SearchSpec = { queries: string[]; peerType: PeerType; category: string; isSearch: boolean };
 
 // Строим запрос к каталогу из разговора: TGStat ищет по СЛОВАМ в названии/описании,
 // поэтому сырая фраза («почему Ставрополь? я в Москве») даёт мусор. Модель извлекает
 // чистые ключевые слова (тема + город) и тип: сообщество (chat) или контентный канал (channel).
+// Лестница запросов от точного к общему: сохраняем специфику (город, подтему) как можно
+// дольше, а не сразу падаем в одно общее слово. Используется как фолбэк и для сокращения.
+function queryLadder(text: string): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  for (const n of [4, 2, 1]) {
+    const v = words.slice(0, n).join(" ").trim();
+    if (v.length >= 2 && !out.includes(v)) out.push(v);
+  }
+  return out.length ? out : [text.trim()].filter((x) => x.length >= 2);
+}
+
 export async function extractSearchSpec(messages: ChatMessage[]): Promise<SearchSpec> {
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const fbq = String(lastUser?.content || "").trim().slice(0, 60);
-  const fallback: SearchSpec = { q: fbq, peerType: "all", category: "", isSearch: true, broadQ: fbq.split(/\s+/).slice(0, 2).join(" ") };
+  const fallback: SearchSpec = { queries: queryLadder(fbq), peerType: "all", category: "", isSearch: true };
   if (!hasTgCatalog()) return fallback;
 
   const convo = messages
@@ -159,36 +171,39 @@ export async function extractSearchSpec(messages: ChatMessage[]): Promise<Search
     .map(([c, n]) => `${c} (${n})`)
     .join(", ");
   const sys =
-    "Ты формируешь точный поисковый запрос к каталогу Telegram по разговору. Это режим-навык: цель одна — " +
-    "найти релевантный канал или чат, без свободной беседы. " +
-    'Верни СТРОГО JSON без пояснений: {"isSearch":true|false,"q":"...","broadQ":"...","peerType":"chat|channel|all","category":"код|пусто"}. ' +
-    'isSearch=false ТОЛЬКО если сообщение — не просьба найти канал/чат (приветствие, вопрос «что ты умеешь», благодарность, оффтоп); тогда q оставь пустым. Во всех остальных случаях isSearch=true. ' +
-    "q — 2–4 ключевых слова: тема и город/локация, если человек их назвал, в именительном падеже, " +
-    "без слов «канал», «чат», «группа», «ищу», «хочу», без кавычек и знаков препинания. " +
-    "broadQ — 1–2 САМЫХ ОБЩИХ слова темы без города и уточнений (запасной широкий запрос, если по точному ничего не найдётся). " +
-    'peerType: "chat" — если человек ищет чат, группу, сообщество для общения; ' +
-    '"channel" — если ищет канал с контентом, новостями, блог; "all" — если неясно. ' +
-    "category — код из списка ниже, если тема ясно в него попадает, иначе пустая строка. " +
+    "Ты формируешь поисковые запросы к каталогу Telegram по разговору. Это режим-навык: цель одна — найти релевантный канал или чат. " +
+    "ВАЖНО про механику: TGStat ищет по совпадению ВСЕХ слов запроса в названии/описании, поэтому длинный запрос из 4+ слов обычно НЕ находит ничего. " +
+    'Верни СТРОГО JSON без пояснений: {"isSearch":true|false,"queries":["точный","средний","общий"],"peerType":"chat|channel|all","category":"код|пусто"}. ' +
+    "isSearch=false ТОЛЬКО если сообщение — не просьба найти канал/чат (приветствие, «что ты умеешь», благодарность, оффтоп); тогда queries=[]. Иначе isSearch=true. " +
+    "queries — 2–3 варианта ОТ ТОЧНОГО К ОБЩЕМУ, каждый в именительном падеже, без слов «канал/чат/группа/ищу/хочу», без кавычек и знаков препинания: " +
+    "1) точный — ядро темы + город + подтема, но НЕ длиннее 3 слов; " +
+    "2) средний — ядро темы плюс город ИЛИ подтема, 2 слова; " +
+    "3) общий — только ядро темы, 1 слово. Не повторяй одинаковые варианты. " +
+    "НЕ добавляй служебные слова вроде «русскоговорящий», «авторский», «блог», «мужчина» — они не помогают поиску и только зануляют выдачу. " +
+    'peerType: "chat" — чат/группа/сообщество; "channel" — канал/новости/блог; "all" — если неясно. ' +
+    "category — код из списка, если тема ясно попадает, иначе пустая строка. " +
     `Категории: ${catList}. ` +
-    "Учитывай весь разговор: если в новой реплике человек уточняет город или тему — соедини с тем, что искали раньше. " +
-    'Примеры: «хочу чат мам в декрете, я в Москве» -> {"q":"мамы декрет москва","broadQ":"мамы","peerType":"chat","category":"babies"}; ' +
-    '«новости про ИИ» -> {"q":"новости искусственный интеллект","broadQ":"искусственный интеллект","peerType":"channel","category":"tech"}; ' +
-    '«канал про Британию для русских» -> {"q":"британия жизнь","broadQ":"британия","peerType":"channel","category":""}.';
-  const raw = await complete([{ role: "user", content: convo }], sys, 120).catch(() => "");
+    "Учитывай весь разговор: уточнение города или темы в новой реплике соединяй с прежним поиском. " +
+    'Примеры: «хочу чат мам в декрете, я в Москве» -> {"isSearch":true,"queries":["мамы декрет москва","мамы москва","мамы"],"peerType":"chat","category":"babies"}; ' +
+    '«канал русскоговорящего мужчины про Британию» -> {"isSearch":true,"queries":["британия жизнь","британия","британия"],"peerType":"channel","category":""}; ' +
+    '«новости про ИИ» -> {"isSearch":true,"queries":["новости искусственный интеллект","искусственный интеллект","нейросети"],"peerType":"channel","category":"tech"}.';
+  const raw = await complete([{ role: "user", content: convo }], sys, 160).catch(() => "");
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) return fallback;
   try {
-    const o = JSON.parse(m[0]) as { isSearch?: unknown; q?: unknown; peerType?: unknown; category?: unknown };
-    const oo = o as { broadQ?: unknown };
+    const o = JSON.parse(m[0]) as { isSearch?: unknown; queries?: unknown; q?: unknown; peerType?: unknown; category?: unknown };
     const isSearch = o.isSearch !== false; // по умолчанию считаем поиском
-    const q = String(o.q ?? "").trim().slice(0, 80);
     const peerType: PeerType = o.peerType === "chat" || o.peerType === "channel" ? o.peerType : "all";
     // Категория валидируется по безопасному таксону; неизвестная/небезопасная -> пусто.
     const category = typeof o.category === "string" && TG_CATEGORIES[o.category] ? o.category : "";
-    const broadQ = String(oo.broadQ ?? "").trim().slice(0, 40) || q.split(/\s+/).slice(0, 2).join(" ");
-    if (!isSearch) return { q: "", peerType: "all", category: "", isSearch: false, broadQ: "" };
-    if (q.length < 2) return fallback;
-    return { q, peerType, category, isSearch: true, broadQ };
+    let queries = Array.isArray(o.queries)
+      ? o.queries.map((x) => String(x).trim().slice(0, 80)).filter((x) => x.length >= 2)
+      : [];
+    if (!queries.length && typeof o.q === "string") queries = queryLadder(o.q); // совместимость со старым форматом
+    queries = [...new Set(queries)].slice(0, 3);
+    if (!isSearch) return { queries: [], peerType: "all", category: "", isSearch: false };
+    if (!queries.length) return fallback;
+    return { queries, peerType, category, isSearch: true };
   } catch {
     return fallback;
   }
