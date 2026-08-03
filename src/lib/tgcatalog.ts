@@ -32,14 +32,19 @@ function fullLink(link: string | null, username: string | null): string | null {
   return username ? `https://t.me/${username}` : null;
 }
 
-// Поиск каналов/чатов по запросу. Никогда не бросает — при любой ошибке возвращает [].
+// Результат поиска: помимо каналов отдаём признак «каталог доступен».
+// available=false — проблема НЕ в запросе человека (нет токена, невалиден,
+// неактивна подписка, сеть) → навык честно скажет «каталог недоступен», а не «ничего
+// не нашлось». available=true с пустым items — это реально пустой результат.
+export type SearchResult = { items: CatalogChannel[]; available: boolean };
+
+// Поиск каналов/чатов по запросу. Никогда не бросает.
 // Контракт TGStat channels/search: обязателен token, country и (q или category).
-// Раньше country не слался — при ужесточении валидации запрос отклонялся и навык «замолкал».
-export async function searchChannels(query: string): Promise<CatalogChannel[]> {
+export async function searchChannels(query: string): Promise<SearchResult> {
   const token = process.env.TGSTAT_TOKEN;
-  if (!token) return [];
+  if (!token) return { items: [], available: false };
   const q = query.trim().slice(0, 200);
-  if (q.length < 3) return []; // TGStat требует минимум 3 символа в q
+  if (q.length < 3) return { items: [], available: true }; // слишком коротко — это «пусто», не сбой
 
   const params = new URLSearchParams({
     token,
@@ -56,8 +61,8 @@ export async function searchChannels(query: string): Promise<CatalogChannel[]> {
   try {
     const res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) {
-      console.warn(`[tgstat] channels/search HTTP ${res.status} — поиск вернул пусто`);
-      return [];
+      console.warn(`[tgstat] channels/search HTTP ${res.status} — каталог недоступен`);
+      return { items: [], available: false };
     }
     const data = (await res.json()) as {
       status?: string;
@@ -65,14 +70,15 @@ export async function searchChannels(query: string): Promise<CatalogChannel[]> {
       response?: { items?: unknown[]; channels?: unknown[] };
     };
     if (data.status && data.status !== "ok") {
-      // Явно логируем причину (невалидный токен, исчерпана квота, кривой параметр) — видно в логах Timeweb.
-      console.warn(`[tgstat] channels/search status=${data.status} error=${data.error ?? "—"}`);
-      return [];
+      // Ошибка уровня аккаунта/запроса (token_invalid, no_active_subscription, квота, кривой параметр).
+      // Это НЕ «человек ничего не нашёл» — помечаем каталог недоступным. Причина видна в логах Timeweb.
+      console.warn(`[tgstat] channels/search status=${data.status} error=${data.error ?? "—"} — каталог недоступен`);
+      return { items: [], available: false };
     }
-    const items = (data.response?.items || data.response?.channels || []) as Record<string, unknown>[];
-    if (!items.length) console.warn(`[tgstat] channels/search: 0 результатов по запросу «${q}»`);
+    const rawItems = (data.response?.items || data.response?.channels || []) as Record<string, unknown>[];
+    if (!rawItems.length) console.warn(`[tgstat] channels/search: 0 результатов по запросу «${q}»`);
     const out: CatalogChannel[] = [];
-    for (const raw of items) {
+    for (const raw of rawItems) {
       const ch = (raw.channel ?? raw) as Record<string, unknown>;
       const link = (ch.link as string) ?? null;
       const username = ((ch.username as string) || usernameFromLink(link) || "").replace(/^@/, "") || null;
@@ -93,10 +99,10 @@ export async function searchChannels(query: string): Promise<CatalogChannel[]> {
         category: ch.category ? String(ch.category) : null,
       });
     }
-    return out;
+    return { items: out, available: true };
   } catch (e) {
     console.warn(`[tgstat] channels/search исключение: ${e instanceof Error ? e.message : String(e)}`);
-    return [];
+    return { items: [], available: false };
   } finally {
     clearTimeout(timer);
   }

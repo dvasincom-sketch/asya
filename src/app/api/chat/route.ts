@@ -8,7 +8,7 @@ import { rememberFrom } from "@/lib/memory";
 import { asksAboutServices, buildProgramsContext, asksLogistics, buildSalonInfoContext } from "@/lib/salonKnowledge";
 import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
-import { searchChannels, selectChannels } from "@/lib/tgcatalog";
+import { searchChannels, selectChannels, type CatalogChannel } from "@/lib/tgcatalog";
 import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
 import { buildProfileContext } from "@/lib/profileForms";
 import { getSub, retentionSince } from "@/lib/plus";
@@ -96,11 +96,17 @@ export async function POST(req: NextRequest) {
   // клиент рисует их кликабельными плашками (перейти в Telegram в один тап).
   if (skill?.id === "tgguide" && lastUser) {
     const query = String(lastUser.content);
-    const candidates = await searchChannels(query).catch(() => []);
-    const picked = await selectChannels(query, candidates).catch(() => ({
-      intro: "Не получилось поискать сейчас — попробуй ещё раз чуть позже 🤍",
-      channels: [] as typeof candidates,
-    }));
+    const found = await searchChannels(query).catch(() => ({ items: [] as CatalogChannel[], available: false }));
+    let picked: { intro: string; channels: CatalogChannel[] };
+    if (!found.available) {
+      // Сбой уровня каталога (нет токена/подписки, сеть) — честно, а не «ничего не нашлось».
+      picked = { intro: "Каталог каналов сейчас недоступен — не хочу выдумывать, вернёмся к поиску чуть позже 🤍", channels: [] };
+    } else {
+      picked = await selectChannels(query, found.items).catch(() => ({
+        intro: "Не получилось поискать сейчас — попробуй ещё раз чуть позже 🤍",
+        channels: [] as CatalogChannel[],
+      }));
+    }
     if (saveHistory && user) {
       await msgDb.create({ data: { userId: user.id, role: "assistant", content: picked.intro, skill: skillId } }).catch(() => {});
     }
