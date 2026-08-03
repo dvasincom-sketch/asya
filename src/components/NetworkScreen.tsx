@@ -263,14 +263,14 @@ export default function NetworkScreen() {
                 <div className="ncard" key={it.id}>
                   <div className="ncard-head">
                     <b>{catIcon(it.category)} Кто-то ищет</b>
-                    {it.myOffer && <span className="npill matched">по «{it.myOffer.title}»</span>}
                   </div>
+                  {it.myOffer && <span className="ncard-tag">по «{it.myOffer.title}»</span>}
                   {it.request.note && <p className="ncard-blurb">«{it.request.note}»</p>}
                   {CITY(it.request.criteria) && <span className="ncard-meta">📍 {CITY(it.request.criteria)}</span>}
                   {it.status === "contact_shared"
                     ? contactLine(it.contact)
                     : it.status === "candidate_accepted"
-                      ? <div className="ncard-wait">Ты откликнулась 🤍 Ждём, что человек выберет</div>
+                      ? <div className="ncard-wait">{gg("Ты откликнулась", "Ты откликнулся", "Ты откликнул(ась)")} 🤍 Ждём, что человек выберет</div>
                       : (
                         <div className="nactions">
                           <button className="nbtn accent" onClick={() => introAct(it.id, "accept", "Ася передала твой отклик 🤍")}>Откликнуться 🤍</button>
@@ -312,7 +312,7 @@ export default function NetworkScreen() {
                       {c.status === "contact_shared"
                         ? contactLine(c.contact)
                         : c.selected
-                          ? <div className="ncard-wait">Ты выбрала 🤍 Ждём подтверждения</div>
+                          ? <div className="ncard-wait">{gg("Ты выбрала", "Ты выбрал", "Ты выбрал(а)")} 🤍 Ждём подтверждения</div>
                           : (
                             <div className="nactions">
                               <button className="nbtn accent" onClick={() => introAct(c.introId, "select", "Ася передала твой выбор 🤍")}>Выбрать 🤍</button>
@@ -330,7 +330,7 @@ export default function NetworkScreen() {
 
         <div className="settings-foot">
           Ася знакомит только по обоюдному согласию и никогда не раскрывает контакты без него.<br />
-          Няни и знакомства откроются после проверок и правил безопасности.
+          Часть категорий открывается постепенно — после проверок и правил безопасности.
         </div>
       </div>
 

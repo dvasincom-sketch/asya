@@ -10,7 +10,7 @@ const ITEMS = [
   { href: "/account/settings", ic: "⚙️", title: "Настройки и приватность", sub: "Память, история, удаление данных" },
 ];
 
-export default function MenuSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function MenuSheet({ open, onClose, netCount = 0 }: { open: boolean; onClose: () => void; netCount?: number }) {
   function toggleTheme() {
     const el = document.documentElement;
     el.dataset.theme = el.dataset.theme === "day" ? "dusk" : "day";
@@ -28,7 +28,9 @@ export default function MenuSheet({ open, onClose }: { open: boolean; onClose: (
               <b>{i.title}</b>
               <span>{i.sub}</span>
             </span>
-            <span className="mi-go">›</span>
+            {i.href === "/account/network" && netCount > 0
+              ? <span className="mi-badge">{netCount > 9 ? "9+" : netCount}</span>
+              : <span className="mi-go">›</span>}
           </a>
         ))}
 

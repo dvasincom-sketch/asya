@@ -776,13 +776,16 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .ncard { border: 1px solid var(--line); border-radius: 16px; padding: 13px 14px; margin-bottom: 10px;
   background: var(--glass); }
 .ncard-head { display: flex; align-items: center; gap: 8px; }
-.ncard-head b { font-size: 14.5px; color: var(--text); font-weight: 600; }
+.ncard-head b { flex: 1 1 auto; min-width: 0; font-size: 14.5px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.ncard-tag { display: block; margin-top: 5px; font-size: 12px; color: var(--text-dim); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ncard-blurb { color: var(--text-soft); font-size: 13.5px; line-height: 1.5; margin: 6px 0 0; }
 .ncard-meta { display: inline-block; color: var(--text-dim); font-size: 12px; margin-top: 6px; }
 .ncard-wait { color: var(--text-soft); font-size: 13px; margin-top: 10px; padding: 8px 10px;
   border-radius: 12px; background: var(--glass); border: 1px solid var(--line); }
-.npill { margin-left: auto; font-size: 11px; padding: 3px 9px; border-radius: 11px;
-  background: var(--glass); border: 1px solid var(--line); color: var(--text-dim); white-space: nowrap; }
+.npill { margin-left: auto; flex: 0 0 auto; max-width: 52%; font-size: 11px; padding: 3px 9px; border-radius: 11px;
+  background: var(--glass); border: 1px solid var(--line); color: var(--text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .npill.active, .npill.matched { color: var(--accent); border-color: var(--accent); }
 .nactions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
 .nbtn { padding: 8px 14px; border-radius: 13px; border: 1px solid var(--line); cursor: pointer;
@@ -821,3 +824,13 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .ns-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .ns-done { margin-top: 11px; padding: 9px 12px; border-radius: 12px; font-size: 13.5px; color: var(--text);
   background: var(--crisis); border: 1px solid var(--crisis-border); }
+
+/* ---- Бейдж активности сети (счётчик «твой ход») ------------------------- */
+.burger { position: relative; }
+.burger-badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 9px;
+  background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; line-height: 1;
+  box-shadow: 0 0 0 2px var(--bg1); }
+.mi-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; display: inline-flex;
+  align-items: center; justify-content: center; border-radius: 10px; background: var(--accent);
+  color: #fff; font-size: 11px; font-weight: 700; }

@@ -86,6 +86,7 @@ export default function ChatWindow() {
   const incRef = useRef<IncCrypto | null>(null);
   const normalRef = useRef<Msg[] | null>(null);
   const [booted, setBooted] = useState(false);
+  const [netCount, setNetCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -169,6 +170,11 @@ export default function ChatWindow() {
           }
           setHasMore(Boolean(h.hasMore));
           setCursor(h.cursor ?? null);
+          // Счётчик активности сети для бейджа на меню («твой ход»).
+          fetch("/api/network/summary")
+            .then((r) => r.json())
+            .then((d) => { if (!cancelled) setNetCount(Number(d?.count) || 0); })
+            .catch(() => {});
         }
       } catch {
         if (!cancelled) setAuthed(false);
@@ -510,6 +516,7 @@ export default function ChatWindow() {
           aria-label="меню"
         >
           <i /><i /><i />
+          {netCount > 0 && <span className="burger-badge">{netCount > 9 ? "9+" : netCount}</span>}
         </button>
       </header>
 
@@ -684,7 +691,7 @@ export default function ChatWindow() {
 
       {spread && <TaroSpread cards={spread.cards} text={spread.text} onClose={() => setSpread(null)} />}
 
-      <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} netCount={netCount} />
     </div>
   );
 }
