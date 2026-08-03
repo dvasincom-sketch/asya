@@ -88,6 +88,23 @@ export default function RoomScreen({ roomId }: { roomId: string }) {
     load();
   }
 
+  // Позвать Асю обратно — по желанию любого участника (в любой момент).
+  async function bringBack() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/network/rooms/${roomId}/asya`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ back: true }),
+      }).then((x) => x.json()).catch(() => null);
+      if (r?.asyaPresent) toast("Ася снова в чате 🤍");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="app">
       <div className="sbar">
@@ -106,7 +123,10 @@ export default function RoomScreen({ roomId }: { roomId: string }) {
             </button>
           </>
         ) : (
-          <span className="rs-t">🔒 Приватный разговор · Аси в чате нет</span>
+          <>
+            <span className="rs-t">🔒 Приватно · <b>Аси в чате нет</b></span>
+            <button className="rs-act" onClick={bringBack} disabled={busy}>Позвать Асю</button>
+          </>
         )}
       </div>
 
@@ -147,16 +167,17 @@ export default function RoomScreen({ roomId }: { roomId: string }) {
         </button>
       </div>
 
-      <div className={`overlay ${sheet ? "on" : ""}`} onClick={() => setSheet(false)} />
-      <div className={`sheet ${sheet ? "on" : ""}`}>
-        <Orb className="sh-orb" />
-        <h3>Убрать Асю из чата?</h3>
-        <p>Разговор станет полностью приватным — Аси в нём больше не будет. Нужно согласие обоих: как только собеседник тоже подтвердит, я выйду. Позвать обратно можно в любой момент.</p>
-        {otherVoted && <p style={{ color: "var(--accent)" }}>Собеседник уже за — если подтвердишь, я сразу выйду.</p>}
-        <button className="sheet-btn" onClick={() => voteRemove(true)}>Да, убрать Асю</button>
-        {iVoted
-          ? <button className="sheet-btn ghost" onClick={() => voteRemove(false)}>Передумал — оставить</button>
-          : <button className="sheet-btn ghost" onClick={() => setSheet(false)}>Пусть остаётся</button>}
+      <div className={`rmodal-ov ${sheet ? "on" : ""}`} onClick={() => setSheet(false)}>
+        <div className="rmodal" onClick={(e) => e.stopPropagation()}>
+          <Orb className="sh-orb" />
+          <h3>Убрать Асю из чата?</h3>
+          <p>Разговор станет полностью приватным — Аси в нём больше не будет. Нужно согласие обоих: как только собеседник тоже подтвердит, я выйду. Позвать обратно можно в любой момент.</p>
+          {otherVoted && <p style={{ color: "var(--accent)" }}>Собеседник уже за — если подтвердишь, я сразу выйду.</p>}
+          <button className="sheet-btn" onClick={() => voteRemove(true)}>Да, убрать Асю</button>
+          {iVoted
+            ? <button className="sheet-btn ghost" onClick={() => voteRemove(false)}>Передумал — оставить</button>
+            : <button className="sheet-btn ghost" onClick={() => setSheet(false)}>Пусть остаётся</button>}
+        </div>
       </div>
 
       <div className={`toast ${toastMsg ? "on" : ""}`}>{toastMsg}</div>

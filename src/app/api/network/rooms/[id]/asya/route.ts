@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { roomDb, roomMemberDb, roomMsgDb } from "@/lib/networkDb";
-import { ASYA_FAREWELL } from "@/lib/rooms";
+import { ASYA_FAREWELL, ASYA_RETURN } from "@/lib/rooms";
 
 export const runtime = "nodejs";
 
@@ -14,6 +14,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!me) return Response.json({ error: "forbidden" }, { status: 403 });
 
   const b = await req.json().catch(() => ({}));
+
+  // Позвать Асю обратно — по желанию любого участника. Это не про приватность, а про помощь,
+  // поэтому согласия обоих не требуем; заодно сбрасываем прежние голоса «убрать».
+  if (b.back === true) {
+    await roomMemberDb().updateMany({ where: { roomId }, data: { removeAsya: false } }).catch(() => {});
+    const room = await roomDb().findUnique({ where: { id: roomId } }).catch(() => null);
+    if (room && !room.asyaPresent) {
+      await roomDb().update({ where: { id: roomId }, data: { asyaPresent: true } }).catch(() => {});
+      await roomMsgDb().create({ data: { roomId, sender: "asya", senderId: null, kind: "system", content: ASYA_RETURN } }).catch(() => {});
+    }
+    return Response.json({ ok: true, asyaPresent: true });
+  }
+
   const remove = b.remove !== false; // по умолчанию — за удаление; передать {remove:false} чтобы отозвать
   await roomMemberDb().update({ where: { roomId_userId: { roomId, userId: u.id } }, data: { removeAsya: remove } }).catch(() => {});
 
