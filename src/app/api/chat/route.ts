@@ -98,18 +98,32 @@ export async function POST(req: NextRequest) {
     const query = String(lastUser.content);
     // TGStat ищет по словам в названии/описании — сырую фразу он не понимает. Сначала
     // извлекаем из разговора чистый запрос (тема + город) и тип (сообщество/канал).
-    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const, category: "" }));
-    const found = await searchChannels(spec.q, spec.peerType, spec.category).catch(() => ({ items: [] as CatalogChannel[], available: false }));
+    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const, category: "", isSearch: true }));
     let picked: { intro: string; channels: CatalogChannel[] };
-    if (!found.available) {
-      // Сбой уровня каталога (нет токена/подписки, сеть) — честно, а не «ничего не нашлось».
-      picked = { intro: "Каталог каналов сейчас недоступен — не хочу выдумывать, вернёмся к поиску чуть позже 🤍", channels: [] };
+    if (!spec.isSearch) {
+      // Не поиск (вопрос о возможностях, приветствие) — навык остаётся собой, но не ищет впустую.
+      console.warn("[tgstat] не-поисковое сообщение — отвечаю о возможностях");
+      picked = {
+        intro:
+          "Я умею находить телеграм-каналы и чаты по теме 🤍 Скажи, что ищешь: тему (например, бег, мамы, новости про ИИ), " +
+          "и если важно — город и что нужно, канал с контентом или чат-сообщество. Тогда подберу самое подходящее.",
+        channels: [],
+      };
     } else {
-      // Для отбора отдаём распознанный интент (spec.q) — по нему модель судит релевантность точнее.
-      picked = await selectChannels(spec.q || query, found.items).catch(() => ({
-        intro: "Не получилось поискать сейчас — попробуй ещё раз чуть позже 🤍",
-        channels: [] as CatalogChannel[],
-      }));
+      const found = await searchChannels(spec.q, spec.peerType, spec.category).catch(() => ({ items: [] as CatalogChannel[], available: false }));
+      // Явная диагностика в логи Timeweb: что именно построила модель и сколько нашлось.
+      console.warn(`[tgstat] spec=${JSON.stringify(spec)} candidates=${found.items.length} available=${found.available}`);
+      if (!found.available) {
+        // Сбой уровня каталога (нет токена/подписки, сеть) — честно, а не «ничего не нашлось».
+        picked = { intro: "Каталог каналов сейчас недоступен — не хочу выдумывать, вернёмся к поиску чуть позже 🤍", channels: [] };
+      } else {
+        // Для отбора отдаём распознанный интент (spec.q) — по нему модель судит релевантность точнее.
+        picked = await selectChannels(spec.q || query, found.items).catch(() => ({
+          intro: "Не получилось поискать сейчас — попробуй ещё раз чуть позже 🤍",
+          channels: [] as CatalogChannel[],
+        }));
+        console.warn(`[tgstat] показано каналов: ${picked.channels.length}`);
+      }
     }
     if (saveHistory && user) {
       await msgDb.create({ data: { userId: user.id, role: "assistant", content: picked.intro, skill: skillId } }).catch(() => {});
