@@ -1,29 +1,81 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Orb } from "./Orb";
-import { initTelegramMiniApp } from "@/lib/telegramWebApp";
+import { getTg, inTelegram, initTelegramMiniApp } from "@/lib/telegramWebApp";
 
 // Шлюз авторизации для аккаунт-страниц.
-// В Telegram-мини-аппе тихо переавторизуется и перезагружается (сессия появляется),
-// и только если это реально веб вне Telegram (или повтор не помог) — уводит на /login.
-// Так пользователь Telegram больше не упирается во вход по телефону,
-// и короткая недоступность базы после деплоя не выбрасывает из кабинета.
+// ГЛАВНЫЙ ПРИНЦИП: если мы внутри Telegram Mini App, человек УЖЕ авторизован своим ID —
+// вход по телефону тут не нужен НИКОГДА. Если серверной сессии нет (база прогревалась
+// после деплоя или моргнула, и createSession не прошёл) — настойчиво переавторизуемся
+// по Telegram с ретраями, а не выкидываем на /login. На телефонный вход уводим ТОЛЬКО
+// в настоящем вебе вне Telegram.
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function meHasUser(): Promise<boolean> {
+  try {
+    const d = await fetch("/api/me", { cache: "no-store" }).then((r) => r.json());
+    return Boolean(d?.user);
+  } catch {
+    return false;
+  }
+}
+
+async function tgAuthOnce(): Promise<void> {
+  const tg = getTg();
+  if (!tg?.initData) return;
+  try {
+    await fetch("/api/auth/tg-webapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData }),
+    });
+  } catch {
+    /* сеть/база недоступны — снаружи ретрайнем */
+  }
+}
+
 export default function AuthGate() {
+  const [stuck, setStuck] = useState(false);
+
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const tried = url.searchParams.get("_a") === "1";
     let cancelled = false;
     (async () => {
+      // Загружаем SDK, инициализируем Mini App и делаем первый тихий вход по Telegram.
       const inTg = await initTelegramMiniApp().catch(() => false);
       if (cancelled) return;
-      if (inTg && !tried) {
-        // Один повтор: после перезагрузки сессия уже есть, страница отрисуется.
-        url.searchParams.set("_a", "1");
-        window.location.replace(url.toString());
+
+      if (!inTg && !inTelegram()) {
+        // Настоящий веб вне Telegram — только здесь уместен вход по телефону.
+        window.location.href = "/login";
         return;
       }
-      window.location.href = "/login";
+
+      // Мы в Telegram. Проверяем, появилась ли сессия; если нет — ретраим вход
+      // с нарастающей паузой (база могла ещё вставать после деплоя).
+      let authed = await meHasUser();
+      for (let attempt = 0; !authed && attempt < 4 && !cancelled; attempt++) {
+        await sleep(1200 * (attempt + 1)); // 1.2с, 2.4с, 3.6с, 4.8с — покрывает прогрев БД
+        if (cancelled) return;
+        await tgAuthOnce();
+        authed = await meHasUser();
+      }
+      if (cancelled) return;
+
+      if (authed) {
+        // Сессия есть — перезагружаем страницу, чтобы сервер отрисовал раздел.
+        // Счётчик в URL (?_a=N) страхует от зацикливания; при новом переходе он сбрасывается сам.
+        const url = new URL(window.location.href);
+        const tries = Number(url.searchParams.get("_a") || "0");
+        if (tries < 2) {
+          url.searchParams.set("_a", String(tries + 1));
+          window.location.replace(url.toString());
+          return;
+        }
+      }
+      // База долго недоступна или страница всё равно гейтит — не мучаем и НЕ шлём на телефон.
+      setStuck(true);
     })();
     return () => {
       cancelled = true;
@@ -34,7 +86,24 @@ export default function AuthGate() {
     <div className="app">
       <div className="chat-loading">
         <Orb className="big-orb thinking" />
-        <p>Секунду, узнаю тебя…</p>
+        {stuck ? (
+          <>
+            <p>Не получается восстановить связь. Обновим?</p>
+            <button
+              className="btn-primary"
+              style={{ maxWidth: 240, margin: "12px auto 0" }}
+              onClick={() => {
+                const u = new URL(window.location.href);
+                u.searchParams.delete("_a");
+                window.location.replace(u.toString());
+              }}
+            >
+              Обновить
+            </button>
+          </>
+        ) : (
+          <p>Секунду, узнаю тебя…</p>
+        )}
       </div>
     </div>
   );
