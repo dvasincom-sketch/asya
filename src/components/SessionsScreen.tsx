@@ -12,6 +12,12 @@ type Saved = {
 };
 type Turn = { role: "assistant" | "user"; content: string };
 type Synth = { summary: string; synthType: "points" | "canvas"; synthTitle: string; synthSub: string; saveTo: string };
+type Active = {
+  sessionId: string; template: string; title: string; topic: string;
+  labels: string[]; total: number; step: number;
+  state: "await" | "resume" | "ready" | "done";
+  turns: Turn[]; synth: Synth | null;
+};
 
 function toggleTheme() {
   const el = document.documentElement;
@@ -38,6 +44,7 @@ export default function SessionsScreen() {
   const [templates, setTemplates] = useState<Tpl[]>([]);
   const [saved, setSaved] = useState<Saved[]>([]);
   const [openSaved, setOpenSaved] = useState<Saved | null>(null);
+  const [active, setActive] = useState<Active | null>(null);
 
   // Живая сессия.
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -58,6 +65,7 @@ export default function SessionsScreen() {
       setAuthed(Boolean(d.user));
       setTemplates(Array.isArray(d.templates) ? d.templates : []);
       setSaved(Array.isArray(d.saved) ? d.saved : []);
+      setActive(d.active ?? null);
     } catch {
       setError("Не удалось загрузить разборы.");
     } finally {
@@ -97,6 +105,7 @@ export default function SessionsScreen() {
       setReady(false);
       setSynth(null);
       setSavedDone(false);
+      setActive(null);
     } catch {
       setError("Не получилось начать разбор. Попробуй ещё раз.");
     } finally {
@@ -119,7 +128,7 @@ export default function SessionsScreen() {
         setStep(d.step);
       }
     } catch {
-      setError("Ася не ответила. Попробуй ещё раз.");
+      setError("Ася не ответила — попробуй ещё раз. Прогресс сохранён, ничего не потеряется 🤍");
     } finally {
       setBusy(false);
     }
@@ -133,7 +142,7 @@ export default function SessionsScreen() {
       const d = await post({ action: "finish", sessionId });
       setSynth(d);
     } catch {
-      setError("Не получилось собрать итог. Попробуй ещё раз.");
+      setError("Не получилось собрать итог — попробуй ещё раз. Твои ответы сохранены 🤍");
     } finally {
       setBusy(false);
     }
@@ -154,6 +163,49 @@ export default function SessionsScreen() {
     }
   }
 
+  // Вернуть человека в незаконченный разбор ровно туда, где он остановился.
+  function resumeActive() {
+    const a = active;
+    if (!a || busy) return;
+    track("session_resume", a.template);
+    setSessionId(a.sessionId);
+    setMeta({ title: a.title, topic: a.topic, labels: a.labels, total: a.total });
+    setTurns(a.turns);
+    setStep(a.step);
+    setSavedDone(false);
+    setError("");
+    if (a.state === "done" && a.synth) {
+      setSynth(a.synth);
+      setReady(false);
+    } else if (a.state === "ready") {
+      setSynth(null);
+      setReady(true);
+    } else {
+      setSynth(null);
+      setReady(false);
+      if (a.state === "resume") void continueSession(a.sessionId);
+    }
+  }
+
+  // До-генерация зависшего вопроса (после ошибки модели) — прогресс не теряется.
+  async function continueSession(id: string) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const d = await post({ action: "continue", sessionId: id });
+      if (d.ready) setReady(true);
+      else if (d.question) {
+        setTurns((v) => [...v, { role: "assistant", content: d.question }]);
+        setStep(d.step);
+      }
+    } catch {
+      setError("Не получилось продолжить — попробуй ещё раз. Прогресс сохранён 🤍");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function reset() {
     setSessionId(null);
     setMeta(null);
@@ -163,6 +215,7 @@ export default function SessionsScreen() {
     setSavedDone(false);
     setInput("");
     setError("");
+    void load();
   }
 
   // ---------- Просмотр сохранённого разбора ----------
@@ -207,6 +260,22 @@ export default function SessionsScreen() {
             <h2>Над чем поработаем?</h2>
             <p>Ася может просто выслушать — а может провести по шагам, как коуч. Методики внутри, а разговор живой.</p>
           </div>
+
+          {active && (
+            <button className="opt resume-card" style={{ borderColor: "var(--accent)" }} onClick={resumeActive} disabled={busy}>
+              <div className="o-ic">↻</div>
+              <div>
+                <b>Продолжить: {active.title}</b>
+                <span>
+                  {active.state === "done"
+                    ? "Итог готов — вернуться и сохранить"
+                    : active.state === "ready"
+                      ? "Все ответы на месте — осталось подвести итог"
+                      : "Незаконченный разбор — вернёмся, где остановились"}
+                </span>
+              </div>
+            </button>
+          )}
 
           {!authed && (
             <div className="gate" style={{ margin: "0 0 18px" }}>

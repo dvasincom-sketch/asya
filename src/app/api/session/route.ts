@@ -21,16 +21,18 @@ type SessionRow = {
 };
 type TurnRow = { id: string; phase: number; role: string; content: string; createdAt: Date };
 
+type SessionWhere = Record<string, unknown>;
 type SessionDelegate = {
   create: (a: { data: { userId: string; template: string; step?: number } }) => Promise<SessionRow>;
-  findFirst: (a: { where: { id: string; userId: string } }) => Promise<SessionRow | null>;
+  findFirst: (a: { where: SessionWhere; orderBy?: SessionWhere }) => Promise<SessionRow | null>;
   update: (a: {
     where: { id: string };
     data: Partial<{ step: number; done: boolean; summary: string; savedAt: Date }>;
   }) => Promise<SessionRow>;
+  updateMany: (a: { where: SessionWhere; data: SessionWhere }) => Promise<unknown>;
   findMany: (a: {
-    where: { userId: string; savedAt?: { not: null } };
-    orderBy: { createdAt: "desc" };
+    where: SessionWhere;
+    orderBy: SessionWhere;
     take: number;
   }) => Promise<SessionRow[]>;
 };
@@ -93,6 +95,50 @@ async function buildSummary(t: SessionTemplate, turns: ChatMessage[]): Promise<s
   return m ? m[0] : "[]";
 }
 
+// Активная сессия для восстановления: ходы + вычисленное состояние.
+//  await  — ждём ответ человека на последний вопрос (норма);
+//  resume — модель не успела задать следующий вопрос (после ошибки) — надо до-генерировать;
+//  ready  — все вопросы отвечены, пора подводить итог;
+//  done   — итог собран, но ещё не сохранён (вернём к экрану итога).
+async function computeActive(userId: string): Promise<Record<string, unknown> | null> {
+  const recent = await sessionsDb()
+    .findFirst({ where: { userId, savedAt: null }, orderBy: { createdAt: "desc" } })
+    .catch(() => null);
+  // findFirst у нас без множества — берём последнюю несохранённую; если она заброшена
+  // (done без summary), считаем, что активной нет (мы её сами закрыли при старте новой).
+  if (!recent) return null;
+  if (recent.done && !recent.summary) return null;
+  const t = getTemplate(recent.template);
+  if (!t) return null;
+
+  const chat = await turnsToChat(recent.id);
+  const turns = chat.map((m) => ({ role: m.role, content: m.content }));
+  const userCount = turns.filter((x) => x.role === "user").length;
+  const asstCount = turns.length - userCount;
+
+  let state: "await" | "resume" | "ready" | "done";
+  if (recent.done) state = "done";
+  else if (userCount >= t.questions.length) state = "ready";
+  else if (asstCount <= userCount) state = "resume"; // нет висящего вопроса после ответа
+  else state = "await";
+
+  return {
+    sessionId: recent.id,
+    template: t.id,
+    title: t.title,
+    topic: t.topic,
+    labels: t.labels,
+    total: t.questions.length,
+    step: recent.step,
+    state,
+    turns,
+    synth:
+      recent.done && recent.summary
+        ? { summary: recent.summary, synthType: t.synthType, synthTitle: t.synthTitle, synthSub: t.synthSub, saveTo: t.saveTo }
+        : null,
+  };
+}
+
 // --- GET: шаблоны + сохранённые разборы ----------------------------------
 export async function GET() {
   const user = await getCurrentUser().catch(() => null);
@@ -102,8 +148,15 @@ export async function GET() {
     .findMany({ where: { userId: user.id, savedAt: { not: null } }, orderBy: { createdAt: "desc" }, take: 30 })
     .catch(() => [] as SessionRow[]);
 
+  // Активная (незаконченная) сессия — чтобы вернуть человека туда, где он остановился,
+  // даже после ошибки модели или перезахода. Прогресс уже в БД (сессия + ходы),
+  // раньше он просто нигде не показывался. Берём несколько последних несохранённых и
+  // выбираем первую живую: не заброшенную (done без итога — это закрытая нами прежняя).
+  const active = await computeActive(user.id);
+
   return Response.json({
     user: { id: user.id },
+    active,
     templates: templateList(),
     saved: rows.map((r) => {
       const t = getTemplate(r.template);
@@ -135,6 +188,12 @@ export async function POST(req: NextRequest) {
     if (action === "start") {
       const t = getTemplate(String(body.template || ""));
       if (!t) return Response.json({ error: "bad_template" }, { status: 400 });
+
+      // Закрываем прежние незаконченные разборы этого человека (без итога) — чтобы
+      // активной осталась только новая, и восстановление не путалось.
+      await sessionsDb()
+        .updateMany({ where: { userId: user.id, savedAt: null, done: false }, data: { done: true } })
+        .catch(() => {});
 
       const s = await sessionsDb().create({ data: { userId: user.id, template: t.id } });
       const question =
@@ -186,6 +245,28 @@ export async function POST(req: NextRequest) {
       await sessionsDb().update({ where: { id: s.id }, data: { step: s.step + 1 } });
 
       return Response.json({ question, step: s.step + 1, total: t.questions.length });
+    }
+
+    // Восстановление зависшего шага: если после ответа человека следующий вопрос
+    // не успел задаться (ошибка модели), до-генерируем его — или сообщаем, что пора к итогу.
+    if (action === "continue") {
+      if (s.done) return Response.json({ done: true });
+      const history = await turnsToChat(s.id);
+      const userCount = history.filter((m) => m.role === "user").length;
+      if (userCount >= t.questions.length) {
+        return Response.json({ ready: true, step: s.step, total: t.questions.length });
+      }
+      const last = history[history.length - 1];
+      // Висящего вопроса нет только если последний ход — ответ человека (или пусто).
+      if (last && last.role === "assistant") {
+        return Response.json({ question: last.content, step: s.step, total: t.questions.length });
+      }
+      const qIndex = Math.min(userCount, t.questions.length - 1);
+      const question =
+        (await completeChat(history, stepInstruction(t, t.questions[qIndex], history.length === 0))) || t.questions[qIndex];
+      await turnsDb().create({ data: { sessionId: s.id, phase: qIndex, role: "assistant", content: question } });
+      await sessionsDb().update({ where: { id: s.id }, data: { step: qIndex + 1 } });
+      return Response.json({ question, step: qIndex + 1, total: t.questions.length });
     }
 
     // Подвести итог — из настоящих ответов.
