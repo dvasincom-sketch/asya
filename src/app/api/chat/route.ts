@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     const query = String(lastUser.content);
     // TGStat ищет по словам в названии/описании — сырую фразу он не понимает. Сначала
     // извлекаем из разговора чистый запрос (тема + город) и тип (сообщество/канал).
-    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const, category: "", isSearch: true }));
+    const spec = await extractSearchSpec(messages).catch(() => ({ q: query, peerType: "all" as const, category: "", isSearch: true, broadQ: "" }));
     let picked: { intro: string; channels: CatalogChannel[] };
     if (!spec.isSearch) {
       // Не поиск (вопрос о возможностях, приветствие) — навык остаётся собой, но не ищет впустую.
@@ -110,9 +110,15 @@ export async function POST(req: NextRequest) {
         channels: [],
       };
     } else {
-      const found = await searchChannels(spec.q, spec.peerType, spec.category).catch(() => ({ items: [] as CatalogChannel[], available: false }));
-      // Явная диагностика в логи Timeweb: что именно построила модель и сколько нашлось.
-      console.warn(`[tgstat] spec=${JSON.stringify(spec)} candidates=${found.items.length} available=${found.available}`);
+      // Попытка 1 — точный запрос (тема + город + тип + категория).
+      let found = await searchChannels(spec.q, spec.peerType, spec.category).catch(() => ({ items: [] as CatalogChannel[], available: false }));
+      console.warn(`[tgstat] try1 spec=${JSON.stringify(spec)} candidates=${found.items.length} available=${found.available}`);
+      // Мало результатов — авто-расширение: общий ключ (broadQ), любой тип, без категории.
+      if (found.available && found.items.length < 3 && spec.broadQ && spec.broadQ !== spec.q) {
+        const broad = await searchChannels(spec.broadQ, "all", "").catch(() => ({ items: [] as CatalogChannel[], available: false }));
+        console.warn(`[tgstat] try2(broad) q="${spec.broadQ}" candidates=${broad.items.length}`);
+        if (broad.available && broad.items.length > found.items.length) found = broad;
+      }
       if (!found.available) {
         // Сбой уровня каталога (нет токена/подписки, сеть) — честно, а не «ничего не нашлось».
         picked = { intro: "Каталог каналов сейчас недоступен — не хочу выдумывать, вернёмся к поиску чуть позже 🤍", channels: [] };
