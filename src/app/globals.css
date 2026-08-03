@@ -865,3 +865,14 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .rr-body b { display: block; font-size: 14px; color: var(--text); font-weight: 600; }
 .rr-body span { display: block; font-size: 12.5px; color: var(--text-soft); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- Кабинет: прямоугольные плашки-разделы (крупный тап-таргет) ---------- */
+.account-tiles { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; }
+.account-tile { display: flex; align-items: center; gap: 12px; width: 100%; padding: 15px 15px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--glass); color: var(--text); text-decoration: none; text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease; }
+.account-tile:hover { border-color: var(--accent); }
+.account-tile:active { transform: scale(0.99); }
+.account-tile .at-ic { flex: 0 0 auto; width: 24px; text-align: center; font-size: 18px; }
+.account-tile .at-t { flex: 1 1 auto; min-width: 0; font-size: 14.5px; line-height: 1.25; }
+.account-tile .at-go { flex: 0 0 auto; color: var(--text-dim); font-size: 18px; }
