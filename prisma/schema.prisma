@@ -193,6 +193,44 @@ model Intro {
 }
 
 // --- Безопасность сети ---
+model Room {
+  id          String        @id @default(cuid())
+  introId     String        @unique
+  status      String        @default("active")
+  asyaPresent Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  members     RoomMember[]
+  messages    RoomMessage[]
+
+  @@index([status])
+}
+
+model RoomMember {
+  id         String   @id @default(cuid())
+  roomId     String
+  userId     String
+  removeAsya Boolean  @default(false)
+  lastReadAt DateTime @default(now())
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId])
+}
+
+model RoomMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  sender    String   // "user" | "asya"
+  senderId  String?
+  kind      String   @default("text") // text | system | warn
+  content   String
+  createdAt DateTime @default(now())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+}
+
 model Report {
   id           String   @id @default(cuid())
   reporterId   String

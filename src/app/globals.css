@@ -834,3 +834,34 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .mi-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; display: inline-flex;
   align-items: center; justify-content: center; border-radius: 10px; background: var(--accent);
   color: #fff; font-size: 11px; font-weight: 700; }
+
+/* ---- Внутренний чат сматчившихся (комната) ------------------------------ */
+.room-strip { display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-bottom: 1px solid var(--line);
+  background: var(--glass); }
+.room-strip .mini-orb { width: 24px; height: 24px; border-radius: 50%; flex: 0 0 auto; }
+.rs-t { font-size: 12.5px; color: var(--text-soft); }
+.rs-t b { color: var(--text); font-weight: 600; }
+.rs-act { margin-left: auto; padding: 6px 12px; border-radius: 12px; border: 1px solid var(--line);
+  background: transparent; color: var(--text-soft); font-size: 12.5px; cursor: pointer; }
+.rs-act:hover { border-color: var(--accent); color: var(--text); }
+.room-chat { padding-top: 12px; }
+/* Собеседник — слева, без орба (в отличие от Аси) */
+.row.other { justify-content: flex-start; }
+.row.other .bubble { background: var(--bubble-a); border: 1px solid var(--bubble-a-border); color: var(--text);
+  border-bottom-left-radius: 7px; }
+/* Ася в общем чате — реплика с орбом; предупреждение — тёплый акцент */
+.bubble.asya-note { background: var(--glass); border: 1px solid var(--line); color: var(--text-soft);
+  font-size: 14px; border-bottom-left-radius: 7px; }
+.bubble.asya-note.warn { background: var(--crisis); border-color: var(--crisis-border); color: var(--text); }
+/* Кнопка «Открыть чат» на карточке метча */
+.chat-open { display: block; text-decoration: none; cursor: pointer; }
+.chat-open:hover { border-color: var(--accent); }
+/* Строка комнаты в списке «Разговоры» */
+.room-row { display: flex; align-items: center; gap: 12px; padding: 13px 14px; text-decoration: none;
+  border-bottom: 1px solid var(--line); }
+.room-row:last-child { border-bottom: none; }
+.rr-ic { font-size: 20px; flex: 0 0 auto; }
+.rr-body { flex: 1 1 auto; min-width: 0; }
+.rr-body b { display: block; font-size: 14px; color: var(--text); font-weight: 600; }
+.rr-body span { display: block; font-size: 12.5px; color: var(--text-soft); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

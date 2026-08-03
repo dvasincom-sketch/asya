@@ -65,6 +65,41 @@ export function reportDb() {
   }).report;
 }
 
+export type RoomRow = { id: string; introId: string; status: string; asyaPresent: boolean; createdAt: Date; updatedAt: Date };
+export type RoomMemberRow = { id: string; roomId: string; userId: string; removeAsya: boolean; lastReadAt: Date };
+export type RoomMessageRow = { id: string; roomId: string; sender: string; senderId: string | null; kind: string; content: string; createdAt: Date };
+
+export function roomDb() {
+  return (prisma as unknown as {
+    room: {
+      findUnique: (a: { where: { id?: string; introId?: string } }) => Promise<RoomRow | null>;
+      findMany: (a: { where: Where; orderBy?: Where; take?: number }) => Promise<RoomRow[]>;
+      create: (a: { data: Where }) => Promise<RoomRow>;
+      update: (a: { where: { id: string }; data: Where }) => Promise<RoomRow>;
+    };
+  }).room;
+}
+export function roomMemberDb() {
+  return (prisma as unknown as {
+    roomMember: {
+      findMany: (a: { where: Where; orderBy?: Where; take?: number }) => Promise<RoomMemberRow[]>;
+      findUnique: (a: { where: { roomId_userId: { roomId: string; userId: string } } }) => Promise<RoomMemberRow | null>;
+      create: (a: { data: Where }) => Promise<RoomMemberRow>;
+      update: (a: { where: { roomId_userId: { roomId: string; userId: string } }; data: Where }) => Promise<RoomMemberRow>;
+      updateMany: (a: { where: Where; data: Where }) => Promise<unknown>;
+    };
+  }).roomMember;
+}
+export function roomMsgDb() {
+  return (prisma as unknown as {
+    roomMessage: {
+      findMany: (a: { where: Where; orderBy?: Where; take?: number }) => Promise<RoomMessageRow[]>;
+      create: (a: { data: Where }) => Promise<RoomMessageRow>;
+      count: (a: { where: Where }) => Promise<number>;
+    };
+  }).roomMessage;
+}
+
 // Контакт человека для передачи после взаимного согласия.
 export async function userContact(userId: string): Promise<{ phone: string | null; tgId: string | null } | null> {
   const u = await prisma.user.findUnique({ where: { id: userId }, select: { phone: true, tgId: true } }).catch(() => null);

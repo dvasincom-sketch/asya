@@ -7,14 +7,13 @@ type Cat = { id: string; label: string; icon: string; live: boolean; badge: stri
 type Gender = "female" | "male" | null;
 type Offer = { id: string; category: string; title: string; params: Record<string, unknown>; blurb: string | null; status: string };
 type Req = { id: string; category: string; criteria: Record<string, unknown>; note: string | null; status: string; deadline: string | null };
-type Contact = { phone: string | null; tgId: string | null } | null;
 type Incoming = {
   id: string; status: string;
   myOffer: { id: string; title: string; category: string } | null;
   request: { criteria: Record<string, unknown>; note: string | null };
-  category: string | null; contact: Contact;
+  category: string | null; roomId: string | null;
 };
-type Cand = { introId: string; status: string; accepted: boolean; selected: boolean; offer: { title: string; blurb: string | null; category: string } | null; contact: Contact };
+type Cand = { introId: string; status: string; accepted: boolean; selected: boolean; offer: { title: string; blurb: string | null; category: string } | null; roomId: string | null };
 type OutGroup = { requestId: string; category: string; criteria: Record<string, unknown>; note: string | null; candidates: Cand[] };
 type Sheet = { title: string; text: string; btn: string; danger?: boolean; action: () => void | Promise<void> };
 
@@ -29,6 +28,7 @@ export default function NetworkScreen() {
   const [reqs, setReqs] = useState<Req[]>([]);
   const [incoming, setIncoming] = useState<Incoming[]>([]);
   const [outgoing, setOutgoing] = useState<OutGroup[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; asyaPresent: boolean; unread: number; last: { sender: string; content: string } | null }[]>([]);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [form, setForm] = useState<null | "offer" | "request">(null);
   const [fCat, setFCat] = useState("service");
@@ -50,11 +50,12 @@ export default function NetworkScreen() {
   }
 
   async function loadAll() {
-    const [c, o, r, i] = await Promise.all([
+    const [c, o, r, i, rm] = await Promise.all([
       fetch("/api/network/consent").then((x) => x.json()).catch(() => ({})),
       fetch("/api/network/offers").then((x) => x.json()).catch(() => ({})),
       fetch("/api/network/requests").then((x) => x.json()).catch(() => ({})),
       fetch("/api/network/intros").then((x) => x.json()).catch(() => ({})),
+      fetch("/api/network/rooms").then((x) => x.json()).catch(() => ({})),
     ]);
     setCats(Array.isArray(c.categories) ? c.categories : []);
     setConsents(c.consents || {});
@@ -63,6 +64,7 @@ export default function NetworkScreen() {
     setReqs(Array.isArray(r.requests) ? r.requests : []);
     setIncoming(Array.isArray(i.incoming) ? i.incoming : []);
     setOutgoing(Array.isArray(i.outgoing) ? i.outgoing : []);
+    setRooms(Array.isArray(rm.rooms) ? rm.rooms : []);
   }
 
   useEffect(() => {
@@ -165,15 +167,12 @@ export default function NetworkScreen() {
     open: "Ася ищет", matched: "есть отклики", closed: "закрыт", expired: "срок вышел",
   };
 
-  function contactLine(c: Contact) {
-    if (!c) return null;
-    const tg = c.tgId ? `Telegram id ${c.tgId}` : null;
-    const ph = c.phone || null;
+  function chatOpen(roomId: string | null) {
     return (
-      <div className="ncontact">
+      <a className="ncontact chat-open" href={roomId ? `/account/network/room/${roomId}` : "#"}>
         <b>Ася познакомила вас 🤍</b>
-        <span>{[tg, ph].filter(Boolean).join(" · ") || "Контакт откроется, как соберётся"}</span>
-      </div>
+        <span>Открыть общий чат — общайтесь здесь, я рядом ›</span>
+      </a>
     );
   }
 
@@ -255,6 +254,24 @@ export default function NetworkScreen() {
           <button className="net-add" onClick={openRequestForm}>+ Новый запрос</button>
         </div>
 
+        {rooms.length > 0 && (
+          <>
+            <div className="sec">Разговоры</div>
+            <div className="scard">
+              {rooms.map((rm) => (
+                <a className="room-row" href={`/account/network/room/${rm.id}`} key={rm.id}>
+                  <span className="rr-ic">💬</span>
+                  <span className="rr-body">
+                    <b>Общий чат {rm.asyaPresent ? "· с Асей" : "· приватный"}</b>
+                    <span>{rm.last ? (rm.last.sender === "asya" ? "Ася: " : "") + rm.last.content : "Пока пусто — напиши первым 🤍"}</span>
+                  </span>
+                  {rm.unread > 0 ? <span className="mi-badge">{rm.unread > 9 ? "9+" : rm.unread}</span> : <span className="mi-go">›</span>}
+                </a>
+              ))}
+            </div>
+          </>
+        )}
+
         {incoming.length > 0 && (
           <>
             <div className="sec">Тебя ищут</div>
@@ -268,7 +285,7 @@ export default function NetworkScreen() {
                   {it.request.note && <p className="ncard-blurb">«{it.request.note}»</p>}
                   {CITY(it.request.criteria) && <span className="ncard-meta">📍 {CITY(it.request.criteria)}</span>}
                   {it.status === "contact_shared"
-                    ? contactLine(it.contact)
+                    ? chatOpen(it.roomId)
                     : it.status === "candidate_accepted"
                       ? <div className="ncard-wait">{gg("Ты откликнулась", "Ты откликнулся", "Ты откликнул(ась)")} 🤍 Ждём, что человек выберет</div>
                       : (
@@ -310,7 +327,7 @@ export default function NetworkScreen() {
                       </div>
                       {c.offer?.blurb && <p className="ncard-blurb">{c.offer.blurb}</p>}
                       {c.status === "contact_shared"
-                        ? contactLine(c.contact)
+                        ? chatOpen(c.roomId)
                         : c.selected
                           ? <div className="ncard-wait">{gg("Ты выбрала", "Ты выбрал", "Ты выбрал(а)")} 🤍 Ждём подтверждения</div>
                           : (

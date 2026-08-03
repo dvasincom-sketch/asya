@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { introsDb, offersDb, requestsDb, reportDb, userContact, userTgId } from "@/lib/networkDb";
+import { introsDb, offersDb, requestsDb, reportDb, roomDb, userTgId } from "@/lib/networkDb";
+import { ensureRoom } from "@/lib/rooms";
 import { tgSendWebApp } from "@/lib/tgbot";
 
 export const runtime = "nodejs";
@@ -32,13 +33,14 @@ export async function GET() {
       requestsDb().findUnique({ where: { id: it.requestId } }).catch(() => null),
     ]);
     const shared = it.status === "contact_shared";
+    const roomId = shared ? (await roomDb().findUnique({ where: { introId: it.id } }).catch(() => null))?.id ?? null : null;
     incoming.push({
       id: it.id,
       status: it.status,
       myOffer: offer ? { id: offer.id, title: offer.title, category: offer.category } : null,
       request: request ? requestPreview(request.criteria, request.note) : { criteria: {}, note: null },
       category: request?.category || offer?.category || null,
-      contact: shared ? await userContact(it.requesterId) : null,
+      roomId,
     });
   }
 
@@ -53,14 +55,15 @@ export async function GET() {
       outMap[it.requestId] = { requestId: it.requestId, category: request.category, criteria: pv.criteria, note: pv.note, candidates: [] };
     }
     const offer = await offersDb().findUnique({ where: { id: it.offerId } }).catch(() => null);
-    const shared = it.status === "contact_shared";
+    const shared2 = it.status === "contact_shared";
+    const roomId2 = shared2 ? (await roomDb().findUnique({ where: { introId: it.id } }).catch(() => null))?.id ?? null : null;
     outMap[it.requestId].candidates.push({
       introId: it.id,
       status: it.status,
       accepted: it.candidateOk,
       selected: it.requesterOk,
       offer: offer ? { title: offer.title, blurb: offer.blurb, category: offer.category } : null,
-      contact: shared ? await userContact(it.candidateId) : null,
+      roomId: roomId2,
     });
   }
 
@@ -95,10 +98,11 @@ export async function POST(req: NextRequest) {
       where: { id: introId },
       data: { candidateOk: true, status: mutual ? "contact_shared" : "candidate_accepted" },
     }).catch(() => {});
+    if (mutual) await ensureRoom(it.id, it.requesterId, it.candidateId).catch(() => null);
     const reqTg = await userTgId(it.requesterId);
     if (reqTg) {
       await tgSendWebApp(reqTg, mutual
-        ? "Взаимно 🤍 Вы оба готовы — контакты открыты, загляни к Асе."
+        ? "Взаимно 🤍 Вы совпали — Ася открыла общий чат, загляни."
         : "Кандидат откликнулся на твой запрос 🤍 Посмотри карточку и реши.", link);
     }
     return Response.json({ ok: true, mutual });
@@ -111,10 +115,11 @@ export async function POST(req: NextRequest) {
       where: { id: introId },
       data: { requesterOk: true, status: mutual ? "contact_shared" : "requester_selected" },
     }).catch(() => {});
+    if (mutual) await ensureRoom(it.id, it.requesterId, it.candidateId).catch(() => null);
     const candTg = await userTgId(it.candidateId);
     if (candTg) {
       await tgSendWebApp(candTg, mutual
-        ? "Взаимно 🤍 Заказчик выбрал тебя — контакты открыты, загляни к Асе."
+        ? "Взаимно 🤍 Тебя выбрали — Ася открыла общий чат, загляни."
         : "Тебя выбрали по твоему предложению 🤍 Подтверди у Аси, чтобы открыть контакты.", link);
     }
     return Response.json({ ok: true, mutual });
