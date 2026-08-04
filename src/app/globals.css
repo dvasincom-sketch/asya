@@ -1074,3 +1074,7 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .voice-btn.playing { color: var(--accent); border-color: var(--accent); }
 .voice-btn.error { color: var(--danger); border-color: var(--danger-border); }
 .voice-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .7s linear infinite; }
+
+
+/* фикс артефакта виджета Telegram на iOS в тёмной теме (чёрная подложка iframe) */
+.tg-wrap iframe { color-scheme: light !important; background-color: transparent !important; border-radius: 20px; }
