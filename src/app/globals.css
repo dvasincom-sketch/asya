@@ -1169,3 +1169,44 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   /* Чат ощутимо шире на десктопе; кабинет-карточка (.app.auth) остаётся уютной. */
   .app:not(.auth) { max-width: 600px; }
 }
+
+
+/* ============ Десктоп чат (Фаза 2): контекст-панель справа ============ */
+.chat-ctx { display: none; }
+
+@media (min-width: 1024px) {
+  /* Убираем дублирующую навигацию из шапки чата — рэйл слева всё покрывает. */
+  html[data-rail="1"] header .hdr-btns { display: none; }
+  /* Навык уже показан в правой панели — прячем верхнюю полоску (инкогнито/переподключение оставляем). */
+  html[data-chat="1"] .skill-strip { display: none; }
+
+  /* Сдвигаем контент, чтобы уместить правую панель. */
+  html[data-chat="1"] body { padding-right: 304px; }
+  html[data-chat="1"] .chat-ctx {
+    display: flex; flex-direction: column; gap: 14px; position: fixed; right: 0; top: 0; bottom: 0; width: 304px; z-index: 15;
+    padding: 24px 20px; background: var(--surface); border-left: 1px solid var(--line); overflow-y: auto;
+  }
+  .cx-title { font-family: var(--font-display), sans-serif; font-size: 15px; color: var(--text-soft); letter-spacing: 0.02em; padding: 2px 2px 2px; }
+  .cx-card { background: var(--glass); border: 1px solid var(--line); border-radius: 16px; padding: 15px 16px; display: flex; flex-direction: column; gap: 9px; }
+  .cx-card .cx-h { font-size: 15px; font-weight: 600; color: var(--text); }
+  .cx-card p { font-size: 13px; line-height: 1.5; color: var(--text-soft); }
+  .cx-card.cx-inc { border-color: var(--line); }
+  .cx-btn { align-self: flex-start; border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 12px; padding: 8px 14px; font-size: 13px; cursor: pointer; transition: 0.2s; }
+  .cx-btn:hover { background: var(--glass); }
+  .cx-btn.ghost { border-color: var(--line); color: var(--text-soft); }
+  .cx-btn.ghost:hover { color: var(--text); border-color: var(--accent); }
+  .cx-link { font-size: 12.5px; color: var(--text-dim); text-decoration: none; }
+  .cx-link:hover { color: var(--accent); }
+  .cx-starters { display: flex; flex-wrap: wrap; gap: 7px; }
+  .cx-links { gap: 2px; padding: 8px 10px; }
+  .cx-links a { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 11px; text-decoration: none; color: var(--text-soft); font-size: 13.5px; transition: 0.2s; }
+  .cx-links a:hover { background: var(--surface); color: var(--text); }
+  .cx-lic { width: 20px; text-align: center; }
+  .cx-foot { margin-top: auto; font-size: 12px; line-height: 1.5; color: var(--text-dim); padding: 6px 2px; }
+
+  /* Немного «десктопных» hover-мелочей. */
+  .send { transition: transform 0.15s, opacity 0.2s; }
+  .send:hover { transform: scale(1.06); }
+  .starter { transition: border-color 0.2s, background 0.2s, transform 0.15s; }
+  .starter:hover { transform: translateY(-1px); }
+}

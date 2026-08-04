@@ -123,6 +123,20 @@ export default function ChatWindow() {
   const [input, setInput] = useState("");
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [me, setMe] = useState<{ name: string | null; avatarUrl: string | null }>({ name: null, avatarUrl: null });
+
+  // Десктоп: помечаем документ, чтобы CSS показал правую контекст-панель и подвинул чат.
+  useEffect(() => {
+    document.documentElement.setAttribute("data-chat", "1");
+    return () => document.documentElement.removeAttribute("data-chat");
+  }, []);
+  // Esc закрывает открытые шторки/оверлеи — привычно на десктопе.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { setIncInfo(false); setMenuOpen(false); setRoomsOpen(false); setSpread(null); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [count, setCount] = useState(0);
   const [gated, setGated] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -832,6 +846,42 @@ export default function ChatWindow() {
           </button>
         </div>
       )}
+
+      <aside className="chat-ctx" aria-label="Контекст разговора">
+        <div className="cx-title">Разговор</div>
+        {incognito ? (
+          <div className="cx-card cx-inc">
+            <div className="cx-h">🕶️ Инкогнито</div>
+            <p>Ничего не сохраняется — ни в историю, ни в память.</p>
+            <button className="cx-btn" onClick={exitIncognito}>Выключить инкогнито</button>
+          </div>
+        ) : skillMeta ? (
+          <div className="cx-card">
+            <div className="cx-h">{skillMeta.icon} {skillMeta.title}</div>
+            <p>{skillMeta.tagline}</p>
+            {skillMeta.starters.length > 0 && (
+              <div className="cx-starters">
+                {skillMeta.starters.map((st) => (
+                  <button key={st} className="starter" onClick={() => send(st)}>{st}</button>
+                ))}
+              </div>
+            )}
+            <a className="cx-link" href="/chat">← Выйти в обычный чат</a>
+          </div>
+        ) : (
+          <div className="cx-card">
+            <div className="cx-h">Обычный чат с Асей</div>
+            <p>Тёплый разговор один на один. Всё сохраняется в вашу историю.</p>
+            <button className="cx-btn ghost" onClick={toggleIncognito}>Включить инкогнито 🕶️</button>
+          </div>
+        )}
+        <div className="cx-card cx-links">
+          <a href="/account/memory"><span className="cx-lic">🤍</span> Что Ася о тебе знает</a>
+          <a href="/account/health"><span className="cx-lic">🩺</span> Здоровье</a>
+          <a href="/account/sessions"><span className="cx-lic">🌙</span> Сессия с Асей</a>
+        </div>
+        <div className="cx-foot">🌸 Это поддержка и общение, не медицинская помощь</div>
+      </aside>
 
       <div className={`overlay ${incInfo ? "on" : ""}`} onClick={() => setIncInfo(false)} />
       <div className={`sheet ${incInfo ? "on" : ""}`}>
