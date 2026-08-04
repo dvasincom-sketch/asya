@@ -17,6 +17,10 @@ import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
 import TaroSpread from "./TaroSpread";
 import VoiceButton from "./VoiceButton";
 
+// Голос временно скрыт: бесплатный план ElevenLabs не отдаёт озвучку через API (402 paid_plan).
+// Кнопка появляется только при NEXT_PUBLIC_VOICE_ENABLED=1 — вернуть можно без правок кода.
+const VOICE_ON = process.env.NEXT_PUBLIC_VOICE_ENABLED === "1";
+
 type TgChannel = { title: string; username: string | null; link: string | null; participants: number | null; about: string | null };
 
 type NetSuggest = {
@@ -801,7 +805,7 @@ export default function ChatWindow() {
               <div className={`row ${m.role}`}>
                 {m.role === "assistant" && <Orb className="mini-orb" />}
                 <div className="bubble">{m.role === "assistant" ? clean(m.content) : m.content}</div>
-                {m.role === "assistant" && authed === true && !incognito && clean(m.content).length > 1 && (
+                {VOICE_ON && m.role === "assistant" && authed === true && !incognito && clean(m.content).length > 1 && (
                   <VoiceButton text={clean(m.content)} />
                 )}
               </div>

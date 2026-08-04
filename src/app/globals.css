@@ -1250,6 +1250,10 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 
 
 /* ============ Профиль /account ============ */
+/* Мобильный/Mini App: длинный профиль должен скроллиться с самого верха, а не
+   центрироваться и обрезаться сверху («экран складывается вниз»). */
+.app.auth.prof { justify-content: flex-start; align-items: stretch; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.app.auth.prof .prof-card { margin-top: 0; margin-bottom: 0; }
 .prof-card { text-align: left; max-width: 460px; }
 .prof-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .prof-av { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
