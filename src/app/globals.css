@@ -929,3 +929,87 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .rmodal h3 { font-family: Georgia, serif; font-weight: 500; font-size: 19px; color: var(--text); }
 .rmodal p { color: var(--text-soft); font-size: 13.5px; line-height: 1.5; margin: 9px 4px 18px; }
 .rmodal .sheet-btn:first-of-type { margin-top: 4px; }
+
+
+/* ==================== Админ-дашборд ==================== */
+.dash { align-self: flex-start; width: 100%; max-width: 1120px; margin: 0 auto;
+  padding: 24px 22px calc(60px + env(safe-area-inset-bottom)); position: relative; z-index: 1; }
+.dash-auth { min-height: 100dvh; display: flex; align-items: center; justify-content: center; }
+.dash-authcard { width: 100%; max-width: 360px; text-align: center; background: var(--glass);
+  border: 1px solid var(--line); border-radius: 22px; padding: 28px 24px; backdrop-filter: blur(12px); }
+.dash-authcard h1 { font-family: var(--font-display), Georgia, serif; font-size: 24px; margin-bottom: 8px; }
+.dash-authcard p { color: var(--text-soft); font-size: 14px; margin-bottom: 16px; }
+
+.dash-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 6px; flex-wrap: wrap; }
+.dash-top h1 { font-family: var(--font-display), Georgia, serif; font-size: 26px; letter-spacing: .3px; color: var(--text); }
+.dash-sub { color: var(--text-dim); font-size: 12.5px; margin-top: 4px; }
+.dash-error { color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-border);
+  border-radius: 12px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; }
+.dash-muted { color: var(--text-soft); padding: 12px 0; }
+.dash-dim { color: var(--text-dim); }
+
+.dash-sec { color: var(--text-dim); font-size: 11.5px; font-weight: 600; letter-spacing: .6px;
+  text-transform: uppercase; margin: 26px 2px 12px; }
+.dash-note { color: var(--text-soft); font-size: 12.5px; line-height: 1.5; margin: 12px 2px 0; }
+.dash-crisis { margin-top: 24px; background: var(--crisis); border: 1px solid var(--crisis-border);
+  border-radius: 14px; padding: 14px 16px; color: var(--text); font-size: 13.5px; }
+
+/* сегмент-переключатель */
+.seg { display: inline-flex; gap: 6px; background: var(--glass); border: 1px solid var(--line);
+  border-radius: 14px; padding: 4px; }
+.seg-btn { border: none; background: transparent; color: var(--text-soft); font-family: inherit;
+  font-size: 13px; padding: 7px 14px; border-radius: 10px; cursor: pointer; transition: .2s; }
+.seg-btn:hover { color: var(--text); }
+.seg-btn.on { background: var(--accent); color: #fff; }
+.seg-sm { margin-bottom: 12px; }
+.seg-sm .seg-btn { font-size: 12.5px; padding: 6px 12px; }
+
+/* KPI */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.kpi b { display: block; font-size: 28px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.kpi span { display: block; font-size: 12.5px; color: var(--text-soft); margin-top: 5px; }
+
+/* воронка — горизонтальные бары (одна величина = один акцентный цвет) */
+.fbars { display: flex; flex-direction: column; gap: 12px; }
+.fbar-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.fbar-label { color: var(--text); font-size: 13.5px; }
+.fbar-val { color: var(--text); font-size: 14px; font-weight: 600; }
+.fbar-val em { font-style: normal; color: var(--text-soft); font-weight: 400; font-size: 12.5px; }
+.fbar-track { height: 12px; background: var(--glass); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.fbar-fill { height: 100%; border-radius: 6px; min-width: 2px;
+  background: linear-gradient(90deg, var(--bubble-u1), var(--bubble-u2)); transition: width .5s cubic-bezier(.2,.8,.2,1); }
+
+/* инсайты оттока (статус-цвета зарезервированы, всегда с подписью) */
+.ins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.ins { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 15px 17px;
+  border-left: 3px solid var(--line); }
+.ins b { display: block; font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.ins span { display: block; font-size: 12px; color: var(--text-soft); margin-top: 4px; }
+.ins.good { border-left-color: #6fcf97; }
+.ins.warn { border-left-color: #e0b15a; }
+.ins.bad { border-left-color: var(--danger); }
+
+/* таблица пользователей */
+.utable-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.utable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.utable th { text-align: left; color: var(--text-dim); font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .4px; padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.utable td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--text); vertical-align: middle; white-space: nowrap; }
+.utable tr:last-child td { border-bottom: none; }
+.utable tbody tr:hover { background: var(--glass); }
+.utable .num { text-align: right; font-variant-numeric: tabular-nums; }
+.utable .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--text-soft); }
+.ret-dot { color: var(--accent); margin-left: 4px; }
+.uskill { display: inline-block; font-size: 11px; padding: 2px 8px; margin: 1px 3px 1px 0; border-radius: 9px;
+  background: var(--glass); border: 1px solid var(--line); color: var(--text-soft); white-space: nowrap; }
+.ubadge { display: inline-block; font-size: 11.5px; padding: 3px 10px; border-radius: 10px; white-space: nowrap; }
+.ubadge.active { background: rgba(111,207,151,.14); color: #6fcf97; border: 1px solid rgba(111,207,151,.35); }
+.ubadge.at_risk { background: rgba(224,177,90,.14); color: #e0b15a; border: 1px solid rgba(224,177,90,.35); }
+.ubadge.churned { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
+.ubadge.dormant { background: var(--glass); color: var(--text-dim); border: 1px solid var(--line); }
+/* Светлая тема — затемняем статус-цвета для контраста */
+[data-theme="day"] .ubadge.active { color: #2f9e63; }
+[data-theme="day"] .ubadge.at_risk { color: #b5842e; }
+[data-theme="day"] .ins.good { border-left-color: #2f9e63; }
+[data-theme="day"] .ins.warn { border-left-color: #b5842e; }
