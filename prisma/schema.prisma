@@ -18,6 +18,8 @@ model User {
   // Профиль из Telegram — для иконки-аватара в шапке (имя и фото). Необязательные.
   firstName        String?
   photoUrl         String?
+  // Мягкое удаление: аккаунт в архиве, полное удаление через 30 дней; при повторном входе — восстановление.
+  archivedAt       DateTime?
   createdAt        DateTime @default(now())
   consentAt        DateTime?
   consentVersion   String?

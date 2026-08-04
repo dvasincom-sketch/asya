@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (data.photo_url) prof.photoUrl = String(data.photo_url).slice(0, 500);
   const user = await prisma.user.upsert({
     where: { tgId },
-    update: prof as never,
+    update: { ...prof, archivedAt: null } as never,
     create: { tgId, ...prof } as never,
   });
   await createSession(user.id);

@@ -1247,3 +1247,43 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   /* RoomScreen внутри правой панели — без собственной панельной обводки. */
   .room-embed { height: 100%; max-width: none; background: transparent; border: none; border-radius: 0; box-shadow: none; }
 }
+
+
+/* ============ Профиль /account ============ */
+.prof-card { text-align: left; max-width: 460px; }
+.prof-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.prof-av { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.prof-av.letter { display: flex; align-items: center; justify-content: center; background: var(--glass); border: 1px solid var(--accent); color: var(--accent); font-size: 26px; font-weight: 600; }
+.prof-id { min-width: 0; }
+.prof-id h2 { font-family: Georgia, serif; font-weight: 500; font-size: 21px; }
+.prof-who { font-size: 13px; color: var(--text-soft); margin-top: 2px; }
+.prof-since { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.prof-sec { margin-top: 20px; }
+.prof-sec-h { font-size: 13px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 4px 8px; }
+.prof-sec-h.danger { color: var(--danger); }
+.prof-box { background: var(--glass); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.prof-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 14px; }
+.prof-row > span { color: var(--text-soft); flex: 0 0 auto; }
+.prof-row > b { font-weight: 600; text-align: right; }
+.prof-consent { color: var(--accent); font-weight: 500; font-size: 13px; }
+.prof-muted { font-size: 13px; line-height: 1.5; color: var(--text-soft); }
+.prof-muted.sm { font-size: 12px; color: var(--text-dim); }
+.prof-link { align-self: flex-start; background: none; border: none; cursor: pointer; color: var(--accent); font-size: 13.5px; padding: 2px 0; text-decoration: none; }
+.prof-ref { display: flex; gap: 8px; }
+.prof-ref input { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; padding: 9px 12px; color: var(--text); font-size: 12.5px; }
+.prof-copy { flex: 0 0 auto; border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 11px; padding: 9px 14px; font-size: 13px; cursor: pointer; transition: 0.2s; }
+.prof-copy:hover { background: var(--glass); }
+.prof-tile { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 14px 16px; border-radius: 16px; background: var(--glass); border: 1px solid var(--line); text-decoration: none; color: var(--text); transition: border-color 0.2s; }
+.prof-tile:hover { border-color: var(--accent); }
+.pt-ic { flex: 0 0 auto; width: 24px; display: flex; align-items: center; justify-content: center; }
+.pt-ic .ic { width: 21px; height: 21px; color: var(--accent); }
+.pt-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pt-body b { font-size: 14.5px; font-weight: 600; }
+.pt-body > span { font-size: 12.5px; color: var(--text-soft); }
+.pt-go { flex: 0 0 auto; color: var(--text-dim); font-size: 18px; }
+.prof-docs { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
+.prof-docs a { font-size: 13.5px; color: var(--accent); text-decoration: none; }
+.prof-docs a:hover { text-decoration: underline; }
+.prof-del { align-self: flex-start; border: 1px solid var(--danger-border); background: var(--danger-bg); color: var(--danger); border-radius: 12px; padding: 9px 16px; font-size: 13.5px; cursor: pointer; transition: 0.2s; }
+.prof-del:hover { border-color: var(--danger); }
+.prof-del.solid { background: var(--danger); color: #fff; border-color: var(--danger); }

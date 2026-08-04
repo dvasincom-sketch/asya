@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const ok = await verifyOtp(p, String(code));
     if (!ok) return Response.json({ error: "invalid_code", text: "Код неверный или истёк." }, { status: 401 });
 
-    const user = await prisma.user.upsert({ where: { phone: p }, update: {}, create: { phone: p } });
+    const user = await prisma.user.upsert({ where: { phone: p }, update: { archivedAt: null } as never, create: { phone: p } });
     await createSession(user.id);
     return Response.json({ ok: true });
   } catch (e) {
