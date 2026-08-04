@@ -38,7 +38,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
-  const tgBot = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
+  const [tgBot, setTgBot] = useState<string | null>(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || null);
   const codeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,20 +52,32 @@ export default function LoginPage() {
       if (r.ok) await afterLogin();
       else setError("Не получилось войти через Telegram. Попробуй ещё раз.");
     };
-    const username = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
+    // Юзернейм бота берём в рантайме (getMe) — не зависим от build-time NEXT_PUBLIC.
+    if (!tgBot) {
+      fetch("/api/auth/tg-config")
+        .then((r) => r.json())
+        .then((d) => { if (typeof d.botUsername === "string" && d.botUsername) setTgBot(d.botUsername); })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Как только знаем юзернейм — рендерим кнопку Telegram Login Widget.
+  useEffect(() => {
+    if (!tgBot) return;
     const holder = document.getElementById("tg-login-btn");
-    if (username && holder && holder.childElementCount === 0) {
+    if (holder && holder.childElementCount === 0) {
       const s = document.createElement("script");
       s.async = true;
       s.src = "https://telegram.org/js/telegram-widget.js?22";
-      s.setAttribute("data-telegram-login", username);
+      s.setAttribute("data-telegram-login", tgBot);
       s.setAttribute("data-size", "large");
       s.setAttribute("data-radius", "20");
       s.setAttribute("data-request-access", "write");
       s.setAttribute("data-onauth", "onTelegramAuth(user)");
       holder.appendChild(s);
     }
-  }, []);
+  }, [tgBot]);
 
   // Обратный отсчёт для «отправить код заново».
   useEffect(() => {
