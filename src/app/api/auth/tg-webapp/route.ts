@@ -7,7 +7,8 @@ export const runtime = "nodejs";
 
 // Проверка подписи Telegram Mini App (initData).
 // https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
-function verifyInitData(initData: string, botToken: string): { ok: boolean; userId?: number } {
+type TgWebUser = { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string };
+function verifyInitData(initData: string, botToken: string): { ok: boolean; userId?: number; tgUser?: TgWebUser } {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   if (!hash) return { ok: false };
@@ -29,7 +30,7 @@ function verifyInitData(initData: string, botToken: string): { ok: boolean; user
   try {
     const user = JSON.parse(params.get("user") || "null");
     if (!user?.id) return { ok: false };
-    return { ok: true, userId: Number(user.id) };
+    return { ok: true, userId: Number(user.id), tgUser: user };
   } catch {
     return { ok: false };
   }
@@ -47,7 +48,14 @@ export async function POST(req: NextRequest) {
   if (!v.ok || !v.userId) return Response.json({ error: "bad_init" }, { status: 401 });
 
   const tgId = BigInt(v.userId);
-  const user = await prisma.user.upsert({ where: { tgId }, update: {}, create: { tgId } });
+  const prof: { firstName?: string; photoUrl?: string } = {};
+  if (v.tgUser?.first_name) prof.firstName = String(v.tgUser.first_name).slice(0, 120);
+  if (v.tgUser?.photo_url) prof.photoUrl = String(v.tgUser.photo_url).slice(0, 500);
+  const user = await prisma.user.upsert({
+    where: { tgId },
+    update: prof as never,
+    create: { tgId, ...prof } as never,
+  });
   await createSession(user.id);
   return Response.json({ ok: true });
 }

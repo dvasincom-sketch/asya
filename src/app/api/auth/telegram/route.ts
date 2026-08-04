@@ -16,7 +16,15 @@ export async function POST(req: NextRequest) {
   }
 
   const tgId = BigInt(data.id);
-  const user = await prisma.user.upsert({ where: { tgId }, update: {}, create: { tgId } });
+  // Сохраняем имя и фото из Telegram — для иконки-аватара в шапке.
+  const prof: { firstName?: string; photoUrl?: string } = {};
+  if (data.first_name) prof.firstName = String(data.first_name).slice(0, 120);
+  if (data.photo_url) prof.photoUrl = String(data.photo_url).slice(0, 500);
+  const user = await prisma.user.upsert({
+    where: { tgId },
+    update: prof as never,
+    create: { tgId, ...prof } as never,
+  });
   await createSession(user.id);
   return Response.json({ ok: true });
 }

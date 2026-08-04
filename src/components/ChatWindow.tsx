@@ -122,6 +122,7 @@ export default function ChatWindow() {
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [me, setMe] = useState<{ name: string | null; avatarUrl: string | null }>({ name: null, avatarUrl: null });
   const [count, setCount] = useState(0);
   const [gated, setGated] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -220,6 +221,7 @@ export default function ChatWindow() {
           }
           setAuthed(true);
           setUserId(d.user.id ?? null);
+          setMe({ name: d.user.name ?? null, avatarUrl: d.user.avatarUrl ?? null });
           // Согласие на условия обязательно до сохранения переписки.
           const c = await fetch("/api/consent").then((r) => r.json()).catch(() => null);
           if (c?.needsConsent) {
@@ -596,6 +598,27 @@ export default function ChatWindow() {
           <div className="status"><span className="dotlive" /> {incognito ? "инкогнито" : "онлайн"}</div>
         </div>
         <div className="hdr-btns">
+          {authed === false ? (
+            <a
+              className="hdr-auth warn"
+              href="/login"
+              title="Войти — иначе история не сохранится"
+              aria-label="войти, история не сохраняется"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" fill="none" stroke="currentColor" strokeWidth="1.7"/><path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>
+              <span className="hdr-auth-dot" />
+            </a>
+          ) : authed === true ? (
+            <a className="hdr-auth me" href="/account" title="Профиль" aria-label="профиль">
+              {me.avatarUrl ? (
+                <img src={me.avatarUrl} alt="" referrerPolicy="no-referrer" />
+              ) : me.name ? (
+                <span className="hdr-auth-ltr">{me.name.trim().charAt(0).toUpperCase()}</span>
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" fill="none" stroke="currentColor" strokeWidth="1.7"/><path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>
+              )}
+            </a>
+          ) : null}
           <button className="theme-btn" onClick={() => setRoomsOpen(true)} title="Румы — чаты" aria-label="румы">
             <Icon name="chat" />
             {roomsUnread > 0 && <span className="burger-badge">{roomsUnread > 9 ? "9+" : roomsUnread}</span>}

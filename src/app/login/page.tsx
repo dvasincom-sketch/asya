@@ -39,6 +39,8 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [tgBot, setTgBot] = useState<string | null>(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || null);
+  const [tgReady, setTgReady] = useState(false);
+  const [tgTimedOut, setTgTimedOut] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -63,10 +65,14 @@ export default function LoginPage() {
   }, []);
 
   // Как только знаем юзернейм — рендерим кнопку Telegram Login Widget.
+  // Виджет грузится со стороны telegram.org и появляется не мгновенно —
+  // до появления настоящего iframe показываем лоадер (см. tgReady).
   useEffect(() => {
     if (!tgBot) return;
     const holder = document.getElementById("tg-login-btn");
-    if (holder && holder.childElementCount === 0) {
+    if (!holder) return;
+    if (holder.querySelector("iframe")) { setTgReady(true); return; }
+    if (holder.childElementCount === 0) {
       const s = document.createElement("script");
       s.async = true;
       s.src = "https://telegram.org/js/telegram-widget.js?22";
@@ -77,6 +83,14 @@ export default function LoginPage() {
       s.setAttribute("data-onauth", "onTelegramAuth(user)");
       holder.appendChild(s);
     }
+    // Ждём, пока telegram.org подставит iframe с кнопкой.
+    const obs = new MutationObserver(() => {
+      if (holder.querySelector("iframe")) { setTgReady(true); obs.disconnect(); }
+    });
+    obs.observe(holder, { childList: true, subtree: true });
+    // Страховка: не крутим лоадер бесконечно.
+    const to = setTimeout(() => setTgTimedOut(true), 12000);
+    return () => { obs.disconnect(); clearTimeout(to); };
   }, [tgBot]);
 
   // Обратный отсчёт для «отправить код заново».
@@ -144,9 +158,16 @@ export default function LoginPage() {
         <h2>Вход к Асе</h2>
         <p className="sub">Чтобы Ася помнила тебя и хранила ваши разговоры.</p>
 
-        {tgBot ? (
+        {tgBot || !tgTimedOut ? (
           <>
-            <div id="tg-login-btn" className="tg-wrap" />
+            <div className="tg-slot">
+              {tgBot ? <div id="tg-login-btn" className="tg-wrap" /> : null}
+              {!tgReady && !tgTimedOut ? (
+                <div className="tg-loading" aria-label="загружаем вход через Telegram">
+                  <span className="spinner tg-spinner" />
+                </div>
+              ) : null}
+            </div>
             <div className="divider"><span>или по телефону</span></div>
           </>
         ) : null}
