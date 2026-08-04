@@ -1,47 +1,53 @@
 // Озвучка ответов Аси через ElevenLabs TTS. Ключ — ELEVENLABS_API_KEY (в env, не в коде).
-// Голос: ELEVENLABS_VOICE_ID напрямую, иначе резолвим по имени (ELEVENLABS_VOICE_NAME)
-// через /v1/voices, иначе — бесплатный дефолтный голос. Никогда не бросает — при сбое ok:false.
+// Голос: ELEVENLABS_VOICE_ID напрямую; иначе берём из аккаунта встроенный (premade) голос —
+// именно их отдаёт бесплатный план. Library-голоса (как «Marina») требуют платного плана и дают 402.
+// Никогда не бросает — при сбое возвращает ok:false.
 
-// Бесплатные встроенные голоса ElevenLabs (доступны и на free-плане). Library-голоса
-// (как «Marina») требуют платной подписки и дают 402 — поэтому дефолт здесь бесплатный.
-// Sarah — мягкий тёплый женский голос; хорошо ложится на многоязычную модель для русского.
-const FREE_DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"; // Sarah (free/premade)
+// Универсальный запасной premade-голос (Rachel) — валиден почти в любом аккаунте, бесплатный.
+const HARD_FALLBACK_VOICE = "21m00Tcm4TlvDq8ikWAM";
 
-let cachedVoiceId: string | null = null;
+let cachedFreeVoice: string | null = null;
 
 export function voiceKey(): string {
-  // Ключ для хеша кеша: должен меняться, если сменили голос.
-  return process.env.ELEVENLABS_VOICE_ID || process.env.ELEVENLABS_VOICE_NAME || FREE_DEFAULT_VOICE;
+  // Ключ для хеша кеша: меняется, если сменили голос.
+  return process.env.ELEVENLABS_VOICE_ID || process.env.ELEVENLABS_VOICE_NAME || "free";
 }
 
-async function resolveVoiceId(apiKey: string): Promise<string | null> {
-  const explicit = process.env.ELEVENLABS_VOICE_ID;
-  if (explicit) return explicit;
-  const name = (process.env.ELEVENLABS_VOICE_NAME || "").trim().toLowerCase();
-  // Имя не задано — используем бесплатный дефолт напрямую, без лишнего запроса.
-  if (!name) return FREE_DEFAULT_VOICE;
-  if (cachedVoiceId) return cachedVoiceId;
+type ApiVoice = { voice_id?: string; name?: string; category?: string; labels?: Record<string, string> };
+
+// Гарантированно бесплатный голос: из /v1/voices выбираем category=premade
+// (по имени ELEVENLABS_VOICE_NAME, иначе женский, иначе первый). Кешируем.
+async function resolveFreeVoice(apiKey: string): Promise<string> {
+  if (cachedFreeVoice) return cachedFreeVoice;
+  const wantName = (process.env.ELEVENLABS_VOICE_NAME || "").trim().toLowerCase();
   try {
     const r = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": apiKey } });
-    if (!r.ok) {
-      console.warn(`[voice] /v1/voices HTTP ${r.status} — беру бесплатный дефолт`);
-      return FREE_DEFAULT_VOICE;
+    if (r.ok) {
+      const d = (await r.json()) as { voices?: ApiVoice[] };
+      const list = d.voices || [];
+      const premade = list.filter((v) => String(v.category || "").toLowerCase() === "premade");
+      const pool = premade.length ? premade : list;
+      let pick: ApiVoice | undefined;
+      if (wantName) pick = pool.find((v) => String(v.name || "").toLowerCase() === wantName);
+      if (!pick) pick = pool.find((v) => String(v.labels?.gender || "").toLowerCase() === "female");
+      if (!pick) pick = pool[0];
+      if (pick?.voice_id) {
+        cachedFreeVoice = pick.voice_id;
+        console.warn(`[voice] бесплатный голос: ${pick.name} (${pick.category}) id=${cachedFreeVoice}`);
+        return cachedFreeVoice;
+      }
+      console.warn("[voice] premade-голос в аккаунте не найден — беру универсальный дефолт");
+    } else {
+      console.warn(`[voice] /v1/voices HTTP ${r.status} — беру универсальный дефолт`);
     }
-    const d = (await r.json()) as { voices?: { voice_id?: string; name?: string }[] };
-    const list = d.voices || [];
-    const found = list.find((v) => String(v.name || "").toLowerCase() === name);
-    // Если по имени не нашли — не берём случайный (может быть платный library), а бесплатный дефолт.
-    cachedVoiceId = found?.voice_id || FREE_DEFAULT_VOICE;
-    if (!found) console.warn(`[voice] голос «${name}» не найден — беру бесплатный дефолт`);
-    return cachedVoiceId;
   } catch (e) {
     console.warn(`[voice] /v1/voices недоступен: ${e instanceof Error ? e.message : String(e)}`);
-    return FREE_DEFAULT_VOICE;
   }
+  cachedFreeVoice = HARD_FALLBACK_VOICE;
+  return cachedFreeVoice;
 }
 
 export type TtsResult = { ok: true; audio: Buffer } | { ok: false; reason: string };
-
 type RawResult = { status: number; audio?: Buffer; detail?: string };
 
 async function ttsOnce(voiceId: string, text: string, model: string, apiKey: string): Promise<RawResult> {
@@ -62,8 +68,7 @@ async function ttsOnce(voiceId: string, text: string, model: string, apiKey: str
       const detail = await r.text().catch(() => "");
       return { status: r.status, detail };
     }
-    const audio = Buffer.from(await r.arrayBuffer());
-    return { status: 200, audio };
+    return { status: 200, audio: Buffer.from(await r.arrayBuffer()) };
   } finally {
     clearTimeout(timer);
   }
@@ -72,18 +77,30 @@ async function ttsOnce(voiceId: string, text: string, model: string, apiKey: str
 export async function synthesize(text: string): Promise<TtsResult> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return { ok: false, reason: "no_key" };
-  const voiceId = await resolveVoiceId(apiKey);
-  if (!voiceId) return { ok: false, reason: "no_voice" };
   const model = process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2";
+  const explicit = process.env.ELEVENLABS_VOICE_ID;
+  let voiceId = explicit || (await resolveFreeVoice(apiKey));
 
   try {
     let res = await ttsOnce(voiceId, text, model, apiKey);
-    // Голос требует платного плана (library) — самолечение: повторяем бесплатным дефолтом.
-    if (res.status === 402 && voiceId !== FREE_DEFAULT_VOICE) {
-      console.warn(`[voice] голос ${voiceId} требует платного плана (402) — повтор бесплатным ${FREE_DEFAULT_VOICE}`);
-      cachedVoiceId = FREE_DEFAULT_VOICE;
-      res = await ttsOnce(FREE_DEFAULT_VOICE, text, model, apiKey);
+
+    // 402 = голос платный (library). Самолечение: гарантированно бесплатный premade из аккаунта.
+    if (res.status === 402) {
+      const free = await resolveFreeVoice(apiKey);
+      if (free !== voiceId) {
+        console.warn(`[voice] ${voiceId} требует платного плана (402) — повтор бесплатным ${free}`);
+        voiceId = free;
+        res = await ttsOnce(voiceId, text, model, apiKey);
+      }
+      // Крайний случай: даже premade из аккаунта 402 — последняя попытка универсальным дефолтом.
+      if (res.status === 402 && voiceId !== HARD_FALLBACK_VOICE) {
+        console.warn(`[voice] повтор универсальным дефолтом ${HARD_FALLBACK_VOICE}`);
+        cachedFreeVoice = HARD_FALLBACK_VOICE;
+        voiceId = HARD_FALLBACK_VOICE;
+        res = await ttsOnce(voiceId, text, model, apiKey);
+      }
     }
+
     if (res.status !== 200 || !res.audio) {
       console.warn(`[voice] TTS HTTP ${res.status}: ${(res.detail || "").slice(0, 200)}`);
       if (res.status === 429) return { ok: false, reason: "quota" };
