@@ -393,3 +393,17 @@ model DailyUsage {
   count     Int      @default(0)
   createdAt DateTime @default(now())
 }
+
+
+// Кеш общих объяснений показателей здоровья (заземление на литературу). Не пользовательские данные —
+// общее знание по коду показателя и направлению (low/high/general). Источники не храним.
+model HealthTermInfo {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  code      String
+  direction String
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([code])
+}

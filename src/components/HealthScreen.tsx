@@ -98,6 +98,8 @@ export default function HealthScreen() {
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploadErr, setUploadErr] = useState("");
   const [marker, setMarker] = useState<MarkerHistory | null>(null);
+  const [explain, setExplain] = useState<string | null>(null);
+  const [explBusy, setExplBusy] = useState(false);
   // Главный экран должен отвечать на три вопроса сразу, а не быть длинной портянкой:
   // показываем главное, остальное — по запросу.
   const [allAtt, setAllAtt] = useState(false);
@@ -168,9 +170,25 @@ export default function HealthScreen() {
   }
 
   async function openMarker(code: string) {
+    setExplain(null);
     try {
       const d = await fetch(`/api/health/marker?code=${encodeURIComponent(code)}`).then((r) => r.json());
-      if (!d.error) setMarker(d);
+      if (d.error) return;
+      setMarker(d);
+      // Направление берём из флага последнего числового измерения.
+      const nums = (d.points || []).filter((p: Point) => typeof p.value === "number");
+      const lastFlag = nums.length ? nums[nums.length - 1].flag : null;
+      const dir = lastFlag === "low" || lastFlag === "high" ? lastFlag : "general";
+      setExplBusy(true);
+      fetch("/api/health/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, name: d.name, dir }),
+      })
+        .then((r) => r.json())
+        .then((x) => setExplain(typeof x.text === "string" ? x.text : null))
+        .catch(() => {})
+        .finally(() => setExplBusy(false));
     } catch {
       /* ignore */
     }
@@ -279,6 +297,18 @@ export default function HealthScreen() {
             </div>
           ) : (
             <div className="d-summary">Пока одно измерение — динамика появится, когда добавишь ещё один результат.</div>
+          )}
+
+          <div className="sec">Что это значит</div>
+          {explBusy && <div className="d-summary">Собираю понятное объяснение…</div>}
+          {!explBusy && explain && (
+            <div className="d-summary he-explain">
+              {clean(explain)}
+              <div className="he-dis">Это общее объяснение, не диагноз — что делать именно тебе, реши с врачом 🤍</div>
+            </div>
+          )}
+          {!explBusy && !explain && (
+            <div className="d-summary">Про этот показатель пока нечего добавить бережно и точно — лучше уточнить у врача.</div>
           )}
 
           <div className="sec">Все измерения</div>

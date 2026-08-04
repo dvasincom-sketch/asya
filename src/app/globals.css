@@ -1056,3 +1056,8 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   opacity: .55; transition: opacity .15s, background .15s; }
 .cbar-col:hover .cbar, .cbar.on { opacity: 1; }
 .chart-x { display: flex; justify-content: space-between; color: var(--text-dim); font-size: 11px; margin-top: 8px; }
+
+
+/* объяснение показателя (заземление) */
+.he-explain { line-height: 1.6; }
+.he-dis { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--text-dim); font-size: 12.5px; line-height: 1.5; }

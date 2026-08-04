@@ -10,6 +10,7 @@ import { SALON } from "@/lib/salon";
 import { getSkill, buildSkillContext } from "@/lib/skills";
 import { searchChannels, selectChannels, extractSearchSpec, type CatalogChannel } from "@/lib/tgcatalog";
 import { drawCards, buildTaroContext, wantsDraw, drawCount } from "@/lib/tarot";
+import { groundHealthQuestion } from "@/lib/medground";
 import { buildProfileContext } from "@/lib/profileForms";
 import { getSub, retentionSince } from "@/lib/plus";
 import { g, detectGenderFromText, detectGenderFromFacts, setGenderIfEmpty, type Gender } from "@/lib/address";
@@ -206,6 +207,12 @@ export async function POST(req: NextRequest) {
 
   // Таро: подмешиваем значения выпавших карт (сам расклад вытянут заранее, выше).
   if (taroCards.length) systemExtra += buildTaroContext(taroCards);
+
+  // Заземление мед-вопросов про термин/показатель на литературу (Europe PMC). Гейт внутри дешёвый,
+  // модель/сеть зовём только при явном вопросе. Остаёмся в границах: объясняем общее, не диагноз.
+  if (!skill && !incognito && lastUser) {
+    systemExtra += await groundHealthQuestion(String(lastUser.content)).catch(() => "");
+  }
 
   try {
     // Модели отдаём только последнее окно переписки — контекст не пухнет с ростом истории.
