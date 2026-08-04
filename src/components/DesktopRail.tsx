@@ -10,6 +10,7 @@ import { Icon, type IconName } from "@/components/Icon";
 
 const NAV: { href: string; ic: IconName; t: string; on: (p: string) => boolean }[] = [
   { href: "/chat", ic: "chat", t: "Чат с Асей", on: (p) => p === "/chat" },
+  { href: "/rooms", ic: "network", t: "Румы", on: (p) => p.startsWith("/rooms") },
   { href: "/account/sessions", ic: "sessions", t: "Сессии", on: (p) => p.startsWith("/account/sessions") },
   { href: "/account/health", ic: "health", t: "Здоровье", on: (p) => p.startsWith("/account/health") },
   { href: "/account/skills", ic: "skills", t: "Навыки", on: (p) => p.startsWith("/account/skills") },
@@ -19,7 +20,7 @@ const NAV: { href: string; ic: IconName; t: string; on: (p: string) => boolean }
 ];
 
 function isAppRoute(p: string): boolean {
-  return p === "/chat" || p === "/account" || p.startsWith("/account/");
+  return p === "/chat" || p.startsWith("/rooms") || p === "/account" || p.startsWith("/account/");
 }
 
 export default function DesktopRail() {

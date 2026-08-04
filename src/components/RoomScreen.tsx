@@ -5,7 +5,7 @@ import { Orb } from "./Orb";
 
 type Msg = { id: string; mine: boolean; sender: string; kind: string; content: string; at?: string };
 
-export default function RoomScreen({ roomId }: { roomId: string }) {
+export default function RoomScreen({ roomId, embedded = false }: { roomId: string; embedded?: boolean }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [asyaPresent, setAsyaPresent] = useState(true);
   const [iVoted, setIVoted] = useState(false);
@@ -106,12 +106,14 @@ export default function RoomScreen({ roomId }: { roomId: string }) {
   }
 
   return (
-    <div className="app">
-      <div className="sbar">
-        <a className="icobtn" href="/account/network" title="назад">‹</a>
-        <h1>Разговор</h1>
-        <button className="icobtn right" onClick={toggleTheme} title="день / вечер">◐</button>
-      </div>
+    <div className={`app${embedded ? " room-embed" : ""}`}>
+      {!embedded && (
+        <div className="sbar">
+          <a className="icobtn" href="/account/network" title="назад">‹</a>
+          <h1>Разговор</h1>
+          <button className="icobtn right" onClick={toggleTheme} title="день / вечер">◐</button>
+        </div>
+      )}
 
       <div className="room-strip">
         {asyaPresent ? (

@@ -1210,3 +1210,40 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   .starter { transition: border-color 0.2s, background 0.2s, transform 0.15s; }
   .starter:hover { transform: translateY(-1px); }
 }
+
+
+/* ============ Двухпанельные «Румы» (Фаза 3) ============ */
+/* Мобильный: список на весь экран, правая панель скрыта (клик уходит на страницу комнаты). */
+.rooms-app { width: 100%; max-width: 460px; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.rooms-list { flex: 1 1 auto; display: flex; flex-direction: column; overflow-y: auto; padding: 14px 14px 20px; gap: 5px; scrollbar-width: none; }
+.rooms-list::-webkit-scrollbar { display: none; }
+.rooms-list-head { font-family: var(--font-display), sans-serif; font-size: 21px; font-weight: 500; padding: 8px 6px 12px; }
+.room-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; text-decoration: none; color: var(--text); transition: background 0.2s; }
+.room-item:hover { background: var(--glass); }
+.room-item.on { background: var(--glass); }
+.ri-av { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--glass); border: 1px solid var(--line); }
+.ri-av .ic { width: 20px; height: 20px; color: var(--accent); }
+.ri-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ri-body b { font-size: 14.5px; font-weight: 600; }
+.ri-body > span { font-size: 13px; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ri-badge { flex: 0 0 auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.ri-go { flex: 0 0 auto; color: var(--text-dim); font-size: 18px; }
+.rooms-pane { display: none; }
+
+@media (min-width: 560px) {
+  .rooms-app {
+    height: min(880px, 92vh); background: var(--surface); border: 1px solid var(--line);
+    border-radius: 34px; box-shadow: 0 40px 100px -20px rgba(12, 5, 20, 0.6);
+  }
+}
+
+@media (min-width: 1024px) {
+  .rooms-app { flex-direction: row; max-width: 1080px; }
+  .rooms-list { flex: 0 0 320px; width: 320px; border-right: 1px solid var(--line); }
+  .rooms-pane { display: block; flex: 1 1 auto; min-width: 0; position: relative; }
+  .rooms-pane-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); }
+  .rpe-ic .ic { width: 42px; height: 42px; color: var(--line); }
+  .rooms-pane-empty p { font-size: 14px; }
+  /* RoomScreen внутри правой панели — без собственной панельной обводки. */
+  .room-embed { height: 100%; max-width: none; background: transparent; border: none; border-radius: 0; box-shadow: none; }
+}
