@@ -11,7 +11,7 @@ type Stats = {
 };
 
 type UserRow = {
-  id: string; label: string; authVia: string; joinedAt: string;
+  id: string; uid: string; label: string; authVia: string; joinedAt: string;
   firstMsg: string | null; lastMsg: string | null; daysSinceLast: number | null;
   msgs: number; activeDays: number; returned: boolean; skills: string[];
   sessions: number; sessionsSaved: number; memories: number;
@@ -26,6 +26,12 @@ type UData = {
     retentionRate: number; avgMsgs: number;
   };
   users: UserRow[];
+};
+
+type Convo = {
+  profile: { label: string; authVia: string; joinedAt: string; messages: number; incognito: number };
+  messages: { role: string; content: string; skill: string | null; at: string }[];
+  truncated: boolean;
 };
 
 const SKILL_LABEL: Record<string, string> = {
@@ -56,6 +62,24 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"all" | "churned" | "at_risk" | "active">("all");
+  const [openU, setOpenU] = useState<UserRow | null>(null);
+  const [convo, setConvo] = useState<Convo | null>(null);
+  const [convoBusy, setConvoBusy] = useState(false);
+
+  function openUser(u: UserRow) {
+    setOpenU(u);
+    setConvo(null);
+    setConvoBusy(true);
+    fetch(`/api/admin/user/${encodeURIComponent(u.uid)}?key=${encodeURIComponent(key)}`)
+      .then((r) => r.json())
+      .then((d) => (d.error ? setConvo(null) : setConvo(d)))
+      .catch(() => setConvo(null))
+      .finally(() => setConvoBusy(false));
+  }
+  function closeUser() {
+    setOpenU(null);
+    setConvo(null);
+  }
 
   useEffect(() => {
     const k = new URLSearchParams(window.location.search).get("key");
@@ -204,7 +228,7 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {shown.map((u) => (
-                  <tr key={u.id}>
+                  <tr key={u.id} className="urow" onClick={() => openUser(u)}>
                     <td className="mono">{u.label}</td>
                     <td>{u.authVia === "tg" ? "Telegram" : u.authVia === "phone" ? "телефон" : "—"}</td>
                     <td>{shortDate(u.joinedAt)}</td>
@@ -224,6 +248,43 @@ export default function AdminPage() {
       {stats && stats.totals.crisisEvents > 0 && (
         <div className="dash-crisis">Кризисных срабатываний: {stats.totals.crisisEvents}. Проверь, что протокол безопасности ведёт себя бережно.</div>
       )}
+
+      {/* Переписка пользователя */}
+      <div className={`cv-ov ${openU ? "on" : ""}`} onClick={closeUser} />
+      <aside className={`cv-drawer ${openU ? "on" : ""}`}>
+        {openU && (
+          <>
+            <div className="cv-head">
+              <div>
+                <b>{openU.label}</b>
+                <span>
+                  {openU.authVia === "tg" ? "Telegram" : openU.authVia === "phone" ? "телефон" : "—"} · пришёл {shortDate(openU.joinedAt)} · {openU.msgs} сообщений · {openU.activeDays} дн
+                </span>
+              </div>
+              <button className="cv-close" onClick={closeUser} aria-label="закрыть">✕</button>
+            </div>
+            <div className="cv-body">
+              {convoBusy && <div className="dash-muted">Загружаю переписку…</div>}
+              {!convoBusy && convo && convo.messages.length === 0 && (
+                <div className="dash-muted">Сохранённой переписки нет{convo.profile.incognito > 0 ? ` (в инкогнито ${convo.profile.incognito} — зашифровано, не читается)` : ""}.</div>
+              )}
+              {!convoBusy && convo && convo.messages.map((m, i) => (
+                <div key={i} className={`cv-row ${m.role === "user" ? "me" : "as"}`}>
+                  <div className="cv-bubble">
+                    {m.skill && <span className="cv-skill">{SKILL_LABEL[m.skill] || m.skill}</span>}
+                    {m.content}
+                    <span className="cv-time">{new Date(m.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                </div>
+              ))}
+              {convo && convo.truncated && <div className="dash-muted">Показаны последние 500 сообщений.</div>}
+              {convo && convo.profile.incognito > 0 && convo.messages.length > 0 && (
+                <div className="cv-note">🕶️ Ещё {convo.profile.incognito} сообщений в инкогнито — зашифрованы ключом устройства, не читаются.</div>
+              )}
+            </div>
+          </>
+        )}
+      </aside>
     </div>
   );
 }

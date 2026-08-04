@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
         : `id …${u.id.slice(-4)}`;
     return {
       id: u.id.slice(-6),
+      uid: u.id, // полный id для загрузки переписки в панели (только под ключом)
       label,
       authVia: u.tgId ? "tg" : u.phone ? "phone" : "—",
       joinedAt: u.createdAt,
