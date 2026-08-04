@@ -24,19 +24,27 @@ export function inTelegram(): boolean {
 function loadSdk(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof document === "undefined" || getTg()) return resolve();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
     const existing = document.querySelector("script[data-tg-sdk]") as HTMLScriptElement | null;
     if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      setTimeout(resolve, 1500);
+      existing.addEventListener("load", finish, { once: true });
+      setTimeout(finish, 1500);
       return;
     }
     const s = document.createElement("script");
     s.src = SDK;
     s.async = true;
     s.setAttribute("data-tg-sdk", "1");
-    s.onload = () => resolve();
-    s.onerror = () => resolve();
+    s.onload = finish;
+    s.onerror = finish;
     document.head.appendChild(s);
+    // Страховка: не виснем, если скрипт застрял (вне Telegram он всё равно не нужен).
+    setTimeout(finish, 2500);
   });
 }
 

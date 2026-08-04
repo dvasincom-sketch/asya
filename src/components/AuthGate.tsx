@@ -43,11 +43,15 @@ export default function AuthGate() {
     let cancelled = false;
     (async () => {
       // Загружаем SDK, инициализируем Mini App и делаем первый тихий вход по Telegram.
-      const inTg = await initTelegramMiniApp().catch(() => false);
+      // Race с таймаутом — чтобы вне Telegram (или если SDK застрял) экран НЕ висел на «узнаю тебя».
+      const inTg = await Promise.race([
+        initTelegramMiniApp().catch(() => false),
+        new Promise<boolean>((r) => setTimeout(() => r(false), 3000)),
+      ]);
       if (cancelled) return;
 
       if (!inTg && !inTelegram()) {
-        // Настоящий веб вне Telegram — только здесь уместен вход по телефону.
+        // Настоящий веб вне Telegram — уводим на /login (там есть вход через Telegram и по телефону).
         window.location.href = "/login";
         return;
       }
