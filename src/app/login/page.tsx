@@ -88,10 +88,16 @@ export default function LoginPage() {
       if (holder.querySelector("iframe")) { setTgReady(true); obs.disconnect(); }
     });
     obs.observe(holder, { childList: true, subtree: true });
-    // Страховка: не крутим лоадер бесконечно.
-    const to = setTimeout(() => setTgTimedOut(true), 12000);
-    return () => { obs.disconnect(); clearTimeout(to); };
+    return () => obs.disconnect();
   }, [tgBot]);
+
+  // Ключевой момент для России и любых блокировок: виджет грузится с telegram.org.
+  // Если за ~3с кнопка так и не появилась (заблокировано / нет VPN / офлайн) —
+  // считаем Telegram недоступным и уводим человека на вход по номеру телефона.
+  useEffect(() => {
+    const cap = setTimeout(() => setTgTimedOut(true), 3000);
+    return () => clearTimeout(cap);
+  }, []);
 
   // Обратный отсчёт для «отправить код заново».
   useEffect(() => {
@@ -158,7 +164,7 @@ export default function LoginPage() {
         <h2>Вход к Асе</h2>
         <p className="sub">Чтобы Ася помнила тебя и хранила ваши разговоры.</p>
 
-        {tgBot || !tgTimedOut ? (
+        {tgReady || !tgTimedOut ? (
           <>
             <div className="tg-slot">
               {tgBot ? <div id="tg-login-btn" className="tg-wrap" /> : null}
@@ -170,7 +176,11 @@ export default function LoginPage() {
             </div>
             <div className="divider"><span>или по телефону</span></div>
           </>
-        ) : null}
+        ) : (
+          <div className="tg-unavailable">
+            Вход через Telegram сейчас недоступен. Войди по номеру телефона — так же тепло 🌸
+          </div>
+        )}
 
         {stage === "phone" ? (
           <>

@@ -1106,6 +1106,7 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .tg-slot { position: relative; display: flex; justify-content: center; align-items: center; min-height: 48px; }
 .tg-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .tg-spinner { border: 2px solid var(--line); border-top-color: var(--accent); }
+.tg-unavailable { font-size: 13.5px; line-height: 1.5; color: var(--text-soft); background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: 4px 0 18px; }
 
 /* Десктоп: страницы входа/кабинета должны помещаться в панель и скроллиться
    внутри, а не обрезаться сверху (была видна только середина карточки). */
