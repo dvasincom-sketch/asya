@@ -1,4 +1,5 @@
 // Клиентский помощник для Telegram Mini App.
+import { track } from "./track";
 type TgWebApp = {
   initData?: string;
   ready?: () => void;
@@ -55,11 +56,14 @@ export async function initTelegramMiniApp(): Promise<boolean> {
     /* вне Telegram методов нет — не страшно */
   }
   try {
-    await fetch("/api/auth/tg-webapp", {
+    const r = await fetch("/api/auth/tg-webapp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ initData: tg.initData }),
     });
+    // Тихий вход по Telegram — тоже «вход» в воронке (раньше login_done слался только с /login,
+    // поэтому в админке «вошли» было 0, хотя Telegram-пользователи авторизованы). once — уникальные.
+    if (r.ok) track("login_done", undefined, true);
   } catch {
     /* вход не удался — покажем обычный поток */
   }
