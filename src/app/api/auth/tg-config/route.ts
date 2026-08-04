@@ -20,11 +20,17 @@ export async function GET() {
     const t = setTimeout(() => ctrl.abort(), 6000);
     const r = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: ctrl.signal });
     clearTimeout(t);
+    if (!r.ok) {
+      console.warn(`[tg-config] getMe HTTP ${r.status} — юзернейм не получен (задай TELEGRAM_BOT_USERNAME)`);
+      return Response.json({ botUsername: null });
+    }
     const d = (await r.json()) as { ok?: boolean; result?: { username?: string } };
     const username = d?.result?.username || null;
+    if (!username) console.warn("[tg-config] getMe без username (задай TELEGRAM_BOT_USERNAME)");
     if (username) cached = username; // кешируем только успех
     return Response.json({ botUsername: username });
-  } catch {
+  } catch (e) {
+    console.warn(`[tg-config] getMe недоступен: ${e instanceof Error ? e.message : String(e)} (задай TELEGRAM_BOT_USERNAME)`);
     return Response.json({ botUsername: null }); // не кешируем неудачу — повторим позже
   }
 }
