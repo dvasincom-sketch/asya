@@ -65,6 +65,28 @@ export async function GET(req: NextRequest) {
     prisma.subscription.count().catch(() => 0),
   ]);
 
+  // Дневной ряд активности за период: сообщений и уникальных активных людей по дням.
+  const msgByDay = new Map<string, number>();
+  const usersByDay = new Map<string, Set<string>>();
+  for (const e of events) {
+    if (e.name !== "message_sent") continue;
+    const day = new Date(e.ts).toISOString().slice(0, 10);
+    msgByDay.set(day, (msgByDay.get(day) || 0) + 1);
+    const id = e.anonId || e.userId;
+    if (id) {
+      if (!usersByDay.has(day)) usersByDay.set(day, new Set());
+      usersByDay.get(day)!.add(id);
+    }
+  }
+  const daily: { day: string; messages: number; users: number }[] = [];
+  const cur = new Date(Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate()));
+  const nowMs = Date.now();
+  while (cur.getTime() <= nowMs) {
+    const day = cur.toISOString().slice(0, 10);
+    daily.push({ day, messages: msgByDay.get(day) || 0, users: usersByDay.get(day)?.size || 0 });
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
   const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 
   return Response.json({
@@ -86,6 +108,7 @@ export async function GET(req: NextRequest) {
     },
     retention: { peopleWithMessages: byPerson.size, returnedAnotherDay: returned, rate: pct(returned, byPerson.size) },
     sessions: { started: sessStart.size, saved: sessSaved.size },
+    daily,
     totals: { users, messages, memories, crisisEvents, subscriptions: subs },
   });
 }

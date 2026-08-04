@@ -8,6 +8,7 @@ type Stats = {
   retention: { peopleWithMessages: number; returnedAnotherDay: number; rate: number };
   sessions: { started: number; saved: number };
   totals: { users: number; messages: number; memories: number; crisisEvents: number; subscriptions: number };
+  daily?: { day: string; messages: number; users: number }[];
 };
 
 type UserRow = {
@@ -65,6 +66,7 @@ export default function AdminPage() {
   const [openU, setOpenU] = useState<UserRow | null>(null);
   const [convo, setConvo] = useState<Convo | null>(null);
   const [convoBusy, setConvoBusy] = useState(false);
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
 
   function openUser(u: UserRow) {
     setOpenU(u);
@@ -190,6 +192,35 @@ export default function AdminPage() {
           <div className="dash-note">Открыли в Telegram: {f.miniappOpened} · приняли условия: {f.consentGiven} · дошли до лимита: {f.gateShown}</div>
         </>
       )}
+
+      {/* Активность по дням */}
+      {stats?.daily && stats.daily.length > 1 && (() => {
+        const dd = stats.daily;
+        const maxM = Math.max(1, ...dd.map((x) => x.messages));
+        const totalM = dd.reduce((a, x) => a + x.messages, 0);
+        const hv = hoverDay != null ? dd[hoverDay] : null;
+        const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+        return (
+          <>
+            <div className="dash-sec">Активность по дням</div>
+            <div className="chart">
+              <div className="chart-cap">
+                {hv
+                  ? <><b>{hv.messages}</b> сообщений · {hv.users} чел · {fmtDay(hv.day)}</>
+                  : <><b>{totalM}</b> сообщений за период</>}
+              </div>
+              <div className="chart-bars" onMouseLeave={() => setHoverDay(null)}>
+                {dd.map((x, i) => (
+                  <div className="cbar-col" key={x.day} onMouseEnter={() => setHoverDay(i)}>
+                    <div className={`cbar ${hoverDay === i ? "on" : ""}`} style={{ height: `${Math.round((x.messages / maxM) * 100)}%` }} />
+                  </div>
+                ))}
+              </div>
+              <div className="chart-x"><span>{fmtDay(dd[0].day)}</span><span>{fmtDay(dd[dd.length - 1].day)}</span></div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Удержание и отток */}
       {ins && (

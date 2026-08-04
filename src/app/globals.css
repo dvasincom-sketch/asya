@@ -967,7 +967,7 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 /* KPI */
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
-.kpi b { display: block; font-size: 28px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.kpi b { display: block; font-size: 28px; font-weight: 700; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .kpi span { display: block; font-size: 12.5px; color: var(--text-soft); margin-top: 5px; }
 
 /* воронка — горизонтальные бары (одна величина = один акцентный цвет) */
@@ -977,7 +977,7 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .fbar-val { color: var(--text); font-size: 14px; font-weight: 600; }
 .fbar-val em { font-style: normal; color: var(--text-soft); font-weight: 400; font-size: 12.5px; }
 .fbar-track { height: 12px; background: var(--glass); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-.fbar-fill { height: 100%; border-radius: 6px; min-width: 2px;
+.fbar-fill { height: 100%; border-radius: 6px; min-width: 0;
   background: linear-gradient(90deg, var(--bubble-u1), var(--bubble-u2)); transition: width .5s cubic-bezier(.2,.8,.2,1); }
 
 /* инсайты оттока (статус-цвета зарезервированы, всегда с подписью) */
@@ -1044,3 +1044,15 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .cv-time { display: block; font-size: 10.5px; opacity: .6; margin-top: 4px; }
 .cv-note { margin-top: 6px; font-size: 12px; color: var(--text-dim); background: var(--glass);
   border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+
+
+/* --- график активности по дням (одна величина = один акцентный цвет) --- */
+.chart { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.chart-cap { color: var(--text-soft); font-size: 13px; margin-bottom: 12px; }
+.chart-cap b { color: var(--text); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 110px; }
+.cbar-col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
+.cbar { width: 100%; min-height: 2px; border-radius: 4px 4px 2px 2px; background: var(--accent);
+  opacity: .55; transition: opacity .15s, background .15s; }
+.cbar-col:hover .cbar, .cbar.on { opacity: 1; }
+.chart-x { display: flex; justify-content: space-between; color: var(--text-dim); font-size: 11px; margin-top: 8px; }
