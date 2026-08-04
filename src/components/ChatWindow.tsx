@@ -15,6 +15,7 @@ import MyBookingsCard from "./MyBookingsCard";
 import { wantsBooking, asksMyBookings } from "@/lib/bookingIntent";
 import { getIncCrypto, type IncCrypto } from "@/lib/incognito";
 import TaroSpread from "./TaroSpread";
+import VoiceButton from "./VoiceButton";
 
 type TgChannel = { title: string; username: string | null; link: string | null; participants: number | null; about: string | null };
 
@@ -763,6 +764,9 @@ export default function ChatWindow() {
               <div className={`row ${m.role}`}>
                 {m.role === "assistant" && <Orb className="mini-orb" />}
                 <div className="bubble">{m.role === "assistant" ? clean(m.content) : m.content}</div>
+                {m.role === "assistant" && authed === true && !incognito && clean(m.content).length > 1 && (
+                  <VoiceButton text={clean(m.content)} />
+                )}
               </div>
             );
           return (

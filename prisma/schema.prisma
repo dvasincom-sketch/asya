@@ -407,3 +407,13 @@ model HealthTermInfo {
 
   @@index([code])
 }
+
+// Кеш озвученных ответов Аси (ElevenLabs TTS). Хеш = voiceKey:текст, чтобы повтор
+// не тратил деньги. Аудио — mp3 в bytea. Не пользовательские данные (реплики Аси).
+model VoiceClip {
+  id        String   @id @default(cuid())
+  hash      String   @unique
+  audio     Bytes
+  chars     Int
+  createdAt DateTime @default(now())
+}
