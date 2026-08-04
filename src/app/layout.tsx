@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Unbounded } from "next/font/google";
 import "./globals.css";
+import DesktopRail from "@/components/DesktopRail";
 
 const display = Unbounded({
   subsets: ["cyrillic", "latin"],
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <span className="a2" />
           <span className="a3" />
         </div>
+        <DesktopRail />
         {children}
       </body>
     </html>
