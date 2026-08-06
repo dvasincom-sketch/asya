@@ -44,6 +44,7 @@ model User {
   consents     Consent[]
   subscription Subscription?
   crisisEvents CrisisEvent[]
+  calls        Call[]
   sessions     Session[]
   coachSessions CoachSession[]
   privateMessages PrivateMessage[]
@@ -421,4 +422,26 @@ model VoiceClip {
   audio     Bytes
   chars     Int
   createdAt DateTime @default(now())
+}
+
+
+// Звонки: асинхронный ассистент-автоответчик. Voximplant присылает расшифровку сообщения
+// звонящего в вебхук, Ася делает резюме и оценку важности, запись показывается во «Звонках».
+model Call {
+  id           String   @id @default(cuid())
+  userId       String
+  fromNumber   String?
+  fromName     String?
+  startedAt    DateTime @default(now())
+  durationSec  Int      @default(0)
+  transcript   String?
+  summary      String?
+  importance   String   @default("unknown") // spam | low | normal | important | unknown
+  category     String?
+  recordingUrl String?
+  handled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

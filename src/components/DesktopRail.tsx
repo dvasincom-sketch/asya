@@ -11,6 +11,7 @@ import { Icon, type IconName } from "@/components/Icon";
 const NAV: { href: string; ic: IconName; t: string; on: (p: string) => boolean }[] = [
   { href: "/chat", ic: "chat", t: "Чат с Асей", on: (p) => p === "/chat" },
   { href: "/rooms", ic: "network", t: "Румы", on: (p) => p.startsWith("/rooms") },
+  { href: "/account/calls", ic: "calls", t: "Звонки", on: (p) => p.startsWith("/account/calls") },
   { href: "/account/sessions", ic: "sessions", t: "Сессии", on: (p) => p.startsWith("/account/sessions") },
   { href: "/account/health", ic: "health", t: "Здоровье", on: (p) => p.startsWith("/account/health") },
   { href: "/account/skills", ic: "skills", t: "Навыки", on: (p) => p.startsWith("/account/skills") },
@@ -27,6 +28,7 @@ export default function DesktopRail() {
   const pathname = usePathname() || "";
   const show = isAppRoute(pathname);
   const [me, setMe] = useState<{ name: string | null; avatarUrl: string | null }>({ name: null, avatarUrl: null });
+  const [callsUnread, setCallsUnread] = useState(0);
 
   // Включаем сдвиг контента под рэйл только на app-маршрутах (CSS смотрит на data-rail).
   useEffect(() => {
@@ -46,6 +48,13 @@ export default function DesktopRail() {
     return () => { alive = false; };
   }, [show]);
 
+  useEffect(() => {
+    if (!show) return;
+    let alive = true;
+    fetch("/api/calls").then((r) => r.json()).then((d) => { if (alive) setCallsUnread(Number(d?.unread) || 0); }).catch(() => {});
+    return () => { alive = false; };
+  }, [show, pathname]);
+
   function toggleTheme() {
     const el = document.documentElement;
     el.dataset.theme = el.dataset.theme === "day" ? "dusk" : "day";
@@ -64,6 +73,7 @@ export default function DesktopRail() {
           <a key={n.href} href={n.href} className={`drail-item${n.on(pathname) ? " on" : ""}`}>
             <span className="drail-ic"><Icon name={n.ic} /></span>
             <span className="drail-t">{n.t}</span>
+            {n.href === "/account/calls" && callsUnread > 0 ? <span className="drail-badge">{callsUnread > 9 ? "9+" : callsUnread}</span> : null}
           </a>
         ))}
       </nav>

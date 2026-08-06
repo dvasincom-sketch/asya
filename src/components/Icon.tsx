@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 export type IconName =
-  | "memory" | "sessions" | "skills" | "health" | "network" | "settings" | "theme" | "plus" | "chat";
+  | "memory" | "sessions" | "skills" | "health" | "network" | "settings" | "theme" | "plus" | "chat" | "calls";
 
 const PATHS: Record<IconName, ReactNode> = {
   // Сердце — «то, что Ася знает»
@@ -56,6 +56,8 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 7.5C9.8 7.5 8 6.4 8 5.2 8 4.3 8.8 4 9.4 4c1.6 0 2.6 2.3 2.6 3.5 0-1.2 1-3.5 2.6-3.5.6 0 1.4.3 1.4 1.2 0 1.2-1.8 2.3-4 2.3Z" />
     </>
   ),
+  // Телефонная трубка — звонки
+  calls: <path d="M6.8 3.5h3.1l1.5 3.9-2 1.5a11 11 0 0 0 5 5l1.5-2 3.9 1.5v3.1a2 2 0 0 1-2.2 2A16.2 16.2 0 0 1 4.7 6.3 2 2 0 0 1 6.8 3.5Z" />,
   // Речь — чат
   chat: <path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />,
 };

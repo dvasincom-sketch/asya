@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/account/skills", ic: "skills" as IconName, title: "Навыки", sub: "Нутрициолог, астролог и другие роли Асей" },
   { href: "/account/health", ic: "health" as IconName, title: "Здоровье", sub: "Анализы, динамика и напоминания" },
   { href: "/account/network", ic: "network" as IconName, title: "Сеть", sub: "Ася знакомит по согласию и берёт рутину на себя" },
+  { href: "/account/calls", ic: "calls" as IconName, title: "Звонки", sub: "Кого приняла Ася, пока тебя не было" },
   { href: "/account/settings", ic: "settings" as IconName, title: "Настройки и приватность", sub: "Память, история, удаление данных" },
 ];
 

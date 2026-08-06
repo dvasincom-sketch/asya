@@ -1345,3 +1345,27 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   html[data-rail="1"] .room-embed .composer { width: 100%; max-width: 788px; margin: 0 auto; }
   html[data-rail="1"] .room-embed .room-strip { padding-left: 32px; padding-right: 32px; }
 }
+
+
+/* ============ Звонки (ассистент-автоответчик) ============ */
+.calls-empty { padding: 12px 6px; color: var(--text-soft); font-size: 14px; line-height: 1.55; display: flex; flex-direction: column; gap: 10px; }
+.calls-empty b { color: var(--text); }
+.call-card { background: var(--glass); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.2s; }
+.call-card:hover { border-color: var(--accent); }
+.call-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.call-who { font-weight: 600; font-size: 14.5px; color: var(--text); }
+.call-imp { flex: 0 0 auto; font-size: 11px; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--line); color: var(--text-soft); }
+.imp-spam { color: var(--danger); border-color: var(--danger-border); background: var(--danger-bg); }
+.imp-important { color: var(--accent); border-color: var(--accent); }
+.imp-normal { color: var(--text-soft); }
+.imp-low { color: var(--text-dim); }
+.call-sum { font-size: 14px; line-height: 1.45; color: var(--text); }
+.call-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+.call-cat { padding: 2px 8px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); color: var(--text-soft); }
+.call-more { margin-left: auto; color: var(--accent); }
+.call-tr { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13.5px; line-height: 1.5; color: var(--text-soft); font-style: italic; }
+
+/* Бейдж непрочитанных на пункте рэйла (десктоп) */
+@media (min-width: 1024px) {
+  .drail-badge { margin-left: auto; flex: 0 0 auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #2a1430; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+}
