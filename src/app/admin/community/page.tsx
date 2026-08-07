@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 type Caps = Record<string, boolean>;
 type CapDef = { key: string; title: string; hint: string; group: string; soon?: boolean };
@@ -40,6 +40,21 @@ function IconGear() {
 function IconChat() {
   return (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>);
 }
+function IconGauge() {
+  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21a9 9 0 1 0-9-9" /><path d="M12 12l4-3" /></svg>);
+}
+function IconDb() {
+  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" /><path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>);
+}
+function IconGrid() {
+  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>);
+}
+function IconBell() {
+  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>);
+}
+function IconSpark() {
+  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2" /></svg>);
+}
 
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
   const [open, setOpen] = useState(false);
@@ -74,9 +89,10 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (b: boolean) => void 
 export default function AdminDashboard() {
   const [key, setKey] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<"dash" | "chats" | "kb">("dash");
+  const [tab, setTab] = useState<"dash" | "chats" | "kb" | "data">("dash");
   const [err, setErr] = useState("");
   const [kbInit, setKbInit] = useState("");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   const [overview, setOverview] = useState<Overview | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -89,6 +105,7 @@ export default function AdminDashboard() {
     const q = new URLSearchParams(window.location.search);
     let k = q.get("key") || "";
     if (!k) { try { k = window.localStorage.getItem(KEY_STORE) || ""; } catch { k = ""; } }
+    try { const t = window.localStorage.getItem("asya_admin_theme"); if (t === "light" || t === "dark") setTheme(t); } catch { /* ignore */ }
     if (k) { setKey(k); void loadAll(k); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -117,37 +134,76 @@ export default function AdminDashboard() {
     try { window.localStorage.removeItem(KEY_STORE); } catch { /* ignore */ }
     setKey(""); setLoaded(false); setOverview(null); setChats([]);
   }
+  function toggleTheme() {
+    setTheme((t) => { const n = t === "light" ? "dark" : "light"; try { window.localStorage.setItem("asya_admin_theme", n); } catch { /* ignore */ } return n; });
+  }
+  const NAV: Array<{ group?: string; k?: "dash" | "chats" | "kb" | "data"; label?: string; icon?: ReactNode; soon?: boolean }> = [
+    { group: "Обзор" },
+    { k: "dash", label: "Дашборд", icon: <IconGauge /> },
+    { k: "data", label: "Данные", icon: <IconDb /> },
+    { group: "Управление" },
+    { k: "chats", label: "Проекты", icon: <IconGrid /> },
+    { k: "kb", label: "База знаний", icon: <IconDoc /> },
+    { group: "Ася" },
+    { label: "Личность", icon: <IconSpark />, soon: true },
+    { label: "Уведомления", icon: <IconBell />, soon: true },
+  ];
+
+  const titles: Record<string, string> = { dash: "Дашборд", chats: "Проекты", kb: "База знаний", data: "Данные" };
+
+  if (!loaded) {
+    return (
+      <div className="admin-wrap" data-theme={theme === "light" ? "day" : undefined}>
+        <div className="admin-shell">
+          <main className="admin-main">
+            <div className="admin-panel">
+              <h1 className="admin-h1">Ася — панель управления</h1>
+              <p className="admin-sub">Комьюнити-менеджер, поддержка и база знаний в одном месте.</p>
+              <div className="admin-row">
+                <input placeholder="ADMIN_KEY" value={key} onChange={(e) => setKey(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") loadAll(); }} className="admin-inp" style={{ width: 260 }} />
+                <button onClick={() => loadAll()} className="admin-btn">Войти</button>
+                <button onClick={toggleTheme} className="admin-btn ghost">{theme === "light" ? "Тёмная тема" : "Светлая тема"}</button>
+                {err && <span style={{ color: "var(--bubble-u1)", alignSelf: "center" }}>{err}</span>}
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="admin-wrap">
-      <div className="admin-panel">
-      <h1 className="admin-h1">Ася — панель управления</h1>
-      <p className="admin-sub">Комьюнити-менеджер, поддержка и база знаний в одном месте.</p>
-
-      {!loaded && (
-        <div className="admin-row">
-          <input placeholder="ADMIN_KEY" value={key} onChange={(e) => setKey(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") loadAll(); }} className="admin-inp" style={{ width: 260 }} />
-          <button onClick={() => loadAll()} className="admin-btn">Войти</button>
-          {err && <span style={{ color: "var(--bubble-u1)", alignSelf: "center" }}>{err}</span>}
-        </div>
-      )}
-
-      {seedErr && <div className="admin-err">База данных сейчас недоступна — часть данных может не отображаться, а изменения не сохранятся, пока база не поднимется. Детали: {seedErr}</div>}
-
-      {loaded && (
-        <>
-          <div className="admin-tabs">
-            {([["dash", "Дашборд"], ["chats", "Проекты"], ["kb", "База знаний"]] as const).map(([t, label]) => (
-              <button key={t} className={`admin-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>{label}</button>
-            ))}
-            <button className="admin-btn ghost" style={{ marginLeft: "auto", padding: "9px 14px", fontSize: 13 }} onClick={logout}>Сменить ключ</button>
+    <div className="admin-wrap" data-theme={theme === "light" ? "day" : undefined}>
+      <div className="admin-shell">
+        <aside className="admin-side">
+          <div className="admin-brand"><span className="admin-logo">А</span> Ася</div>
+          <nav className="admin-nav">
+            {NAV.map((it, i) => it.group
+              ? <div key={`g${i}`} className="admin-navgroup">{it.group}</div>
+              : (
+                <button key={it.k || `s${i}`} className={`admin-navitem${it.soon ? " soon" : ""}${!it.soon && tab === it.k ? " active" : ""}`} onClick={() => { if (!it.soon && it.k) setTab(it.k); }} disabled={it.soon}>
+                  {it.icon}<span>{it.label}</span>{it.soon && <span className="admin-soon" style={{ marginLeft: "auto" }}>скоро</span>}
+                </button>
+              ))}
+          </nav>
+          <div className="admin-side-foot">
+            <button className="admin-navitem" onClick={toggleTheme}>{theme === "light" ? "Тёмная тема" : "Светлая тема"}</button>
+            <button className="admin-navitem" onClick={logout}>Сменить ключ</button>
           </div>
+        </aside>
 
-          {tab === "dash" && <DashTab overview={overview} onRefresh={() => loadAll()} />}
-          {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} capDefs={capDefs} groups={groups} af={af} reload={() => loadAll()} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
-          {tab === "kb" && <KbTab af={af} initSpace={kbInit} />}
-        </>
-      )}
+        <main className="admin-main">
+          <div className="admin-topbar">
+            <h1 className="admin-h1" style={{ margin: 0 }}>{titles[tab]}</h1>
+          </div>
+          <div className="admin-panel">
+            {seedErr && <div className="admin-err">База данных сейчас недоступна — часть данных может не отображаться, а изменения не сохранятся, пока база не поднимется. Детали: {seedErr}</div>}
+            {tab === "dash" && <DashTab overview={overview} onRefresh={() => loadAll()} />}
+            {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} capDefs={capDefs} groups={groups} af={af} reload={() => loadAll()} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
+            {tab === "kb" && <KbTab af={af} initSpace={kbInit} />}
+            {tab === "data" && <DataTab af={af} />}
+          </div>
+        </main>
       </div>
     </div>
   );
@@ -170,6 +226,38 @@ function DashTab({ overview, onRefresh }: { overview: Overview | null; onRefresh
       </div>
       <div style={{ marginTop: 16 }}><button onClick={onRefresh} className="admin-btn ghost">Обновить</button></div>
       <p className="admin-hint">История сообщений копится с момента подключения проекта (Telegram не отдаёт переписку задним числом). «Ответов Аси» — сколько раз она ответила по существу (поддержка, команды, кризис).</p>
+    </div>
+  );
+}
+
+type DataTable = { table: string; rows: number; title: string; desc: string };
+function DataTab({ af }: { af: Fetcher }) {
+  const [data, setData] = useState<{ tables: DataTable[]; totalTables: number; totalRows: number } | null>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    af("/api/admin/data").then((r) => { if (!alive) return; if (!r || !r.ok) { setErr(true); return; } setData(r); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (err) return <div className="admin-hint">База данных недоступна — не получилось прочитать список таблиц.</div>;
+  if (!data) return <div className="admin-hint">Загрузка…</div>;
+  return (
+    <div className="admin-subcontent">
+      <p className="admin-sub">Всё, что реально хранится в твоей базе на сервере — прозрачно. Так видно, что уже собирается и что ещё можно собирать. Числа строк приблизительные (оценка БД).</p>
+      <div className="admin-tiles" style={{ marginBottom: 18 }}>
+        <div className="admin-tile"><div className="num">{data.totalTables}</div><div className="lbl">Таблиц</div></div>
+        <div className="admin-tile"><div className="num">{data.totalRows.toLocaleString("ru-RU")}</div><div className="lbl">Строк всего (≈)</div></div>
+      </div>
+      {data.tables.map((t) => (
+        <div key={t.table} className="admin-datarow">
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14.5 }}>{t.title}</div>
+            <div className="admin-hint" style={{ margin: "3px 0 0" }}>{t.desc || ""} <code className="admin-id">{t.table}</code></div>
+          </div>
+          <div className="admin-datacount">≈ {t.rows.toLocaleString("ru-RU")}</div>
+        </div>
+      ))}
     </div>
   );
 }
