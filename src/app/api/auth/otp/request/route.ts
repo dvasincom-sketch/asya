@@ -12,11 +12,13 @@ export async function POST(req: NextRequest) {
   const p = normalizePhone(phone);
   try {
     const code = await issueOtp(p);
-    const delivered = await sendSms(p, `Ася: код входа ${code}`);
+    const sms = await sendSms(p, `Ася: код входа ${code}`);
+    const delivered = sms.ok;
     // Если SMS не настроен (локальная разработка) — вернём код прямо в ответе,
     // чтобы можно было войти без реальной отправки. В проде с SMS_API_ID этого не происходит.
     const devCode = process.env.SMS_API_ID ? undefined : code;
-    return Response.json({ ok: true, delivered, devCode });
+    if (process.env.SMS_API_ID && !delivered) console.warn(`[otp/request] SMS не доставлено: ${sms.reason}`);
+    return Response.json({ ok: true, delivered, devCode, reason: sms.reason });
   } catch (e) {
     console.error(
       "[otp/request] Ошибка записи кода. Обычно это значит, что база данных не настроена:\n" +

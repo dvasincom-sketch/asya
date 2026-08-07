@@ -120,12 +120,14 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone }),
       });
-      if (r.ok) {
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.delivered === false && !d.devCode) {
+        setError(d.reason ? `SMS не отправлено: ${d.reason}` : "SMS не отправлено — проверь имя отправителя и баланс в sms.ru.");
+      } else if (r.ok) {
         setStage("code");
         setResendIn(45);
         setTimeout(() => codeRef.current?.focus(), 60);
       } else {
-        const d = await r.json().catch(() => ({}));
         setError(d.text || "Не удалось отправить код. Попробуй позже.");
       }
     } catch {
