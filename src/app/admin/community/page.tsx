@@ -7,7 +7,7 @@ type CapDef = { key: string; title: string; hint: string; group: string; soon?: 
 type CustomCmd = { cmd: string; reply: string };
 type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean; commands?: string | null; caps?: string | null; resolvedCaps?: Caps; msgCount?: number; lastAt?: string | null; articleCount?: number };
 type Article = { id: string; space: string; title: string; body: string; source?: string | null };
-type Overview = { chatsConnected: number; chatsTotal: number; messagesStored: number; messagesFromAsya: number; articles: number; spaces: number };
+type Overview = { chatsConnected: number; chatsTotal: number; messagesStored: number; messagesFromAsya: number; articles: number; spaces: number; sections?: { space: string; count: number }[] };
 type HistMsg = { userName: string | null; text: string; fromBot: boolean; createdAt: string };
 type SectionCount = { space: string; count: number };
 type Fetcher = (path: string, init?: RequestInit) => Promise<any>;
@@ -153,7 +153,13 @@ export default function AdminDashboard() {
     { label: "Уведомления", icon: <IconBell />, soon: true },
   ];
 
-  const titles: Record<string, string> = { dash: "Дашборд", chats: "Проекты", kb: "База знаний", data: "Данные" };
+  const titles: Record<string, string> = { dash: "С возвращением", chats: "Проекты", kb: "База знаний", data: "Данные" };
+  const subtitles: Record<string, string> = {
+    dash: "Обзор проектов Аси, поддержки и базы знаний.",
+    chats: "Чаты, где работает Ася, и их настройки.",
+    kb: "Статьи, по которым Ася отвечает участникам.",
+    data: "Что реально хранится в базе на твоём сервере.",
+  };
 
   if (!loaded) {
     return (
@@ -199,12 +205,21 @@ export default function AdminDashboard() {
 
         <main className="admin-main">
           <div className="admin-topbar">
-            <button className="admin-burger" onClick={() => setSideOpen(true)} aria-label="Меню"><IconMenu /></button>
-            <h1 className="admin-h1" style={{ margin: 0 }}>{titles[tab]}</h1>
+            <div className="admin-topbar-l">
+              <button className="admin-burger" onClick={() => setSideOpen(true)} aria-label="Меню"><IconMenu /></button>
+              <div>
+                <h1 className="admin-h1" style={{ margin: 0 }}>{titles[tab]}</h1>
+                <div className="admin-topsub">{subtitles[tab]}</div>
+              </div>
+            </div>
+            <div className="admin-topbar-r">
+              <div className="admin-status"><span className="admin-statusdot" /> Ася активна</div>
+              <div className="admin-avatar" aria-hidden="true" />
+            </div>
           </div>
           <div className="admin-panel">
             {seedErr && <div className="admin-err">База данных сейчас недоступна — часть данных может не отображаться, а изменения не сохранятся, пока база не поднимется. Детали: {seedErr}</div>}
-            {tab === "dash" && <DashTab overview={overview} onRefresh={() => loadAll()} />}
+            {tab === "dash" && <DashTab overview={overview} chats={chats} onRefresh={() => loadAll()} />}
             {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} capDefs={capDefs} groups={groups} af={af} reload={() => loadAll()} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
             {tab === "kb" && <KbTab af={af} initSpace={kbInit} />}
             {tab === "data" && <DataTab af={af} />}
@@ -215,16 +230,31 @@ export default function AdminDashboard() {
   );
 }
 
-function DashTab({ overview, onRefresh }: { overview: Overview | null; onRefresh: () => void }) {
+const DONUT_PAL = ["var(--accent)", "var(--bubble-u2)", "var(--bubble-u1)", "var(--text-dim)", "var(--text-soft)"];
+
+function DashTab({ overview, chats, onRefresh }: { overview: Overview | null; chats: Chat[]; onRefresh: () => void }) {
+  const [seg, setSeg] = useState<"all" | "on" | "off">("all");
   if (!overview) return <div className="admin-hint">Нет данных.</div>;
-  const tiles: { num: number; lbl: string; icon: ReactNode }[] = [
-    { num: overview.chatsConnected, lbl: "Активных проектов", icon: <IconGrid /> },
-    { num: overview.chatsTotal, lbl: "Всего проектов", icon: <IconGrid /> },
-    { num: overview.messagesStored, lbl: "Сообщений в истории", icon: <IconChat /> },
-    { num: overview.messagesFromAsya, lbl: "Ответов Аси", icon: <IconSpark /> },
-    { num: overview.articles, lbl: "Статей в базе", icon: <IconDoc /> },
-    { num: overview.spaces, lbl: "Разделов базы", icon: <IconDb /> },
+
+  const tiles = [
+    { num: overview.chatsConnected, lbl: "Активных проектов", icon: <IconGrid />, note: `из ${overview.chatsTotal} подключённых` },
+    { num: overview.messagesStored, lbl: "Сообщений в истории", icon: <IconChat />, note: "копится с подключения" },
+    { num: overview.messagesFromAsya, lbl: "Ответов Аси", icon: <IconSpark />, note: "поддержка · команды · кризис" },
+    { num: overview.articles, lbl: "Статей в базе", icon: <IconDoc />, note: `в ${overview.spaces} разделах` },
   ];
+
+  const filtered = chats.filter((c) => (seg === "all" ? true : seg === "on" ? c.enabled : !c.enabled));
+  const roleMap = new Map<string, number>();
+  for (const c of filtered) { const n = BUILTIN_TITLES[c.role] || c.role || "Без роли"; roleMap.set(n, (roleMap.get(n) || 0) + 1); }
+  const roles = Array.from(roleMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const activeN = chats.filter((c) => c.enabled).length;
+  const withKb = chats.filter((c) => (c.articleCount || 0) > 0).length;
+
+  const secs = overview.sections || [];
+  const total = secs.reduce((s, x) => s + x.count, 0);
+  let acc = 0;
+  const donut = secs.map((x, i) => { const pct = total ? (x.count / total) * 100 : 0; const seg2 = { color: DONUT_PAL[i % DONUT_PAL.length], dash: `${pct} ${100 - pct}`, offset: 25 - acc }; acc += pct; return { ...x, ...seg2 }; });
+
   return (
     <div className="admin-subcontent">
       <div className="admin-tiles">
@@ -232,10 +262,63 @@ function DashTab({ overview, onRefresh }: { overview: Overview | null; onRefresh
           <div key={t.lbl} className="admin-tile">
             <div className="admin-tile-top"><span className="admin-tile-ic">{t.icon}</span><span className="lbl">{t.lbl}</span></div>
             <div className="num">{t.num}</div>
+            <div className="admin-tile-foot">{t.note}</div>
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 16 }}><button onClick={onRefresh} className="admin-btn ghost">Обновить</button></div>
+
+      <div className="admin-grid2">
+        <div className="admin-card2">
+          <div className="admin-card2-h">
+            <h3>Обзор проектов</h3>
+            <div className="admin-seg">
+              {([["all", "Все"], ["on", "Активные"], ["off", "Выключены"]] as const).map(([v, l]) => (
+                <button key={v} className={seg === v ? "on" : ""} onClick={() => setSeg(v)}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div className="admin-card2-b">
+            <div className="admin-lbl">По ролям</div>
+            <div className="admin-bars">
+              {roles.length === 0 && <div className="admin-hint" style={{ margin: 0 }}>Нет проектов в выборке.</div>}
+              {roles.map(([name, n], i) => (
+                <div key={name} className="admin-bar" style={{ background: i === 0 ? "var(--text)" : i === 1 ? "var(--accent)" : "var(--bubble-u2)", color: "#fff" }}>
+                  {n} <span>{name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="admin-lbl">Состояние</div>
+            <div className="admin-states">
+              <div className="admin-state"><b>{activeN}</b> активны</div>
+              <div className="admin-state"><b>{chats.length - activeN}</b> выключены</div>
+              <div className="admin-state"><b>{withKb}</b> с базой знаний</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="admin-card2">
+          <div className="admin-card2-h"><h3>База знаний</h3></div>
+          <div className="admin-card2-b" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <svg width="150" height="150" viewBox="0 0 42 42" style={{ transform: "rotate(-90deg)" }}>
+              <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--glass)" strokeWidth="5" />
+              {donut.map((d) => (
+                <circle key={d.space} cx="21" cy="21" r="15.9155" fill="none" stroke={d.color} strokeWidth="5" strokeDasharray={d.dash} strokeDashoffset={d.offset} />
+              ))}
+              <text x="21" y="21.5" textAnchor="middle" fontSize="7" fontWeight="700" fill="var(--text)" transform="rotate(90 21 21)">{total}</text>
+            </svg>
+            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 9 }}>
+              {donut.length === 0 && <div className="admin-hint" style={{ margin: 0 }}>Пока нет статей.</div>}
+              {donut.map((d) => (
+                <div key={d.space} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13.5 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 9, color: "var(--text-soft)" }}><span style={{ width: 11, height: 11, borderRadius: 4, background: d.color }} /> {d.space}</span><b>{d.count}</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14 }}><button onClick={onRefresh} className="admin-btn ghost">Обновить</button></div>
       <p className="admin-hint">История сообщений копится с момента подключения проекта (Telegram не отдаёт переписку задним числом). «Ответов Аси» — сколько раз она ответила по существу (поддержка, команды, кризис).</p>
     </div>
   );

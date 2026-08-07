@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { listChatConfigs } from "@/lib/communityConfig";
-import { listArticles, listSpaces } from "@/lib/knowledge";
+import { listArticles, listSpaces, sectionCounts } from "@/lib/knowledge";
 import { totalStoredMessages, totalFromBot } from "@/lib/history";
 import { capsForChat, anyCap } from "@/lib/roles";
 
@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
     const caps = await capsForChat(c);
     if (c.enabled && anyCap(caps)) connected++;
   }
-  const [messagesStored, messagesFromAsya, articles, spaces] = await Promise.all([
-    totalStoredMessages(), totalFromBot(), listArticles(), listSpaces(),
+  const [messagesStored, messagesFromAsya, articles, spaces, sections] = await Promise.all([
+    totalStoredMessages(), totalFromBot(), listArticles(), listSpaces(), sectionCounts(),
   ]);
   return Response.json({
     chatsConnected: connected,
@@ -29,5 +29,6 @@ export async function GET(req: NextRequest) {
     messagesFromAsya,
     articles: articles.length,
     spaces: spaces.length,
+    sections,
   });
 }
