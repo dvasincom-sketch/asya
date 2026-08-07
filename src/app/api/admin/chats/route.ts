@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { listChatConfigs, updateChatConfig } from "@/lib/communityConfig";
+import { listChatConfigs, updateChatConfig, seedEnvChats } from "@/lib/communityConfig";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,9 @@ function authed(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!authed(req)) return Response.json({ error: "auth" }, { status: 401 });
-  return Response.json({ chats: await listChatConfigs() });
+  const seed = await seedEnvChats(); // подсеваем известные из env чаты, чтобы видеть их сразу
+  const chats = await listChatConfigs();
+  return Response.json({ chats, seededFrom: seed.seeded, seedError: seed.error });
 }
 
 export async function POST(req: NextRequest) {

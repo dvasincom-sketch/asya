@@ -16,16 +16,30 @@ export default function ChatsAdmin() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [msg, setMsg] = useState("");
+  const [seedErr, setSeedErr] = useState("");
+  const [newId, setNewId] = useState("");
 
   async function load() {
     const r = await fetch(`/api/admin/chats?key=${encodeURIComponent(key)}`).then((x) => x.json()).catch(() => null);
     if (!r || r.error) { setMsg("Доступ закрыт — проверь ключ."); return; }
     setChats(Array.isArray(r.chats) ? r.chats : []);
+    setSeedErr(r.seedError || "");
     setLoaded(true); setMsg("");
   }
 
   function set(i: number, patch: Partial<Chat>) {
     setChats((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  }
+
+  async function addById() {
+    const id = newId.trim();
+    if (!id) return;
+    await fetch(`/api/admin/chats?key=${encodeURIComponent(key)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId: id, role: "support", enabled: true }),
+    }).catch(() => {});
+    setNewId("");
+    await load();
   }
 
   async function save(c: Chat) {
@@ -47,7 +61,16 @@ export default function ChatsAdmin() {
         {msg && <span style={{ color: "#b79aef", alignSelf: "center" }}>{msg}</span>}
       </div>
 
-      {loaded && chats.length === 0 && <div style={{ color: "#aaa" }}>Пока пусто. Напиши что-нибудь в чат, где есть Ася — он появится здесь.</div>}
+      {seedErr && <div style={{ color: "#f7a1bc", marginBottom: 12, fontSize: 13 }}>Ошибка БД: {seedErr}</div>}
+
+      {loaded && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <input placeholder="Добавить чат по id (напр. -1001877817129)" value={newId} onChange={(e) => setNewId(e.target.value)} style={{ ...inp, width: 320 }} />
+          <button onClick={addById} style={btn}>Добавить</button>
+        </div>
+      )}
+
+      {loaded && chats.length === 0 && <div style={{ color: "#aaa" }}>Пока пусто. Добавь чат по id выше или напиши что-нибудь в чат, где есть Ася.</div>}
 
       {loaded && chats.map((c, i) => (
         <div key={c.chatId} style={{ background: "#161018", border: "1px solid #2a2230", borderRadius: 12, padding: 16, marginBottom: 12 }}>
