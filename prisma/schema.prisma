@@ -445,3 +445,15 @@ model Call {
 
   @@index([userId, createdAt])
 }
+
+
+// Кто уже прошёл капчу в конкретном чате (проверка по первому сообщению, а не по входу —
+// надёжнее для чатов-обсуждений каналов, где вход не всегда создаёт событие).
+model VerifiedMember {
+  chatId    String
+  userId    String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@id([chatId, userId])
+}

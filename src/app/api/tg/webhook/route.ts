@@ -23,9 +23,30 @@ function communityIds(): string[] {
   return (process.env.COMMUNITY_CHAT_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
 }
 
-// Признаки рекламного спама без ссылки — чтобы звать LLM-оценку только по риску, а не на каждое сообщение.
 function riskySpam(text: string): boolean {
   return /(зарабо|доход|крипт|инвест|ставк|казино|подработ|ваканси|набор |в личку|пишите|@[a-z0-9_]{4,}|http|t\.me|канал|подпис|бесплатн|акци|скидк|прода|телеграм-канал)/i.test(text);
+}
+
+// --- Таблица «кто уже проверен в чате» (капча по первому сообщению) ---
+type VmDelegate = {
+  findUnique: (a: { where: { chatId_userId: { chatId: string; userId: string } } }) => Promise<{ verified: boolean } | null>;
+  upsert: (a: {
+    where: { chatId_userId: { chatId: string; userId: string } };
+    create: Record<string, unknown>; update: Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+function vmDb(): VmDelegate {
+  return (prisma as unknown as { verifiedMember: VmDelegate }).verifiedMember;
+}
+async function getMember(chatId: number, userId: number): Promise<{ verified: boolean } | null> {
+  return vmDb().findUnique({ where: { chatId_userId: { chatId: String(chatId), userId: String(userId) } } }).catch(() => null);
+}
+async function setMember(chatId: number, userId: number, verified: boolean): Promise<void> {
+  await vmDb().upsert({
+    where: { chatId_userId: { chatId: String(chatId), userId: String(userId) } },
+    create: { chatId: String(chatId), userId: String(userId), verified },
+    update: { verified },
+  }).catch(() => {});
 }
 
 export async function POST(req: NextRequest) {
@@ -52,7 +73,7 @@ export async function POST(req: NextRequest) {
       await handleCommunity(msg, chatId);
       return Response.json({ ok: true });
     }
-    if (isGroup) return Response.json({ ok: true }); // чужие/ненастроенные группы — молчим
+    if (isGroup) return Response.json({ ok: true });
 
     await handlePrivate(msg, chatId, req);
     return Response.json({ ok: true });
@@ -62,7 +83,18 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Капча «Я человек».
+// Показать капчу незнакомцу и замьютить до прохождения.
+async function challenge(chatId: number, u: TgUser): Promise<void> {
+  await setMember(chatId, u.id, false);
+  await tgRestrict(chatId, u.id, false);
+  const name = u.first_name || "друг";
+  await tgSendInline(
+    chatId,
+    `${name}, привет 🤍 Похоже, ты у нас впервые. Нажми кнопку, чтобы писать в чат — так я убеждаюсь, что ты человек. Иначе сообщения будут удаляться.`,
+    [[{ text: "Я человек 🙌", callback_data: `verify:${u.id}` }]],
+  );
+}
+
 async function handleCallback(cb: TgCallback): Promise<void> {
   const data = cb.data || "";
   const chatId = cb.message?.chat?.id;
@@ -71,6 +103,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   if (data.startsWith("verify:") && chatId && clicker) {
     const target = data.slice("verify:".length);
     if (String(clicker) === target) {
+      await setMember(chatId, clicker, true);
       await tgRestrict(chatId, clicker, true);
       await tgAnswerCallback(cb.id, "Готово, добро пожаловать 🤍");
       if (msgId) await tgDeleteMessage(chatId, msgId);
@@ -82,21 +115,14 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   await tgAnswerCallback(cb.id);
 }
 
-// Комьюнити-менеджер в группе сообщества.
 async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
-  // Входной фильтр новичков.
+  // Вход новичков (если событие пришло) — проверяем и сразу ставим капчу.
   if (msg.new_chat_members?.length) {
     for (const m of msg.new_chat_members) {
       if (m.is_bot) continue;
       if (await casBanned(m.id)) { await tgBan(chatId, m.id); continue; }
       if (suspiciousName(m.first_name, m.last_name, m.username).bad) { await tgBan(chatId, m.id); continue; }
-      await tgRestrict(chatId, m.id, false);
-      const name = m.first_name || "друг";
-      await tgSendInline(
-        chatId,
-        `${name}, добро пожаловать 🤍 Чтобы писать в чат, нажми кнопку — так я убеждаюсь, что ты человек.`,
-        [[{ text: "Я человек 🙌", callback_data: `verify:${m.id}` }]],
-      );
+      await challenge(chatId, m);
     }
     return;
   }
@@ -106,14 +132,29 @@ async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
   const text = (msg.text || msg.caption || "").trim();
   const msgId = msg.message_id;
 
-  // Кризис — тёпло, даже в группе.
+  // Кризис — тепло, даже в группе и до всего остального.
   if (text && detectCrisis(text)) {
     await tgReply(chatId, crisisText(), msgId);
     return;
   }
 
-  // Админов не модерируем.
+  // Админов не трогаем.
   if (await tgIsChatAdmin(chatId, from.id)) return;
+
+  // Проверка по первому сообщению: незнакомца не пускаем дальше.
+  const member = await getMember(chatId, from.id);
+  if (!member?.verified) {
+    if (msgId) await tgDeleteMessage(chatId, msgId); // убираем сообщение непроверенного
+    if (!member) {
+      // Первое появление: бан по CAS/имени либо капча.
+      if (await casBanned(from.id)) { await tgBan(chatId, from.id); return; }
+      if (suspiciousName(from.first_name, from.last_name, from.username).bad) { await tgBan(chatId, from.id); return; }
+      await challenge(chatId, from);
+    }
+    return; // ждём прохождения капчи
+  }
+
+  // --- Дальше только проверенные участники ---
 
   // Ссылки — удаляем + тёпло объясняем.
   if (hasLink(text, msg.entities, msg.caption_entities)) {
@@ -123,7 +164,7 @@ async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
     return;
   }
 
-  // LLM-оценка спама (только по риску).
+  // LLM-оценка спама (по риску).
   if (text.length >= 8 && riskySpam(text)) {
     if ((await judgeSpam(text)).spam) {
       if (msgId) await tgDeleteMessage(chatId, msgId);
@@ -131,14 +172,13 @@ async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
     }
   }
 
-  // Контекстный тёплый ответ (только если похоже на вопрос/обращение).
+  // Контекстный тёплый ответ.
   if (text && looksLikeQuestion(text)) {
     const reply = await communityReply(text);
     if (reply) await tgReply(chatId, reply, msgId);
   }
 }
 
-// Личка — прежнее поведение: Mini App, кризис отдельно.
 async function handlePrivate(msg: TgMessage, chatId: number, req: NextRequest): Promise<void> {
   const fromId = msg.from?.id;
   const text = (msg.text || "").trim();
