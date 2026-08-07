@@ -11,6 +11,7 @@ function authed(req: NextRequest): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  console.log("[triggers] yclients POST получен, authed=" + authed(req));
   if (!authed(req)) return Response.json({ ok: false }, { status: 401 });
   const payload = await req.json().catch(() => null);
   // Логируем сырое событие — чтобы сверить фактический формат Yclients и при необходимости поправить парсер.

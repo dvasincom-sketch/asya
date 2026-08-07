@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { sendBookingConfirmation, fmtWhen } from "@/lib/triggers";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -121,6 +122,15 @@ export async function POST(req: NextRequest) {
         })
         .catch(() => {});
     }
+
+    // Триггер: подтверждение записи (владельцу и клиенту, если он связан с ботом). Фоново, ошибки не роняют ответ.
+    void sendBookingConfirmation({
+      service: String(body.service_title || ""),
+      staff: String(body.master_name || ""),
+      when: fmtWhen(String(body.datetime)),
+      clientName: String(body.client_name || ""),
+      clientPhone: String(body.client_phone || ""),
+    }).catch(() => {});
 
     return Response.json(res);
   } catch (e) {
