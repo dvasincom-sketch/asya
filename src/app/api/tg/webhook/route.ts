@@ -9,6 +9,7 @@ import { casBanned, suspiciousName, hasLink, judgeSpam, looksLikeQuestion } from
 import { communitySupportReply } from "@/lib/knowledge";
 import { getChatConfig, type ChatCfg } from "@/lib/communityConfig";
 import { saveMessage } from "@/lib/history";
+import { capsForRole } from "@/lib/roles";
 
 export const runtime = "nodejs";
 
@@ -114,11 +115,11 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 }
 
 async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Promise<void> {
-  const moderate = cfg.role === "moderation" || cfg.role === "both";
+  const caps = await capsForRole(cfg.role);
 
-  // Вход новичков — только если включена модерация.
+  // Вход новичков — если у роли включена капча.
   if (msg.new_chat_members?.length) {
-    if (!moderate) return;
+    if (!caps.captcha) return;
     for (const m of msg.new_chat_members) {
       if (m.is_bot) continue;
       if (await casBanned(m.id)) { await tgBan(chatId, m.id); continue; }
@@ -137,12 +138,17 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
   if (text) void saveMessage({ chatId, messageId: msgId, userId: from.id, userName: from.first_name || from.username || undefined, text });
 
   // Кризис — тепло, всегда.
-  if (text && detectCrisis(text)) { await tgReply(chatId, crisisText(), msgId); return; }
+  if (text && detectCrisis(text)) {
+    const c = crisisText();
+    await tgReply(chatId, c, msgId);
+    void saveMessage({ chatId, userId: "asya", userName: "Ася", text: c, fromBot: true });
+    return;
+  }
 
   const isAdmin = await tgIsChatAdmin(chatId, from.id);
 
-  // --- Модерация (только для роли moderation/both и не для админов) ---
-  if (moderate && !isAdmin) {
+  // --- Капча новичков (проверка по первому сообщению) ---
+  if (caps.captcha && !isAdmin) {
     const member = await getMember(chatId, from.id);
     if (!member?.verified) {
       if (msgId) await tgDeleteMessage(chatId, msgId);
@@ -153,6 +159,10 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
       }
       return;
     }
+  }
+
+  // --- Модерация контента ---
+  if (caps.moderation && !isAdmin) {
     // Ссылки.
     if (hasLink(text, msg.entities, msg.caption_entities)) {
       if (msgId) await tgDeleteMessage(chatId, msgId);
@@ -177,10 +187,13 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
     }
   }
 
-  // --- Поддержка/ответы (для support и both; отвечаем и админам) ---
-  if (text && looksLikeQuestion(text)) {
+  // --- Поддержка/ответы ---
+  if (caps.support && text && looksLikeQuestion(text)) {
     const reply = await communitySupportReply(text, cfg.space, cfg.rules || undefined, cfg.repoUrl || undefined);
-    if (reply) await tgReply(chatId, reply, msgId);
+    if (reply) {
+      await tgReply(chatId, reply, msgId);
+      void saveMessage({ chatId, userId: "asya", userName: "Ася", text: reply, fromBot: true });
+    }
   }
 }
 

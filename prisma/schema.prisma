@@ -496,6 +496,16 @@ model ChatMessage {
   userName  String?
   text      String
   createdAt DateTime @default(now())
+  fromBot   Boolean  @default(false)
 
   @@index([chatId, createdAt])
+}
+
+model RoleDef {
+  key       String   @id
+  title     String
+  caps      String   @default("{}")
+  builtin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }

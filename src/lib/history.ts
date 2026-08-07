@@ -20,7 +20,7 @@ function mdb(): MsgDelegate {
 
 // Сохранить одно сообщение группы. Фоново, ошибки не роняют вебхук.
 export async function saveMessage(m: {
-  chatId: number | string; messageId?: number; userId?: number | string; userName?: string; text: string;
+  chatId: number | string; messageId?: number; userId?: number | string; userName?: string; text: string; fromBot?: boolean;
 }): Promise<void> {
   const text = (m.text || "").trim();
   if (!text) return;
@@ -31,6 +31,7 @@ export async function saveMessage(m: {
       userId: m.userId != null ? String(m.userId) : null,
       userName: m.userName || null,
       text: text.slice(0, 4000),
+      fromBot: Boolean(m.fromBot),
     },
   }).catch(() => {});
 }
@@ -74,4 +75,12 @@ export async function digestChat(chatId: number | string, space: string): Promis
   const date = new Date().toISOString().slice(0, 10);
   await upsertArticle({ id: existing?.id, space: sp, title: `Выжимка из истории чата (обновлено ${date})`, body: digest, source: "history" });
   return { ok: true, digest, count: msgs.length };
+}
+
+// Агрегаты для дашборда.
+export async function totalStoredMessages(): Promise<number> {
+  return mdb().count().catch(() => 0);
+}
+export async function totalFromBot(): Promise<number> {
+  return mdb().count({ where: { fromBot: true } }).catch(() => 0);
 }
