@@ -52,10 +52,12 @@ async function setMember(chatId: number, userId: number, verified: boolean): Pro
 export async function POST(req: NextRequest) {
   const secret = safeWebhookSecret();
   if (secret && req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+    console.warn("[cm] secret mismatch — апдейт отклонён (проверь TELEGRAM_WEBHOOK_SECRET и переустанови вебхук)");
     return Response.json({ ok: false }, { status: 401 });
   }
   const update = (await req.json().catch(() => null)) as TgUpdate | null;
-  if (!update) return Response.json({ ok: true });
+  if (!update) { console.warn("[cm] пустой апдейт"); return Response.json({ ok: true }); }
+  console.log("[cm] incoming:", update.callback_query ? "callback_query" : update.message ? "message" : Object.keys(update).join(","));
 
   try {
     if (update.callback_query) {
@@ -68,8 +70,10 @@ export async function POST(req: NextRequest) {
 
     const chatType = msg.chat?.type;
     const isGroup = chatType === "group" || chatType === "supergroup";
+    const ids = communityIds();
+    console.log(`[cm] msg chatId=${chatId} type=${chatType} isGroup=${isGroup} configured=[${ids.join(",")}] inCommunity=${isGroup && ids.includes(String(chatId))} from=${msg.from?.id} text=${JSON.stringify((msg.text || msg.caption || "").slice(0, 60))}`);
 
-    if (isGroup && communityIds().includes(String(chatId))) {
+    if (isGroup && ids.includes(String(chatId))) {
       await handleCommunity(msg, chatId);
       return Response.json({ ok: true });
     }
@@ -118,6 +122,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
   // Вход новичков (если событие пришло) — проверяем и сразу ставим капчу.
   if (msg.new_chat_members?.length) {
+    console.log(`[cm] new_chat_members: ${msg.new_chat_members.map((m) => m.id).join(",")}`);
     for (const m of msg.new_chat_members) {
       if (m.is_bot) continue;
       if (await casBanned(m.id)) { await tgBan(chatId, m.id); continue; }
@@ -139,12 +144,13 @@ async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
   }
 
   // Админов не трогаем.
-  if (await tgIsChatAdmin(chatId, from.id)) return;
+  if (await tgIsChatAdmin(chatId, from.id)) { console.log(`[cm] ${from.id} — админ, пропускаем`); return; }
 
   // Проверка по первому сообщению: незнакомца не пускаем дальше.
   const member = await getMember(chatId, from.id);
+  console.log(`[cm] verify check from=${from.id} member=${member ? (member.verified ? "verified" : "pending") : "new"}`);
   if (!member?.verified) {
-    if (msgId) await tgDeleteMessage(chatId, msgId); // убираем сообщение непроверенного
+    if (msgId) { const del = await tgDeleteMessage(chatId, msgId); console.log(`[cm] delete unverified msg=${msgId} ok=${del}`); }
     if (!member) {
       // Первое появление: бан по CAS/имени либо капча.
       if (await casBanned(from.id)) { await tgBan(chatId, from.id); return; }

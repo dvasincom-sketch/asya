@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const safeSecret = safeWebhookSecret();
   const payload: Record<string, unknown> = {
     url,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "edited_message", "callback_query", "chat_member", "my_chat_member"],
     drop_pending_updates: true,
   };
   if (safeSecret) payload.secret_token = safeSecret;
