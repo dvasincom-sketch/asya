@@ -5,7 +5,8 @@ import {
   tgSendWebApp, crisisText, safeWebhookSecret, tgSend, tgReply, tgDeleteMessage,
   tgIsChatAdmin, tgRestrict, tgBan, tgSendInline, tgAnswerCallback,
 } from "@/lib/tgbot";
-import { casBanned, suspiciousName, hasLink, judgeSpam, communityReply, looksLikeQuestion } from "@/lib/antispam";
+import { casBanned, suspiciousName, hasLink, judgeSpam, looksLikeQuestion } from "@/lib/antispam";
+import { communitySupportReply, spaceForChat } from "@/lib/knowledge";
 
 export const runtime = "nodejs";
 
@@ -170,6 +171,22 @@ async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
     return;
   }
 
+  // Авто-правила сообщества: хэштеги, длинные простыни, «+».
+  if (/(^|\s)#[^\s#]+/.test(text)) {
+    if (msgId) await tgDeleteMessage(chatId, msgId);
+    return;
+  }
+  if (text.length > 400) {
+    if (msgId) await tgDeleteMessage(chatId, msgId);
+    const name = from.first_name ? `${from.first_name}, ` : "";
+    await tgSend(chatId, `${name}коротко, пожалуйста 🤍 Сообщения длиннее 400 символов у нас убираются — сформулируй суть в паре строк.`);
+    return;
+  }
+  if (/^[+\s👍➕]+$/.test(text)) {
+    if (msgId) await tgDeleteMessage(chatId, msgId);
+    return;
+  }
+
   // LLM-оценка спама (по риску).
   if (text.length >= 8 && riskySpam(text)) {
     if ((await judgeSpam(text)).spam) {
@@ -178,9 +195,9 @@ async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
     }
   }
 
-  // Контекстный тёплый ответ.
+  // Контекстный ответ комьюнити-менеджера/поддержки по базе знаний раздела.
   if (text && looksLikeQuestion(text)) {
-    const reply = await communityReply(text);
+    const reply = await communitySupportReply(text, spaceForChat(chatId));
     if (reply) await tgReply(chatId, reply, msgId);
   }
 }

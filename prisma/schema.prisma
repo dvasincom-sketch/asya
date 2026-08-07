@@ -457,3 +457,18 @@ model VerifiedMember {
 
   @@id([chatId, userId])
 }
+
+
+// База знаний агента поддержки: закрытая, редактируется доверенными людьми (и Асей программно).
+// space — раздел/сообщество (напр. "studio"); поиск пока простой (вся релевантная база в контекст).
+model KnowledgeArticle {
+  id        String   @id @default(cuid())
+  space     String   @default("default")
+  title     String
+  body      String
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([space])
+}
