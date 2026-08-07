@@ -71,7 +71,7 @@ export async function handleYclientsEvents(payload: unknown): Promise<{ handled:
     await sendBookingConfirmation({
       service: services.map((s) => str(s.title)).filter(Boolean).join(", "),
       staff: str(asObj(data.staff).name) || str(data.staff_name),
-      when: fmtWhen(str(data.datetime) || str(data.date)),
+      when: fmtWhen(str(data.date) || (typeof data.datetime === "string" ? data.datetime : "")),
       clientName: str(client.name) || str(data.client_name),
       clientPhone: str(client.phone) || str(data.client_phone),
     });
