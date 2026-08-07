@@ -117,3 +117,9 @@ export async function tgSendInline(
 export async function tgAnswerCallback(callbackId: string, text?: string, alert = false): Promise<void> {
   await tgCall("answerCallbackQuery", { callback_query_id: callbackId, text: text || "", show_alert: alert });
 }
+
+// Инфо о чате (название и т.п.) — чтобы показывать имена, а не голые id.
+export async function tgGetChat(chatId: number | string): Promise<{ title?: string; type?: string } | null> {
+  const j = await tgCall("getChat", { chat_id: chatId });
+  return (j?.result as { title?: string; type?: string }) ?? null;
+}

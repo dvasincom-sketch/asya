@@ -29,6 +29,11 @@ export async function listArticles(space?: string): Promise<Article[]> {
   return kb().findMany({ where, orderBy: { updatedAt: "desc" }, take: 500 }).catch(() => [] as Article[]);
 }
 
+export async function listSpaces(): Promise<string[]> {
+  const arts = await listArticles();
+  return Array.from(new Set(arts.map((a) => a.space || "default"))).sort();
+}
+
 export async function upsertArticle(a: { id?: string; space: string; title: string; body: string; source?: string }): Promise<Article | null> {
   const data: Record<string, unknown> = { space: a.space || "default", title: a.title, body: a.body, source: a.source ?? "admin", updatedAt: new Date() };
   if (a.id) return kb().update({ where: { id: a.id }, data }).catch(() => null);
