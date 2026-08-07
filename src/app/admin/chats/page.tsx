@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean };
+type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean; msgCount?: number; lastAt?: string | null };
 
 const ROLES = [
   { v: "off", t: "Выключена" },
@@ -10,6 +10,13 @@ const ROLES = [
   { v: "moderation", t: "Модерация" },
   { v: "both", t: "Модерация + поддержка" },
 ];
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  } catch { return "—"; }
+}
 
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
   const [open, setOpen] = useState(false);
@@ -49,6 +56,7 @@ export default function ChatsAdmin() {
   const [msg, setMsg] = useState("");
   const [seedErr, setSeedErr] = useState("");
   const [newId, setNewId] = useState("");
+  const [digests, setDigests] = useState<Record<string, { loading?: boolean; text?: string; count?: number; err?: string }>>({});
 
   async function load() {
     const r = await fetch(`/api/admin/chats?key=${encodeURIComponent(key)}`).then((x) => x.json()).catch(() => null);
@@ -68,13 +76,19 @@ export default function ChatsAdmin() {
     await fetch(`/api/admin/chats?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chatId: id, role: "support", enabled: true }) }).catch(() => {});
     setNewId(""); await load();
   }
+  async function makeDigest(c: Chat) {
+    setDigests((d) => ({ ...d, [c.chatId]: { loading: true } }));
+    const r = await fetch(`/api/admin/chats/digest?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chatId: c.chatId, space: c.space }) }).then((x) => x.json()).catch(() => null);
+    if (!r || !r.ok) { setDigests((d) => ({ ...d, [c.chatId]: { err: r?.count === 0 ? "Пока нет сохранённых сообщений для выжимки." : "Не получилось сделать выжимку." } })); return; }
+    setDigests((d) => ({ ...d, [c.chatId]: { text: r.digest, count: r.count } }));
+  }
 
   const spaceOpts = (cur: string) => Array.from(new Set([...spaces, cur, "default"])).filter(Boolean).map((s) => ({ v: s, t: s }));
 
   return (
     <div className="admin-wrap">
       <h1 className="admin-h1">Чаты Аси — роли и настройки</h1>
-      <p className="admin-sub">Чаты появляются здесь автоматически, как только Ася получает в них сообщения. Задай доминирующую роль, раздел базы знаний и параметры.</p>
+      <p className="admin-sub">Чаты появляются здесь автоматически, как только Ася получает в них сообщения. Задай доминирующую роль, раздел базы знаний и параметры. Ася хранит историю каждого чата у себя — по ней можно сделать выжимку в базу знаний.</p>
 
       <div className="admin-row">
         <input placeholder="ADMIN_KEY" value={key} onChange={(e) => setKey(e.target.value)} className="admin-inp" style={{ width: 260 }} />
@@ -111,6 +125,23 @@ export default function ChatsAdmin() {
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={c.enabled} onChange={(b) => set(i, { enabled: b })} /> включена</span>
             </label>
           </div>
+
+          <div className="admin-history">
+            <span className="admin-hist-stat">
+              {c.msgCount ? <>Ася сохранила <b>{c.msgCount}</b> сообщений · последнее {fmtDate(c.lastAt)}</> : "История пока пустая — Ася начнёт сохранять сообщения после включения."}
+            </span>
+            <button onClick={() => makeDigest(c)} className="admin-btn ghost" style={{ padding: "7px 14px", fontSize: 13 }} disabled={digests[c.chatId]?.loading}>
+              {digests[c.chatId]?.loading ? "Делаю выжимку…" : "Сделать выжимку"}
+            </button>
+          </div>
+          {digests[c.chatId]?.err && <div className="admin-hint" style={{ color: "var(--bubble-u1)" }}>{digests[c.chatId]?.err}</div>}
+          {digests[c.chatId]?.text && (
+            <div className="admin-digest">
+              <div className="admin-hint" style={{ marginTop: 0, marginBottom: 8 }}>Выжимка по {digests[c.chatId]?.count} сообщениям сохранена в базу знаний раздела «{c.space}» как авто-статья. Можно отредактировать её в базе.</div>
+              <div style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.5, color: "var(--text-soft)" }}>{digests[c.chatId]?.text}</div>
+            </div>
+          )}
+
           <a href={`/admin/knowledge?key=${encodeURIComponent(key)}&space=${encodeURIComponent(c.space)}`} className="admin-link">База знаний раздела «{c.space}» →</a>
           <input placeholder="Ссылка на репозиторий (GitHub) — опционально" value={c.repoUrl || ""} onChange={(e) => set(i, { repoUrl: e.target.value })} className="admin-inp" style={{ width: "100%", marginTop: 10 }} />
           <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные)" value={c.rules || ""} onChange={(e) => set(i, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 8, resize: "vertical" }} />

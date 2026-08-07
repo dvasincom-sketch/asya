@@ -487,3 +487,15 @@ model ChatConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  chatId    String
+  messageId Int?
+  userId    String?
+  userName  String?
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([chatId, createdAt])
+}

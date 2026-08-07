@@ -8,6 +8,7 @@ import {
 import { casBanned, suspiciousName, hasLink, judgeSpam, looksLikeQuestion } from "@/lib/antispam";
 import { communitySupportReply } from "@/lib/knowledge";
 import { getChatConfig, type ChatCfg } from "@/lib/communityConfig";
+import { saveMessage } from "@/lib/history";
 
 export const runtime = "nodejs";
 
@@ -131,6 +132,9 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
   if (!from || from.is_bot) return;
   const text = (msg.text || msg.caption || "").trim();
   const msgId = msg.message_id;
+
+  // Ася хранит историю чата у себя — чтобы не обращаться к самому чату и уметь делать выжимку.
+  if (text) void saveMessage({ chatId, messageId: msgId, userId: from.id, userName: from.first_name || from.username || undefined, text });
 
   // Кризис — тепло, всегда.
   if (text && detectCrisis(text)) { await tgReply(chatId, crisisText(), msgId); return; }

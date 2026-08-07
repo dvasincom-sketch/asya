@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { listChatConfigs, updateChatConfig, seedEnvChats } from "@/lib/communityConfig";
 import { listSpaces } from "@/lib/knowledge";
+import { historyStats } from "@/lib/history";
 import { tgGetChat } from "@/lib/tgbot";
 
 export const runtime = "nodejs";
@@ -21,8 +22,14 @@ export async function GET(req: NextRequest) {
       if (info?.title) { await updateChatConfig(c.chatId, { title: info.title }); c.title = info.title; }
     }
   }
+  const withStats = await Promise.all(
+    chats.map(async (c) => {
+      const st = await historyStats(c.chatId);
+      return { ...c, msgCount: st.count, lastAt: st.lastAt };
+    }),
+  );
   const spaces = await listSpaces();
-  return Response.json({ chats, spaces, seededFrom: seed.seeded, seedError: seed.error });
+  return Response.json({ chats: withStats, spaces, seededFrom: seed.seeded, seedError: seed.error });
 }
 
 export async function POST(req: NextRequest) {

@@ -1395,3 +1395,6 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .admin-link { display: inline-block; margin-top: 14px; color: var(--accent); font-size: 13.5px; text-decoration: none; }
 .admin-link:hover { text-decoration: underline; }
 .admin-hint { color: var(--text-dim); font-size: 12.5px; line-height: 1.5; margin-top: 10px; }
+.admin-history { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.admin-hist-stat { font-size: 13px; color: var(--text-soft); }
+.admin-digest { margin-top: 12px; background: var(--glass); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
