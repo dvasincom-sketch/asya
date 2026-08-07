@@ -217,7 +217,7 @@ export default function AdminDashboard() {
               <div className="admin-avatar" aria-hidden="true" />
             </div>
           </div>
-          <div className="admin-panel">
+          <div className="admin-content">
             {seedErr && <div className="admin-err">База данных сейчас недоступна — часть данных может не отображаться, а изменения не сохранятся, пока база не поднимется. Детали: {seedErr}</div>}
             {tab === "dash" && <DashTab overview={overview} chats={chats} onRefresh={() => loadAll()} />}
             {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} capDefs={capDefs} groups={groups} af={af} reload={() => loadAll()} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
@@ -246,7 +246,8 @@ function DashTab({ overview, chats, onRefresh }: { overview: Overview | null; ch
   const filtered = chats.filter((c) => (seg === "all" ? true : seg === "on" ? c.enabled : !c.enabled));
   const roleMap = new Map<string, number>();
   for (const c of filtered) { const n = BUILTIN_TITLES[c.role] || c.role || "Без роли"; roleMap.set(n, (roleMap.get(n) || 0) + 1); }
-  const roles = Array.from(roleMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const roles = Array.from(roleMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxRole = Math.max(1, ...roles.map((r) => r[1]));
   const activeN = chats.filter((c) => c.enabled).length;
   const withKb = chats.filter((c) => (c.articleCount || 0) > 0).length;
 
@@ -279,11 +280,13 @@ function DashTab({ overview, chats, onRefresh }: { overview: Overview | null; ch
           </div>
           <div className="admin-card2-b">
             <div className="admin-lbl">По ролям</div>
-            <div className="admin-bars">
+            <div className="admin-roles">
               {roles.length === 0 && <div className="admin-hint" style={{ margin: 0 }}>Нет проектов в выборке.</div>}
               {roles.map(([name, n], i) => (
-                <div key={name} className="admin-bar" style={{ background: i === 0 ? "var(--text)" : i === 1 ? "var(--accent)" : "var(--bubble-u2)", color: "#fff" }}>
-                  {n} <span>{name}</span>
+                <div key={name} className="admin-rolerow">
+                  <span className="admin-role-name"><span className="admin-role-dot" style={{ background: DONUT_PAL[i % DONUT_PAL.length] }} />{name}</span>
+                  <span className="admin-role-track"><span className="admin-role-fill" style={{ width: `${(n / maxRole) * 100}%`, background: DONUT_PAL[i % DONUT_PAL.length] }} /></span>
+                  <b>{n}</b>
                 </div>
               ))}
             </div>
