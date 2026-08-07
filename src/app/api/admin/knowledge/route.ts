@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { listArticles, listSpaces, upsertArticle, deleteArticle } from "@/lib/knowledge";
+import { listArticles, sectionCounts, upsertArticle, deleteArticle } from "@/lib/knowledge";
 
 export const runtime = "nodejs";
 
@@ -12,8 +12,9 @@ export async function GET(req: NextRequest) {
   if (!authed(req)) return Response.json({ error: "auth" }, { status: 401 });
   const sp = req.nextUrl.searchParams.get("space");
   const space = sp && sp !== "all" ? sp : undefined;
-  const [articles, spaces] = await Promise.all([listArticles(space), listSpaces()]);
-  return Response.json({ articles, spaces });
+  const q = req.nextUrl.searchParams.get("q") || undefined;
+  const [articles, counts] = await Promise.all([listArticles(space, q), sectionCounts()]);
+  return Response.json({ articles, spaces: counts.map((c) => c.space), counts });
 }
 
 export async function POST(req: NextRequest) {

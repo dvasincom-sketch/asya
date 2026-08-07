@@ -25,9 +25,39 @@ export function spaceForChat(chatId: number | string): string {
   return "default";
 }
 
-export async function listArticles(space?: string): Promise<Article[]> {
-  const where = space ? { space } : {};
+export async function listArticles(space?: string, q?: string): Promise<Article[]> {
+  const where: Record<string, unknown> = {};
+  if (space) where.space = space;
+  const query = (q || "").trim();
+  if (query) where.OR = [{ title: { contains: query, mode: "insensitive" } }, { body: { contains: query, mode: "insensitive" } }];
   return kb().findMany({ where, orderBy: { updatedAt: "desc" }, take: 500 }).catch(() => [] as Article[]);
+}
+
+// Количество статей по разделам (навигатор базы под масштаб).
+export async function sectionCounts(): Promise<{ space: string; count: number }[]> {
+  const arts = await listArticles();
+  const m = new Map<string, number>();
+  for (const a of arts) { const sp = a.space || "default"; m.set(sp, (m.get(sp) || 0) + 1); }
+  return Array.from(m.entries()).map(([space, count]) => ({ space, count })).sort((a, b) => a.space.localeCompare(b.space));
+}
+
+// Отбор релевантных статей без эмбеддингов: по пересечению слов запроса с заголовком/текстом.
+function kbTokens(str: string): string[] {
+  return (str.toLowerCase().match(/[a-zа-яё0-9]{3,}/gi) || []);
+}
+function selectRelevant(articles: Article[], query: string, max = 15): Article[] {
+  if (articles.length <= max) return articles;
+  const qt = new Set(kbTokens(query));
+  if (!qt.size) return articles.slice(0, max);
+  const scored = articles.map((a) => {
+    let score = 0;
+    for (const t of kbTokens(a.body)) if (qt.has(t)) score += 1;
+    for (const t of kbTokens(a.title)) if (qt.has(t)) score += 3;
+    return { a, score };
+  });
+  scored.sort((x, y) => y.score - x.score);
+  const top = scored.filter((x) => x.score > 0).slice(0, max).map((x) => x.a);
+  return top.length ? top : articles.slice(0, max);
 }
 
 export async function listSpaces(): Promise<string[]> {
@@ -66,7 +96,7 @@ export async function communitySupportReply(text: string, space: string, rules?:
   const t = (text || "").trim();
   if (!t) return "";
   const [articles, repoCtx] = await Promise.all([listArticles(space), fetchRepoContext(repoUrl)]);
-  let ctx = buildKbContext(articles);
+  let ctx = buildKbContext(selectRelevant(articles, t, 15));
   if (repoCtx) ctx = `${ctx}\n\n## Актуально из репозитория проекта (GitHub)\n${repoCtx}`.slice(0, 16000);
   const raw = await complete([{ role: "user", content: t.slice(0, 1000) }], supportSystem(ctx, rules), 400).catch(() => "");
   const out = (raw || "").trim();

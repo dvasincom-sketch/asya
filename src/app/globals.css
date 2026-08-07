@@ -1371,7 +1371,7 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 }
 
 /* ============ Админка (чаты + база знаний) — плоский тёмный фон, без градиента ============ */
-.admin-wrap { position: relative; z-index: 1; width: 100%; min-height: 100dvh; background: var(--bg1); padding: 44px 24px 90px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
+.admin-wrap { position: fixed; inset: 0; z-index: 1; background: var(--bg1); padding: 44px 24px 90px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
 .admin-wrap > * { width: 100%; max-width: 880px; }
 .admin-back { color: var(--text-soft); font-size: 13px; text-decoration: none; margin-bottom: 14px; display: inline-block; }
 .admin-back:hover { color: var(--accent); }
@@ -1425,3 +1425,10 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .admin-chip.on { color: var(--bubble-u-text); background: linear-gradient(135deg, var(--bubble-u1), var(--bubble-u2)); border-color: transparent; }
 .admin-cmd-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
 .admin-subcontent { padding-top: 4px; }
+
+/* --- База знаний: пилюли разделов; роли: заголовки групп --- */
+.admin-secpill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 11px; border: 1px solid var(--line); background: var(--glass); color: var(--text-soft); font-size: 13.5px; cursor: pointer; transition: 0.2s; }
+.admin-secpill:hover { border-color: var(--accent); }
+.admin-secpill.active { background: linear-gradient(135deg, var(--bubble-u1), var(--bubble-u2)); color: var(--bubble-u-text); border-color: transparent; font-weight: 600; }
+.admin-seccount { font-size: 11px; padding: 1px 7px; border-radius: 8px; background: rgba(0,0,0,.18); }
+.admin-grouplbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 4px 0 8px; }

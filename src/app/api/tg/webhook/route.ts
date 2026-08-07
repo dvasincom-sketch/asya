@@ -9,7 +9,7 @@ import { casBanned, suspiciousName, hasLink, judgeSpam, looksLikeQuestion } from
 import { communitySupportReply, COMMUNITY_RULES } from "@/lib/knowledge";
 import { getChatConfig, type ChatCfg } from "@/lib/communityConfig";
 import { saveMessage } from "@/lib/history";
-import { capsForRole } from "@/lib/roles";
+import { capsForRole, CAP_REGISTRY } from "@/lib/roles";
 
 export const runtime = "nodejs";
 
@@ -94,6 +94,12 @@ async function challenge(chatId: number, u: TgUser): Promise<void> {
   );
 }
 
+async function welcomeMessage(chatId: number, u: TgUser, cfg: ChatCfg): Promise<void> {
+  const name = u.first_name || "друг";
+  const rulesHint = cfg.rules && cfg.rules.trim() ? " Правила чата — команда /rules." : "";
+  await tgSend(chatId, `${name}, добро пожаловать 🤍 Рада видеть тебя здесь. Расскажи пару слов о себе — так проще познакомиться.${rulesHint}`);
+}
+
 async function handleCallback(cb: TgCallback): Promise<void> {
   const data = cb.data || "";
   const chatId = cb.message?.chat?.id;
@@ -106,6 +112,11 @@ async function handleCallback(cb: TgCallback): Promise<void> {
       await tgRestrict(chatId, clicker, true);
       await tgAnswerCallback(cb.id, "Готово, добро пожаловать 🤍");
       if (msgId) await tgDeleteMessage(chatId, msgId);
+      try {
+        const cfg = await getChatConfig(chatId);
+        const caps = await capsForRole(cfg?.role || "off");
+        if (cfg && cfg.enabled && caps.welcome && cb.from) await welcomeMessage(chatId, cb.from, cfg);
+      } catch { /* приветствие не критично */ }
     } else {
       await tgAnswerCallback(cb.id, "Это проверка не для тебя 🙂", true);
     }
@@ -117,14 +128,14 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Promise<void> {
   const caps = await capsForRole(cfg.role);
 
-  // Вход новичков — если у роли включена капча.
+  // Вход новичков.
   if (msg.new_chat_members?.length) {
-    if (!caps.captcha) return;
     for (const m of msg.new_chat_members) {
       if (m.is_bot) continue;
-      if (await casBanned(m.id)) { await tgBan(chatId, m.id); continue; }
-      if (suspiciousName(m.first_name, m.last_name, m.username).bad) { await tgBan(chatId, m.id); continue; }
-      await challenge(chatId, m);
+      if (caps.casBan && (await casBanned(m.id))) { await tgBan(chatId, m.id); continue; }
+      if (caps.nameFilter && suspiciousName(m.first_name, m.last_name, m.username).bad) { await tgBan(chatId, m.id); continue; }
+      if (caps.captcha) await challenge(chatId, m);
+      else if (caps.welcome) await welcomeMessage(chatId, m, cfg);
     }
     return;
   }
@@ -134,11 +145,11 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
   const text = (msg.text || msg.caption || "").trim();
   const msgId = msg.message_id;
 
-  // Ася хранит историю чата у себя — чтобы не обращаться к самому чату и уметь делать выжимку.
+  // Ася хранит историю чата у себя.
   if (text) void saveMessage({ chatId, messageId: msgId, userId: from.id, userName: from.first_name || from.username || undefined, text });
 
-  // Кризис — тепло, всегда.
-  if (text && detectCrisis(text)) {
+  // Кризис — тепло.
+  if (caps.crisis && text && detectCrisis(text)) {
     const c = crisisText();
     await tgReply(chatId, c, msgId);
     void saveMessage({ chatId, userId: "asya", userName: "Ася", text: c, fromBot: true });
@@ -147,52 +158,47 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
 
   const isAdmin = await tgIsChatAdmin(chatId, from.id);
 
-  // --- Капча новичков (проверка по первому сообщению) ---
+  // Капча по первому сообщению.
   if (caps.captcha && !isAdmin) {
     const member = await getMember(chatId, from.id);
     if (!member?.verified) {
       if (msgId) await tgDeleteMessage(chatId, msgId);
       if (!member) {
-        if (await casBanned(from.id)) { await tgBan(chatId, from.id); return; }
-        if (suspiciousName(from.first_name, from.last_name, from.username).bad) { await tgBan(chatId, from.id); return; }
+        if (caps.casBan && (await casBanned(from.id))) { await tgBan(chatId, from.id); return; }
+        if (caps.nameFilter && suspiciousName(from.first_name, from.last_name, from.username).bad) { await tgBan(chatId, from.id); return; }
         await challenge(chatId, from);
       }
       return;
     }
   }
 
-  // --- Команды в чате (/ask, /rules, /help + пользовательские) ---
-  if (text.startsWith("/")) {
-    if (await handleCommand(chatId, msgId, text, cfg)) return;
+  // Команды.
+  if (caps.commands && text.startsWith("/")) {
+    if (await handleCommand(chatId, msgId, text, cfg, isAdmin)) return;
   }
 
-  // --- Модерация контента ---
-  if (caps.moderation && !isAdmin) {
-    // Ссылки.
-    if (hasLink(text, msg.entities, msg.caption_entities)) {
+  // Модерация контента (гранулярно).
+  if (!isAdmin) {
+    if (caps.delLinks && hasLink(text, msg.entities, msg.caption_entities)) {
       if (msgId) await tgDeleteMessage(chatId, msgId);
       const name = from.first_name ? `${from.first_name}, ` : "";
       await tgSend(chatId, `${name}тут в чате без ссылок и рекламы 🤍 Если хочешь поделиться чем-то полезным — можно в личку тому, кому интересно.`);
       return;
     }
-    // Хэштеги.
-    if (/(^|\s)#[^\s#]+/.test(text)) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
-    // Длинные простыни.
-    if (text.length > 400) {
+    if (caps.delHashtags && /(^|\s)#[^\s#]+/.test(text)) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
+    if (caps.delLong && text.length > 400) {
       if (msgId) await tgDeleteMessage(chatId, msgId);
       const name = from.first_name ? `${from.first_name}, ` : "";
       await tgSend(chatId, `${name}коротко, пожалуйста 🤍 Сообщения длиннее 400 символов у нас убираются — сформулируй суть в паре строк.`);
       return;
     }
-    // «+».
-    if (/^[+\s👍➕]+$/.test(text)) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
-    // LLM-спам.
-    if (text.length >= 8 && riskySpam(text)) {
+    if (caps.delPlus && /^[+\s👍➕]+$/.test(text)) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
+    if (caps.spamJudge && text.length >= 8 && riskySpam(text)) {
       if ((await judgeSpam(text)).spam) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
     }
   }
 
-  // --- Поддержка/ответы ---
+  // Поддержка/ответы.
   if (caps.support && text && looksLikeQuestion(text)) {
     const reply = await communitySupportReply(text, cfg.space, cfg.rules || undefined, cfg.repoUrl || undefined);
     if (reply) {
@@ -203,7 +209,7 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
 }
 
 type CustomCmd = { cmd: string; reply: string };
-async function handleCommand(chatId: number, msgId: number | undefined, text: string, cfg: ChatCfg): Promise<boolean> {
+async function handleCommand(chatId: number, msgId: number | undefined, text: string, cfg: ChatCfg, isAdmin: boolean): Promise<boolean> {
   const m = /^\/([A-Za-z\u0400-\u04FF0-9_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/.exec(text.trim());
   if (!m) return false;
   const cmd = m[1].toLowerCase();
@@ -219,6 +225,20 @@ async function handleCommand(chatId: number, msgId: number | undefined, text: st
     return true;
   }
 
+  if (cmd === "setup") {
+    if (!isAdmin) { await tgReply(chatId, "Команда /setup доступна администраторам чата.", msgId); return true; }
+    const caps = await capsForRole(cfg.role);
+    const on = CAP_REGISTRY.filter((cd) => caps[cd.key]).map((cd) => cd.title);
+    const lines = [
+      `Роль: ${cfg.role}`,
+      `Раздел базы знаний: ${cfg.space}`,
+      cfg.enabled ? (on.length ? `Что делаю: ${on.join(", ")}` : "Роль пустая — сейчас ничего не делаю") : "Чат выключен — не реагирую",
+      cfg.repoUrl ? `Репозиторий: ${cfg.repoUrl}` : "",
+      "Тонкая настройка — в панели /admin/community",
+    ].filter(Boolean);
+    await tgReply(chatId, `Настройки этого чата:\n${lines.join("\n")}`, msgId);
+    return true;
+  }
   if (cmd === "ask") {
     if (!arg) { await tgReply(chatId, "Напиши вопрос после команды, например: /ask как загрузить видео", msgId); return true; }
     const reply = await communitySupportReply(arg, cfg.space, cfg.rules || undefined, cfg.repoUrl || undefined);
