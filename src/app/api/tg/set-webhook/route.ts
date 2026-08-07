@@ -3,9 +3,9 @@ import { safeWebhookSecret } from "@/lib/tgbot";
 
 export const runtime = "nodejs";
 
-// Разовая установка вебхука. Открой в браузере:
+// Установка/диагностика вебхука. Открой в браузере:
 //   https://<домен>/api/tg/set-webhook?key=<TELEGRAM_WEBHOOK_SECRET>
-// Требует заданных TELEGRAM_BOT_TOKEN и TELEGRAM_WEBHOOK_SECRET.
+// Ответ покажет результат setWebhook И текущее состояние (getWebhookInfo).
 export async function GET(req: NextRequest) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -20,9 +20,25 @@ export async function GET(req: NextRequest) {
 
   const base = process.env.PUBLIC_BASE_URL || req.nextUrl.origin;
   const url = `${base.replace(/\/$/, "")}/api/tg/webhook`;
-
-  // Telegram принимает secret_token только из [A-Za-z0-9_-]; отправляем очищенную версию.
   const safeSecret = safeWebhookSecret();
+
+  async function tg(method: string, body?: Record<string, unknown>): Promise<unknown> {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
+      const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      return await res.json().catch(() => ({ ok: false, error: `не-JSON ответ, HTTP ${res.status}` }));
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? `${e.name}: ${e.message}` : String(e) };
+    }
+  }
+
   const payload: Record<string, unknown> = {
     url,
     allowed_updates: ["message", "edited_message", "callback_query", "chat_member", "my_chat_member"],
@@ -30,23 +46,18 @@ export async function GET(req: NextRequest) {
   };
   if (safeSecret) payload.secret_token = safeSecret;
 
-  const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }).catch(() => null);
-  const data = res ? await res.json().catch(() => ({})) : { ok: false, error: "нет ответа от Telegram" };
+  const setResult = await tg("setWebhook", payload);
+  const info = await tg("getWebhookInfo");
 
-  // Кнопка-меню бота, открывающая Mini App (наш дизайн).
   const appUrl = `${base.replace(/\/$/, "")}/chat`;
-  const menuRes = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      menu_button: { type: "web_app", text: "Открыть Асю", web_app: { url: appUrl } },
-    }),
-  }).catch(() => null);
-  const menu = menuRes ? await menuRes.json().catch(() => ({})) : { ok: false };
+  const menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Открыть Асю", web_app: { url: appUrl } } });
 
-  return Response.json({ requested_url: url, telegram: data, menu_button: menu, mini_app_url: appUrl });
+  return Response.json({
+    requested_url: url,
+    secret_set: Boolean(safeSecret),
+    setWebhook: setResult,
+    webhookInfo: info,
+    menu_button: menu,
+    mini_app_url: appUrl,
+  });
 }
