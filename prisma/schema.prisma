@@ -472,3 +472,18 @@ model KnowledgeArticle {
 
   @@index([space])
 }
+
+
+// Настройки Аси по каждому чату (видны и редактируются в админке).
+// role: off | support | moderation | both. support — только отвечает по базе, без модерации.
+model ChatConfig {
+  chatId    String   @id
+  title     String?
+  role      String   @default("support")
+  space     String   @default("default")
+  rules     String?
+  repoUrl   String?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}

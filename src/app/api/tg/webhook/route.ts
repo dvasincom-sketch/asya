@@ -6,7 +6,8 @@ import {
   tgIsChatAdmin, tgRestrict, tgBan, tgSendInline, tgAnswerCallback,
 } from "@/lib/tgbot";
 import { casBanned, suspiciousName, hasLink, judgeSpam, looksLikeQuestion } from "@/lib/antispam";
-import { communitySupportReply, spaceForChat } from "@/lib/knowledge";
+import { communitySupportReply } from "@/lib/knowledge";
+import { getChatConfig, type ChatCfg } from "@/lib/communityConfig";
 
 export const runtime = "nodejs";
 
@@ -14,27 +15,20 @@ type TgUser = { id: number; is_bot?: boolean; first_name?: string; last_name?: s
 type TgEntity = { type?: string };
 type TgMessage = {
   message_id?: number; text?: string; caption?: string;
-  chat?: { id: number; type?: string }; from?: TgUser;
+  chat?: { id: number; type?: string; title?: string }; from?: TgUser;
   entities?: TgEntity[]; caption_entities?: TgEntity[]; new_chat_members?: TgUser[];
 };
 type TgCallback = { id: string; from?: TgUser; data?: string; message?: { message_id?: number; chat?: { id: number } } };
 type TgUpdate = { message?: TgMessage; callback_query?: TgCallback };
 
-function communityIds(): string[] {
-  return (process.env.COMMUNITY_CHAT_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
-}
-
 function riskySpam(text: string): boolean {
   return /(зарабо|доход|крипт|инвест|ставк|казино|подработ|ваканси|набор |в личку|пишите|@[a-z0-9_]{4,}|http|t\.me|канал|подпис|бесплатн|акци|скидк|прода|телеграм-канал)/i.test(text);
 }
 
-// --- Таблица «кто уже проверен в чате» (капча по первому сообщению) ---
+// --- Кто уже проверен в чате (капча по первому сообщению) ---
 type VmDelegate = {
   findUnique: (a: { where: { chatId_userId: { chatId: string; userId: string } } }) => Promise<{ verified: boolean } | null>;
-  upsert: (a: {
-    where: { chatId_userId: { chatId: string; userId: string } };
-    create: Record<string, unknown>; update: Record<string, unknown>;
-  }) => Promise<unknown>;
+  upsert: (a: { where: { chatId_userId: { chatId: string; userId: string } }; create: Record<string, unknown>; update: Record<string, unknown> }) => Promise<unknown>;
 };
 function vmDb(): VmDelegate {
   return (prisma as unknown as { verifiedMember: VmDelegate }).verifiedMember;
@@ -53,11 +47,11 @@ async function setMember(chatId: number, userId: number, verified: boolean): Pro
 export async function POST(req: NextRequest) {
   const secret = safeWebhookSecret();
   if (secret && req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
-    console.warn("[cm] secret mismatch — апдейт отклонён (проверь TELEGRAM_WEBHOOK_SECRET и переустанови вебхук)");
+    console.warn("[cm] secret mismatch — апдейт отклонён");
     return Response.json({ ok: false }, { status: 401 });
   }
   const update = (await req.json().catch(() => null)) as TgUpdate | null;
-  if (!update) { console.warn("[cm] пустой апдейт"); return Response.json({ ok: true }); }
+  if (!update) return Response.json({ ok: true });
   console.log("[cm] incoming:", update.callback_query ? "callback_query" : update.message ? "message" : Object.keys(update).join(","));
 
   try {
@@ -71,14 +65,13 @@ export async function POST(req: NextRequest) {
 
     const chatType = msg.chat?.type;
     const isGroup = chatType === "group" || chatType === "supergroup";
-    const ids = communityIds();
-    console.log(`[cm] msg chatId=${chatId} type=${chatType} isGroup=${isGroup} configured=[${ids.join(",")}] inCommunity=${isGroup && ids.includes(String(chatId))} from=${msg.from?.id} text=${JSON.stringify((msg.text || msg.caption || "").slice(0, 60))}`);
 
-    if (isGroup && ids.includes(String(chatId))) {
-      await handleCommunity(msg, chatId);
+    if (isGroup) {
+      const cfg = await getChatConfig(chatId, msg.chat?.title);
+      console.log(`[cm] group chatId=${chatId} role=${cfg?.role} enabled=${cfg?.enabled} from=${msg.from?.id} text=${JSON.stringify((msg.text || msg.caption || "").slice(0, 60))}`);
+      if (cfg && cfg.enabled && cfg.role !== "off") await handleCommunity(msg, chatId, cfg);
       return Response.json({ ok: true });
     }
-    if (isGroup) return Response.json({ ok: true });
 
     await handlePrivate(msg, chatId, req);
     return Response.json({ ok: true });
@@ -88,7 +81,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Показать капчу незнакомцу и замьютить до прохождения.
 async function challenge(chatId: number, u: TgUser): Promise<void> {
   await setMember(chatId, u.id, false);
   await tgRestrict(chatId, u.id, false);
@@ -120,10 +112,12 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   await tgAnswerCallback(cb.id);
 }
 
-async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
-  // Вход новичков (если событие пришло) — проверяем и сразу ставим капчу.
+async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Promise<void> {
+  const moderate = cfg.role === "moderation" || cfg.role === "both";
+
+  // Вход новичков — только если включена модерация.
   if (msg.new_chat_members?.length) {
-    console.log(`[cm] new_chat_members: ${msg.new_chat_members.map((m) => m.id).join(",")}`);
+    if (!moderate) return;
     for (const m of msg.new_chat_members) {
       if (m.is_bot) continue;
       if (await casBanned(m.id)) { await tgBan(chatId, m.id); continue; }
@@ -138,66 +132,50 @@ async function handleCommunity(msg: TgMessage, chatId: number): Promise<void> {
   const text = (msg.text || msg.caption || "").trim();
   const msgId = msg.message_id;
 
-  // Кризис — тепло, даже в группе и до всего остального.
-  if (text && detectCrisis(text)) {
-    await tgReply(chatId, crisisText(), msgId);
-    return;
-  }
+  // Кризис — тепло, всегда.
+  if (text && detectCrisis(text)) { await tgReply(chatId, crisisText(), msgId); return; }
 
-  // Админов не трогаем.
-  if (await tgIsChatAdmin(chatId, from.id)) { console.log(`[cm] ${from.id} — админ, пропускаем`); return; }
+  const isAdmin = await tgIsChatAdmin(chatId, from.id);
 
-  // Проверка по первому сообщению: незнакомца не пускаем дальше.
-  const member = await getMember(chatId, from.id);
-  console.log(`[cm] verify check from=${from.id} member=${member ? (member.verified ? "verified" : "pending") : "new"}`);
-  if (!member?.verified) {
-    if (msgId) { const del = await tgDeleteMessage(chatId, msgId); console.log(`[cm] delete unverified msg=${msgId} ok=${del}`); }
-    if (!member) {
-      // Первое появление: бан по CAS/имени либо капча.
-      if (await casBanned(from.id)) { await tgBan(chatId, from.id); return; }
-      if (suspiciousName(from.first_name, from.last_name, from.username).bad) { await tgBan(chatId, from.id); return; }
-      await challenge(chatId, from);
-    }
-    return; // ждём прохождения капчи
-  }
-
-  // --- Дальше только проверенные участники ---
-
-  // Ссылки — удаляем + тёпло объясняем.
-  if (hasLink(text, msg.entities, msg.caption_entities)) {
-    if (msgId) await tgDeleteMessage(chatId, msgId);
-    const name = from.first_name ? `${from.first_name}, ` : "";
-    await tgSend(chatId, `${name}тут в чате без ссылок и рекламы 🤍 Если хочешь поделиться чем-то полезным — можно в личку тому, кому интересно.`);
-    return;
-  }
-
-  // Авто-правила сообщества: хэштеги, длинные простыни, «+».
-  if (/(^|\s)#[^\s#]+/.test(text)) {
-    if (msgId) await tgDeleteMessage(chatId, msgId);
-    return;
-  }
-  if (text.length > 400) {
-    if (msgId) await tgDeleteMessage(chatId, msgId);
-    const name = from.first_name ? `${from.first_name}, ` : "";
-    await tgSend(chatId, `${name}коротко, пожалуйста 🤍 Сообщения длиннее 400 символов у нас убираются — сформулируй суть в паре строк.`);
-    return;
-  }
-  if (/^[+\s👍➕]+$/.test(text)) {
-    if (msgId) await tgDeleteMessage(chatId, msgId);
-    return;
-  }
-
-  // LLM-оценка спама (по риску).
-  if (text.length >= 8 && riskySpam(text)) {
-    if ((await judgeSpam(text)).spam) {
+  // --- Модерация (только для роли moderation/both и не для админов) ---
+  if (moderate && !isAdmin) {
+    const member = await getMember(chatId, from.id);
+    if (!member?.verified) {
       if (msgId) await tgDeleteMessage(chatId, msgId);
+      if (!member) {
+        if (await casBanned(from.id)) { await tgBan(chatId, from.id); return; }
+        if (suspiciousName(from.first_name, from.last_name, from.username).bad) { await tgBan(chatId, from.id); return; }
+        await challenge(chatId, from);
+      }
       return;
     }
+    // Ссылки.
+    if (hasLink(text, msg.entities, msg.caption_entities)) {
+      if (msgId) await tgDeleteMessage(chatId, msgId);
+      const name = from.first_name ? `${from.first_name}, ` : "";
+      await tgSend(chatId, `${name}тут в чате без ссылок и рекламы 🤍 Если хочешь поделиться чем-то полезным — можно в личку тому, кому интересно.`);
+      return;
+    }
+    // Хэштеги.
+    if (/(^|\s)#[^\s#]+/.test(text)) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
+    // Длинные простыни.
+    if (text.length > 400) {
+      if (msgId) await tgDeleteMessage(chatId, msgId);
+      const name = from.first_name ? `${from.first_name}, ` : "";
+      await tgSend(chatId, `${name}коротко, пожалуйста 🤍 Сообщения длиннее 400 символов у нас убираются — сформулируй суть в паре строк.`);
+      return;
+    }
+    // «+».
+    if (/^[+\s👍➕]+$/.test(text)) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
+    // LLM-спам.
+    if (text.length >= 8 && riskySpam(text)) {
+      if ((await judgeSpam(text)).spam) { if (msgId) await tgDeleteMessage(chatId, msgId); return; }
+    }
   }
 
-  // Контекстный ответ комьюнити-менеджера/поддержки по базе знаний раздела.
+  // --- Поддержка/ответы (для support и both; отвечаем и админам) ---
   if (text && looksLikeQuestion(text)) {
-    const reply = await communitySupportReply(text, spaceForChat(chatId));
+    const reply = await communitySupportReply(text, cfg.space, cfg.rules || undefined);
     if (reply) await tgReply(chatId, reply, msgId);
   }
 }
