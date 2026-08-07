@@ -3,7 +3,7 @@ import { prisma } from "./prisma";
 
 export type ChatCfg = {
   chatId: string; title: string | null; role: string; space: string;
-  rules: string | null; repoUrl: string | null; enabled: boolean; updatedAt?: string;
+  rules: string | null; repoUrl: string | null; enabled: boolean; commands: string | null; updatedAt?: string;
 };
 
 type Delegate = {
@@ -21,7 +21,7 @@ function envIds(): string[] {
   return (process.env.COMMUNITY_CHAT_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
 }
 function synthetic(id: string, title?: string | null): ChatCfg {
-  return { chatId: id, title: title ?? null, role: envIds().includes(id) ? "both" : "support", space: "default", rules: null, repoUrl: null, enabled: true };
+  return { chatId: id, title: title ?? null, role: envIds().includes(id) ? "both" : "support", space: "default", rules: null, repoUrl: null, enabled: true, commands: null };
 }
 
 // Читает настройку чата; если чата нет — регистрирует. При сбое БД логирует и возвращает подстраховку по env.
@@ -55,7 +55,7 @@ export async function listChatConfigs(): Promise<ChatCfg[]> {
 export async function updateChatConfig(chatId: string, data: Partial<ChatCfg>): Promise<ChatCfg | null> {
   const id = String(chatId);
   const clean: Record<string, unknown> = { updatedAt: new Date() };
-  for (const k of ["title", "role", "space", "rules", "repoUrl", "enabled"] as const) {
+  for (const k of ["title", "role", "space", "rules", "repoUrl", "enabled", "commands"] as const) {
     if (data[k] !== undefined) clean[k] = data[k];
   }
   try {

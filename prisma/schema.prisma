@@ -484,6 +484,7 @@ model ChatConfig {
   rules     String?
   repoUrl   String?
   enabled   Boolean  @default(true)
+  commands  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }

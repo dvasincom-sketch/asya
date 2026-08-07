@@ -6,7 +6,7 @@ import {
   tgIsChatAdmin, tgRestrict, tgBan, tgSendInline, tgAnswerCallback,
 } from "@/lib/tgbot";
 import { casBanned, suspiciousName, hasLink, judgeSpam, looksLikeQuestion } from "@/lib/antispam";
-import { communitySupportReply } from "@/lib/knowledge";
+import { communitySupportReply, COMMUNITY_RULES } from "@/lib/knowledge";
 import { getChatConfig, type ChatCfg } from "@/lib/communityConfig";
 import { saveMessage } from "@/lib/history";
 import { capsForRole } from "@/lib/roles";
@@ -161,6 +161,11 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
     }
   }
 
+  // --- Команды в чате (/ask, /rules, /help + пользовательские) ---
+  if (text.startsWith("/")) {
+    if (await handleCommand(chatId, msgId, text, cfg)) return;
+  }
+
   // --- Модерация контента ---
   if (caps.moderation && !isAdmin) {
     // Ссылки.
@@ -195,6 +200,45 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
       void saveMessage({ chatId, userId: "asya", userName: "Ася", text: reply, fromBot: true });
     }
   }
+}
+
+type CustomCmd = { cmd: string; reply: string };
+async function handleCommand(chatId: number, msgId: number | undefined, text: string, cfg: ChatCfg): Promise<boolean> {
+  const m = /^\/([A-Za-z\u0400-\u04FF0-9_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/.exec(text.trim());
+  if (!m) return false;
+  const cmd = m[1].toLowerCase();
+  const arg = (m[2] || "").trim();
+
+  let customs: CustomCmd[] = [];
+  try { const p = JSON.parse(cfg.commands || "[]"); if (Array.isArray(p)) customs = p as CustomCmd[]; } catch { customs = []; }
+  const custom = customs.find((c) => String(c.cmd || "").replace(/^\//, "").toLowerCase() === cmd);
+  if (custom && custom.reply) {
+    const reply = String(custom.reply).replace(/\{arg\}/g, arg);
+    await tgReply(chatId, reply, msgId);
+    void saveMessage({ chatId, userId: "asya", userName: "Ася", text: reply, fromBot: true });
+    return true;
+  }
+
+  if (cmd === "ask") {
+    if (!arg) { await tgReply(chatId, "Напиши вопрос после команды, например: /ask как загрузить видео", msgId); return true; }
+    const reply = await communitySupportReply(arg, cfg.space, cfg.rules || undefined, cfg.repoUrl || undefined);
+    const out = reply || "Пока не нашла ответ в базе — уточню у команды 🤍";
+    await tgReply(chatId, out, msgId);
+    void saveMessage({ chatId, userId: "asya", userName: "Ася", text: out, fromBot: true });
+    return true;
+  }
+  if (cmd === "rules") {
+    const r = cfg.rules && cfg.rules.trim() ? cfg.rules : COMMUNITY_RULES;
+    await tgReply(chatId, r, msgId);
+    return true;
+  }
+  if (cmd === "help") {
+    const lines = ["/ask <вопрос> — ответить по базе знаний", "/rules — правила чата", "/help — список команд"];
+    for (const c of customs) if (c.cmd) lines.push(`/${String(c.cmd).replace(/^\//, "")}${c.reply ? "" : ""}`);
+    await tgReply(chatId, `Что я умею по командам:\n${lines.join("\n")}`, msgId);
+    return true;
+  }
+  return false;
 }
 
 async function handlePrivate(msg: TgMessage, chatId: number, req: NextRequest): Promise<void> {

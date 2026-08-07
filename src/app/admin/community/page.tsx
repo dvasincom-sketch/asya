@@ -5,15 +5,21 @@ import { useEffect, useState } from "react";
 type Caps = { support: boolean; moderation: boolean; captcha: boolean };
 type Role = { key: string; title: string; caps: Caps; builtin: boolean };
 type CapLabel = { key: keyof Caps; title: string; hint: string };
-type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean; msgCount?: number; lastAt?: string | null };
+type CustomCmd = { cmd: string; reply: string };
+type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean; commands?: string | null; msgCount?: number; lastAt?: string | null };
 type Article = { id: string; space: string; title: string; body: string; source?: string | null };
 type Overview = { chatsConnected: number; chatsTotal: number; messagesStored: number; messagesFromAsya: number; articles: number; spaces: number };
 type HistMsg = { userName: string | null; text: string; fromBot: boolean; createdAt: string };
 type Fetcher = (path: string, init?: RequestInit) => Promise<any>;
 
+const KEY_STORE = "asya_admin_key";
+
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
   try { return new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
+}
+function parseCmds(json?: string | null): CustomCmd[] {
+  try { const p = JSON.parse(json || "[]"); return Array.isArray(p) ? p.map((x) => ({ cmd: String(x.cmd || ""), reply: String(x.reply || "") })) : []; } catch { return []; }
 }
 
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
@@ -62,7 +68,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    const k = q.get("key") || "";
+    let k = q.get("key") || "";
+    if (!k) { try { k = window.localStorage.getItem(KEY_STORE) || ""; } catch { k = ""; } }
     if (k) { setKey(k); void loadAll(k); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -80,11 +87,16 @@ export default function AdminDashboard() {
     const ov = await f("/api/admin/overview");
     if (!ov || ov.error) { setErr("Доступ закрыт — проверь ключ."); return; }
     setErr("");
+    try { window.localStorage.setItem(KEY_STORE, k); } catch { /* ignore */ }
     setOverview(ov);
     const [ch, rl] = await Promise.all([f("/api/admin/chats"), f("/api/admin/roles")]);
     if (ch && !ch.error) { setChats(ch.chats || []); setSpaces(ch.spaces || []); setSeedErr(ch.seedError || ""); }
     if (rl && !rl.error) { setRoles(rl.roles || []); setCapLabels(rl.caps || []); }
     setLoaded(true);
+  }
+  function logout() {
+    try { window.localStorage.removeItem(KEY_STORE); } catch { /* ignore */ }
+    setKey(""); setLoaded(false); setOverview(null); setChats([]); setRoles([]);
   }
 
   const roleOpts = roles.length ? roles.map((r) => ({ v: r.key, t: r.title })) : [{ v: "support", t: "Поддержка" }, { v: "both", t: "Модерация + поддержка" }];
@@ -92,13 +104,15 @@ export default function AdminDashboard() {
   return (
     <div className="admin-wrap">
       <h1 className="admin-h1">Ася — панель управления</h1>
-      <p className="admin-sub">Комьюнити-менеджер, поддержка и база знаний в одном месте. Введи ключ, чтобы увидеть дашборд, чаты, базу знаний и роли.</p>
+      <p className="admin-sub">Комьюнити-менеджер, поддержка и база знаний в одном месте. Дашборд, чаты, база знаний и роли.</p>
 
-      <div className="admin-row">
-        <input placeholder="ADMIN_KEY" value={key} onChange={(e) => setKey(e.target.value)} className="admin-inp" style={{ width: 260 }} />
-        <button onClick={() => loadAll()} className="admin-btn">Войти</button>
-        {err && <span style={{ color: "var(--bubble-u1)", alignSelf: "center" }}>{err}</span>}
-      </div>
+      {!loaded && (
+        <div className="admin-row">
+          <input placeholder="ADMIN_KEY" value={key} onChange={(e) => setKey(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") loadAll(); }} className="admin-inp" style={{ width: 260 }} />
+          <button onClick={() => loadAll()} className="admin-btn">Войти</button>
+          {err && <span style={{ color: "var(--bubble-u1)", alignSelf: "center" }}>{err}</span>}
+        </div>
+      )}
 
       {seedErr && <div className="admin-err">База данных сейчас недоступна — часть данных может не отображаться, а изменения не сохранятся, пока база не поднимется. Детали: {seedErr}</div>}
 
@@ -108,10 +122,11 @@ export default function AdminDashboard() {
             {([["dash", "Дашборд"], ["chats", "Чаты"], ["kb", "База знаний"], ["roles", "Роли"]] as const).map(([t, label]) => (
               <button key={t} className={`admin-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>{label}</button>
             ))}
+            <button className="admin-btn ghost" style={{ marginLeft: "auto", padding: "9px 14px", fontSize: 13 }} onClick={logout}>Сменить ключ</button>
           </div>
 
           {tab === "dash" && <DashTab overview={overview} onRefresh={() => loadAll()} />}
-          {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} roleOpts={roleOpts} af={af} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
+          {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} roles={roles} roleOpts={roleOpts} capLabels={capLabels} af={af} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
           {tab === "kb" && <KbTab af={af} initSpace={kbInit} />}
           {tab === "roles" && <RolesTab roles={roles} capLabels={capLabels} af={af} reload={() => loadAll()} />}
         </>
@@ -131,27 +146,47 @@ function DashTab({ overview, onRefresh }: { overview: Overview | null; onRefresh
     { num: overview.spaces, lbl: "Разделов базы" },
   ];
   return (
-    <div>
+    <div className="admin-subcontent">
       <div className="admin-tiles">
-        {tiles.map((t) => (
-          <div key={t.lbl} className="admin-tile"><div className="num">{t.num}</div><div className="lbl">{t.lbl}</div></div>
-        ))}
+        {tiles.map((t) => (<div key={t.lbl} className="admin-tile"><div className="num">{t.num}</div><div className="lbl">{t.lbl}</div></div>))}
       </div>
-      <div style={{ marginTop: 14 }}><button onClick={onRefresh} className="admin-btn ghost">Обновить</button></div>
-      <p className="admin-hint">История сообщений копится с момента подключения чата (Telegram не отдаёт переписку задним числом). «Ответы Аси» — сколько раз она ответила по существу (поддержка и кризис).</p>
+      <div style={{ marginTop: 16 }}><button onClick={onRefresh} className="admin-btn ghost">Обновить</button></div>
+      <p className="admin-hint">История сообщений копится с момента подключения чата (Telegram не отдаёт переписку задним числом). «Ответов Аси» — сколько раз она ответила по существу (поддержка, команды, кризис).</p>
     </div>
   );
 }
 
-function ChatsTab({ chats, setChats, spaces, roleOpts, af, onGoKb }: { chats: Chat[]; setChats: (u: (c: Chat[]) => Chat[]) => void; spaces: string[]; roleOpts: { v: string; t: string }[]; af: Fetcher; onGoKb: (sp: string) => void }) {
+function CapsBadge({ caps, capLabels }: { caps: Caps; capLabels: CapLabel[] }) {
+  const labels = capLabels.length ? capLabels : ([{ key: "support", title: "Поддержка" }, { key: "moderation", title: "Модерация" }, { key: "captcha", title: "Капча" }] as CapLabel[]);
+  const on = labels.filter((l) => caps[l.key]);
+  return (
+    <div className="admin-rolebadge">
+      {on.length === 0 && <span className="admin-chip">ничего не делает (выключена)</span>}
+      {on.map((l) => <span key={l.key} className="admin-chip on">{l.title}</span>)}
+    </div>
+  );
+}
+
+function ChatsTab({ chats, setChats, spaces, roles, roleOpts, capLabels, af, onGoKb }: { chats: Chat[]; setChats: (u: (c: Chat[]) => Chat[]) => void; spaces: string[]; roles: Role[]; roleOpts: { v: string; t: string }[]; capLabels: CapLabel[]; af: Fetcher; onGoKb: (sp: string) => void }) {
   const [openId, setOpenId] = useState<string>("");
   const [sub, setSub] = useState<"cfg" | "kb" | "hist">("cfg");
   const [newId, setNewId] = useState("");
   const [msg, setMsg] = useState("");
+  const [cmds, setCmds] = useState<Record<string, CustomCmd[]>>({});
 
   function set(id: string, patch: Partial<Chat>) { setChats((cs) => cs.map((c) => (c.chatId === id ? { ...c, ...patch } : c))); }
+  function openChat(c: Chat) {
+    const willOpen = openId !== c.chatId;
+    setOpenId(willOpen ? c.chatId : ""); setSub("cfg");
+    if (willOpen) setCmds((m) => (m[c.chatId] ? m : { ...m, [c.chatId]: parseCmds(c.commands) }));
+  }
+  const chatCmds = (c: Chat) => cmds[c.chatId] ?? parseCmds(c.commands);
+  function setChatCmds(id: string, list: CustomCmd[]) { setCmds((m) => ({ ...m, [id]: list })); }
+
   async function save(c: Chat) {
-    const r = await af("/api/admin/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
+    const commands = JSON.stringify(chatCmds(c).filter((x) => x.cmd.trim()));
+    const r = await af("/api/admin/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...c, commands }) });
+    if (r?.ok) set(c.chatId, { commands });
     setMsg(r?.ok ? "Сохранено ✓" : "Не сохранилось"); setTimeout(() => setMsg(""), 1500);
   }
   async function addById() {
@@ -162,7 +197,7 @@ function ChatsTab({ chats, setChats, spaces, roleOpts, af, onGoKb }: { chats: Ch
   const spaceOpts = (cur: string) => Array.from(new Set([...spaces, cur, "default"])).filter(Boolean).map((s) => ({ v: s, t: s }));
 
   return (
-    <div>
+    <div className="admin-subcontent">
       <div className="admin-row" style={{ marginBottom: 18 }}>
         <input placeholder="Добавить чат по id (напр. -1001877817129)" value={newId} onChange={(e) => setNewId(e.target.value)} className="admin-inp" style={{ width: 340 }} />
         <button onClick={addById} className="admin-btn">Добавить</button>
@@ -171,9 +206,10 @@ function ChatsTab({ chats, setChats, spaces, roleOpts, af, onGoKb }: { chats: Ch
       {chats.length === 0 && <div className="admin-hint">Пока пусто. Добавь чат по id или напиши что-нибудь в чат, где есть Ася.</div>}
       {chats.map((c) => {
         const open = openId === c.chatId;
+        const role = roles.find((r) => r.key === c.role);
         return (
           <div key={c.chatId} className="admin-card">
-            <div className="admin-card-head admin-expand" onClick={() => { setOpenId(open ? "" : c.chatId); setSub("cfg"); }} style={{ marginBottom: open ? 16 : 0, justifyContent: "space-between" }}>
+            <div className="admin-card-head admin-expand" onClick={() => openChat(c)} style={{ marginBottom: open ? 16 : 0, justifyContent: "space-between" }}>
               <span style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
                 <b>{c.title || "Без названия"}</b>
                 <code className="admin-id">{c.chatId}</code>
@@ -194,15 +230,35 @@ function ChatsTab({ chats, setChats, spaces, roleOpts, af, onGoKb }: { chats: Ch
                 </div>
 
                 {sub === "cfg" && (
-                  <div>
+                  <div className="admin-subcontent">
                     <div className="admin-fields">
                       <label className="admin-lbl">Роль<Dropdown value={c.role} options={roleOpts} onChange={(v) => set(c.chatId, { role: v })} width={260} /></label>
                       <label className="admin-lbl">Раздел базы знаний<Dropdown value={c.space} options={spaceOpts(c.space)} onChange={(v) => set(c.chatId, { space: v })} width={200} /></label>
-                      <label className="admin-lbl" style={{ alignSelf: "end" }}><span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={c.enabled} onChange={(b) => set(c.chatId, { enabled: b })} /> включена</span></label>
+                      <label className="admin-lbl" style={{ alignSelf: "flex-end" }}><span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={c.enabled} onChange={(b) => set(c.chatId, { enabled: b })} /> включена</span></label>
                     </div>
+
+                    <div style={{ marginTop: 14 }}>
+                      <div className="admin-lbl" style={{ marginBottom: 0 }}>Что сейчас делает роль в этом чате</div>
+                      {c.enabled ? <CapsBadge caps={role?.caps || { support: false, moderation: false, captcha: false }} capLabels={capLabels} /> : <div className="admin-rolebadge"><span className="admin-chip">чат выключен — Ася не реагирует</span></div>}
+                      <div className="admin-hint">Хочешь изменить набор возможностей роли — вкладка «Роли». Кризисные сообщения Ася поддерживает всегда, независимо от роли.</div>
+                    </div>
+
+                    <div style={{ marginTop: 16 }}>
+                      <div className="admin-lbl" style={{ marginBottom: 6 }}>Команды в чате</div>
+                      <div className="admin-hint" style={{ marginTop: 0, marginBottom: 10 }}>Встроенные всегда доступны: <b>/ask &lt;вопрос&gt;</b> — ответить по базе, <b>/rules</b> — правила, <b>/help</b> — список. Ниже — свои команды; в ответе можно вставить <b>{"{arg}"}</b> — текст после команды.</div>
+                      {chatCmds(c).map((cm, idx) => (
+                        <div key={idx} className="admin-cmd-row">
+                          <input className="admin-inp" style={{ width: 150 }} placeholder="/команда" value={cm.cmd} onChange={(e) => { const l = [...chatCmds(c)]; l[idx] = { ...l[idx], cmd: e.target.value }; setChatCmds(c.chatId, l); }} />
+                          <input className="admin-inp" style={{ flex: 1, minWidth: 220 }} placeholder="ответ (можно с {arg})" value={cm.reply} onChange={(e) => { const l = [...chatCmds(c)]; l[idx] = { ...l[idx], reply: e.target.value }; setChatCmds(c.chatId, l); }} />
+                          <button className="admin-btn ghost" style={{ padding: "8px 12px" }} onClick={() => setChatCmds(c.chatId, chatCmds(c).filter((_, j) => j !== idx))}>✕</button>
+                        </div>
+                      ))}
+                      <button className="admin-btn ghost" style={{ padding: "8px 14px", fontSize: 13 }} onClick={() => setChatCmds(c.chatId, [...chatCmds(c), { cmd: "", reply: "" }])}>+ команда</button>
+                    </div>
+
                     <RepoRow c={c} set={set} af={af} />
-                    <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные)" value={c.rules || ""} onChange={(e) => set(c.chatId, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 10, resize: "vertical" }} />
-                    <div style={{ marginTop: 12 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+                    <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные; /rules покажет их)" value={c.rules || ""} onChange={(e) => set(c.chatId, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 12, resize: "vertical" }} />
+                    <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
                   </div>
                 )}
 
@@ -228,7 +284,7 @@ function RepoRow({ c, set, af }: { c: Chat; set: (id: string, patch: Partial<Cha
   }
   return (
     <div>
-      <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
         <input placeholder="Ссылка на репозиторий (GitHub) — опционально" value={c.repoUrl || ""} onChange={(e) => set(c.chatId, { repoUrl: e.target.value })} className="admin-inp" style={{ flex: 1, minWidth: 240 }} />
         <button onClick={check} className="admin-btn ghost" style={{ padding: "9px 14px", fontSize: 13 }} disabled={!c.repoUrl || st.loading}>{st.loading ? "Читаю…" : "Проверить"}</button>
       </div>
@@ -254,7 +310,7 @@ function ChatKb({ c, af, onGoKb }: { c: Chat; af: Fetcher; onGoKb: (sp: string) 
     setDigest({ text: r.digest, count: r.count });
   }
   return (
-    <div>
+    <div className="admin-subcontent">
       <div className="admin-history" style={{ borderTop: "none", paddingTop: 0, marginTop: 0 }}>
         <span className="admin-hist-stat">Раздел «{c.space}»: {arts ? `${arts.length} статей` : "загрузка…"}</span>
         <span style={{ display: "flex", gap: 8 }}>
@@ -288,7 +344,7 @@ function ChatHistory({ chatId, af }: { chatId: string; af: Fetcher }) {
   if (!msgs) return <div className="admin-hint">Загрузка…</div>;
   if (msgs.length === 0) return <div className="admin-hint">История пока пустая — Ася сохраняет сообщения, начиная с подключения чата.</div>;
   return (
-    <div style={{ maxHeight: 420, overflowY: "auto" }}>
+    <div className="admin-subcontent" style={{ maxHeight: 420, overflowY: "auto" }}>
       <div className="admin-hint" style={{ marginTop: 0 }}>Последние {msgs.length} сообщений (Ася хранит их у себя).</div>
       {msgs.map((m, i) => (
         <div key={i} className={`admin-msg${m.fromBot ? " bot" : ""}`}>
@@ -329,7 +385,7 @@ function KbTab({ af, initSpace }: { af: Fetcher; initSpace: string }) {
   const editOpts = Array.from(new Set([...spaces, edit.space, "default"])).filter(Boolean).map((s) => ({ v: s, t: s }));
 
   return (
-    <div>
+    <div className="admin-subcontent">
       <div className="admin-row" style={{ alignItems: "flex-end" }}>
         <label className="admin-lbl">Показать раздел<Dropdown value={space} options={viewOpts} onChange={pick} width={240} /></label>
         <span className="admin-hint" style={{ marginTop: 0, alignSelf: "center" }}>Статей: {articles.length}{spaces.length ? ` · разделов: ${spaces.length}` : ""}</span>
@@ -373,9 +429,7 @@ function RolesTab({ roles, capLabels, af, reload }: { roles: Role[]; capLabels: 
   const [nc, setNc] = useState<Caps>({ support: false, moderation: false, captcha: false });
   useEffect(() => { setLocal(roles); }, [roles]);
 
-  function setCap(key: string, cap: keyof Caps, v: boolean) {
-    setLocal((rs) => rs.map((r) => (r.key === key ? { ...r, caps: { ...r.caps, [cap]: v } } : r)));
-  }
+  function setCap(key: string, cap: keyof Caps, v: boolean) { setLocal((rs) => rs.map((r) => (r.key === key ? { ...r, caps: { ...r.caps, [cap]: v } } : r))); }
   async function save(r: Role) {
     const res = await af("/api/admin/roles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: r.key, title: r.title, caps: r.caps, builtin: r.builtin }) });
     setMsg(res?.ok ? `Роль «${r.title}» сохранена ✓` : "Не сохранилось"); setTimeout(() => setMsg(""), 1600);
@@ -386,10 +440,10 @@ function RolesTab({ roles, capLabels, af, reload }: { roles: Role[]; capLabels: 
     if (!res?.ok) { setMsg("Не получилось создать роль."); return; }
     setNk(""); setNt(""); setNc({ support: false, moderation: false, captcha: false }); reload();
   }
-  const labels = capLabels.length ? capLabels : [{ key: "support", title: "Поддержка", hint: "" }, { key: "moderation", title: "Модерация", hint: "" }, { key: "captcha", title: "Капча новичков", hint: "" }] as CapLabel[];
+  const labels = capLabels.length ? capLabels : ([{ key: "support", title: "Поддержка", hint: "" }, { key: "moderation", title: "Модерация", hint: "" }, { key: "captcha", title: "Капча новичков", hint: "" }] as CapLabel[]);
 
   return (
-    <div>
+    <div className="admin-subcontent">
       <p className="admin-sub">Роль — это набор возможностей. Меняй, что делает каждая роль, или заведи новую под свой сценарий. Чаты выбирают роль в своей настройке.</p>
       {msg && <div style={{ color: "var(--accent)", marginBottom: 12 }}>{msg}</div>}
 
@@ -398,13 +452,13 @@ function RolesTab({ roles, capLabels, af, reload }: { roles: Role[]; capLabels: 
           <div className="admin-card-head"><b>{r.title}</b><code className="admin-id">{r.key}</code>{r.builtin && <code className="admin-id">встроенная</code>}</div>
           <div className="admin-caps">
             {labels.map((cl) => (
-              <label key={cl.key} className="admin-lbl" style={{ maxWidth: 240 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={r.caps[cl.key]} onChange={(v) => setCap(r.key, cl.key, v)} /> {cl.title}</span>
-                {cl.hint && <span className="admin-hint" style={{ marginTop: 4 }}>{cl.hint}</span>}
-              </label>
+              <div key={cl.key} className="admin-cap">
+                <div className="admin-caprow"><Toggle on={r.caps[cl.key]} onChange={(v) => setCap(r.key, cl.key, v)} /> {cl.title}</div>
+                {cl.hint && <div className="admin-cap-hint">{cl.hint}</div>}
+              </div>
             ))}
           </div>
-          <div style={{ marginTop: 12 }}><button onClick={() => save(r)} className="admin-btn accent">Сохранить</button></div>
+          <div style={{ marginTop: 14 }}><button onClick={() => save(r)} className="admin-btn accent">Сохранить</button></div>
         </div>
       ))}
 
@@ -416,10 +470,10 @@ function RolesTab({ roles, capLabels, af, reload }: { roles: Role[]; capLabels: 
         </div>
         <div className="admin-caps" style={{ marginTop: 12 }}>
           {labels.map((cl) => (
-            <label key={cl.key} className="admin-lbl"><span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={nc[cl.key]} onChange={(v) => setNc({ ...nc, [cl.key]: v })} /> {cl.title}</span></label>
+            <div key={cl.key} className="admin-cap"><div className="admin-caprow"><Toggle on={nc[cl.key]} onChange={(v) => setNc({ ...nc, [cl.key]: v })} /> {cl.title}</div>{cl.hint && <div className="admin-cap-hint">{cl.hint}</div>}</div>
           ))}
         </div>
-        <div style={{ marginTop: 12 }}><button onClick={addRole} className="admin-btn accent">Создать роль</button></div>
+        <div style={{ marginTop: 14 }}><button onClick={addRole} className="admin-btn accent">Создать роль</button></div>
       </div>
     </div>
   );
