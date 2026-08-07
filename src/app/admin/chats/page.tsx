@@ -105,7 +105,7 @@ export default function ChatsAdmin() {
         {msg && <span style={{ color: "var(--accent)", alignSelf: "center" }}>{msg}</span>}
       </div>
 
-      {seedErr && <div className="admin-err">Ошибка БД: {seedErr}</div>}
+      {seedErr && <div className="admin-err">База данных сейчас недоступна — показаны известные чаты, но изменения не сохранятся, пока база не поднимется. Детали: {seedErr}</div>}
 
       {loaded && (
         <div className="admin-row" style={{ marginBottom: 22 }}>

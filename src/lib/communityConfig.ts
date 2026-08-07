@@ -47,7 +47,8 @@ export async function listChatConfigs(): Promise<ChatCfg[]> {
     return await db().findMany({ orderBy: { updatedAt: "desc" }, take: 200 });
   } catch (e) {
     console.error("[chatConfig] list:", e instanceof Error ? e.message : String(e));
-    return [];
+    // Подстраховка: показать известные из env чаты, даже если база недоступна (менять их пока нельзя).
+    return envIds().map((id) => synthetic(id));
   }
 }
 
