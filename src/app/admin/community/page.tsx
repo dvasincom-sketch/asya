@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 type Caps = Record<string, boolean>;
 type CapDef = { key: string; title: string; hint: string; group: string; soon?: boolean };
 type CustomCmd = { cmd: string; reply: string };
-type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean; commands?: string | null; caps?: string | null; resolvedCaps?: Caps; msgCount?: number; lastAt?: string | null };
+type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean; commands?: string | null; caps?: string | null; resolvedCaps?: Caps; msgCount?: number; lastAt?: string | null; articleCount?: number };
 type Article = { id: string; space: string; title: string; body: string; source?: string | null };
 type Overview = { chatsConnected: number; chatsTotal: number; messagesStored: number; messagesFromAsya: number; articles: number; spaces: number };
 type HistMsg = { userName: string | null; text: string; fromBot: boolean; createdAt: string };
@@ -21,6 +21,14 @@ function fmtDate(iso?: string | null): string {
 }
 function parseCmds(json?: string | null): CustomCmd[] {
   try { const p = JSON.parse(json || "[]"); return Array.isArray(p) ? p.map((x) => ({ cmd: String(x.cmd || ""), reply: String(x.reply || "") })) : []; } catch { return []; }
+}
+
+function GithubIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style={{ opacity: 0.85 }}>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
 }
 
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
@@ -155,7 +163,7 @@ function DashTab({ overview, onRefresh }: { overview: Overview | null; onRefresh
 }
 
 function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb }: { chats: Chat[]; setChats: (u: (c: Chat[]) => Chat[]) => void; spaces: string[]; capDefs: CapDef[]; groups: string[]; af: Fetcher; reload: () => void; onGoKb: (sp: string) => void }) {
-  const [openId, setOpenId] = useState<string>("");
+  const [selId, setSelId] = useState<string>("");
   const [sub, setSub] = useState<"cfg" | "caps" | "kb" | "hist">("cfg");
   const [newId, setNewId] = useState("");
   const [msg, setMsg] = useState("");
@@ -163,16 +171,14 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
   const [capsById, setCapsById] = useState<Record<string, Caps>>({});
 
   const grp = groups.length ? groups : Array.from(new Set(capDefs.map((c) => c.group)));
+  const selected = chats.find((c) => c.chatId === selId) || null;
 
   function set(id: string, patch: Partial<Chat>) { setChats((cs) => cs.map((c) => (c.chatId === id ? { ...c, ...patch } : c))); }
-  function openChat(c: Chat) {
-    const willOpen = openId !== c.chatId;
-    setOpenId(willOpen ? c.chatId : ""); setSub("cfg");
-    if (willOpen) {
-      setCmds((m) => (m[c.chatId] ? m : { ...m, [c.chatId]: parseCmds(c.commands) }));
-      setCapsById((m) => (m[c.chatId] ? m : { ...m, [c.chatId]: { ...(c.resolvedCaps || {}) } }));
-      if (BUILTIN_TITLES[c.role]) set(c.chatId, { role: BUILTIN_TITLES[c.role] });
-    }
+  function openProject(c: Chat) {
+    setSelId(c.chatId); setSub("cfg");
+    setCmds((m) => (m[c.chatId] ? m : { ...m, [c.chatId]: parseCmds(c.commands) }));
+    setCapsById((m) => (m[c.chatId] ? m : { ...m, [c.chatId]: { ...(c.resolvedCaps || {}) } }));
+    if (BUILTIN_TITLES[c.role]) set(c.chatId, { role: BUILTIN_TITLES[c.role] });
   }
   const chatCmds = (c: Chat) => cmds[c.chatId] ?? parseCmds(c.commands);
   function setChatCmds(id: string, list: CustomCmd[]) { setCmds((m) => ({ ...m, [id]: list })); }
@@ -180,6 +186,10 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
   function setCap(id: string, key: string, v: boolean) { setCapsById((m) => ({ ...m, [id]: { ...(m[id] || {}), [key]: v } })); }
   function setBlock(id: string, group: string, v: boolean) {
     setCapsById((m) => { const cur = { ...(m[id] || {}) }; for (const d of capDefs) if (d.group === group && !d.soon) cur[d.key] = v; return { ...m, [id]: cur }; });
+  }
+  function enabledCount(c: Chat): number {
+    const caps = c.resolvedCaps || {};
+    return capDefs.filter((d) => !d.soon && caps[d.key]).length;
   }
 
   async function save(c: Chat) {
@@ -198,106 +208,111 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
   }
   const spaceOpts = (cur: string) => Array.from(new Set([...spaces, cur, "default"])).filter(Boolean).map((s) => ({ v: s, t: s }));
 
+  // --- Сетка обложек проектов ---
+  if (!selected) {
+    return (
+      <div className="admin-subcontent">
+        <div className="admin-row" style={{ marginBottom: 18 }}>
+          <input placeholder="Добавить проект по id чата (напр. -1001877817129)" value={newId} onChange={(e) => setNewId(e.target.value)} className="admin-inp" style={{ width: 360 }} />
+          <button onClick={addById} className="admin-btn">Добавить</button>
+          {msg && <span style={{ color: "var(--accent)", alignSelf: "center" }}>{msg}</span>}
+        </div>
+        {chats.length === 0 && <div className="admin-hint">Пока пусто. Добавь проект по id чата или напиши что-нибудь в чат, где есть Ася.</div>}
+        <div className="admin-grid">
+          {chats.map((c) => (
+            <div key={c.chatId} className="admin-proj" onClick={() => openProject(c)}>
+              <div className="admin-proj-title">{c.title || "Без названия"}</div>
+              <div className="admin-proj-role">Ася · {BUILTIN_TITLES[c.role] || c.role}</div>
+              <div className="admin-proj-meta">
+                <span><span className={`admin-dot ${c.enabled ? "on" : "off"}`} />{c.enabled ? "активен" : "выключен"}</span>
+                <span>📚 {c.articleCount ?? 0} статей</span>
+                {c.repoUrl && <span><GithubIcon /> GitHub</span>}
+                <span>⚙ {enabledCount(c)} функций</span>
+                <span>💬 {c.msgCount ?? 0} сообщений</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Страница проекта ---
+  const c = selected;
+  const caps = getCaps(c);
   return (
     <div className="admin-subcontent">
-      <div className="admin-row" style={{ marginBottom: 18 }}>
-        <input placeholder="Добавить проект по id чата (напр. -1001877817129)" value={newId} onChange={(e) => setNewId(e.target.value)} className="admin-inp" style={{ width: 360 }} />
-        <button onClick={addById} className="admin-btn">Добавить</button>
-        {msg && <span style={{ color: "var(--accent)", alignSelf: "center" }}>{msg}</span>}
-      </div>
-      {chats.length === 0 && <div className="admin-hint">Пока пусто. Добавь проект по id чата или напиши что-нибудь в чат, где есть Ася.</div>}
-      {chats.map((c) => {
-        const open = openId === c.chatId;
-        const caps = getCaps(c);
-        return (
-          <div key={c.chatId} className="admin-card">
-            <div className="admin-card-head admin-expand" onClick={() => openChat(c)} style={{ marginBottom: open ? 16 : 0, justifyContent: "space-between" }}>
-              <span style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-                <b>{c.title || "Без названия"}</b>
-                <code className="admin-id">{c.chatId}</code>
-                {!c.enabled && <code className="admin-id" style={{ color: "var(--bubble-u1)" }}>выключен</code>}
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="admin-hint" style={{ margin: 0 }}>{BUILTIN_TITLES[c.role] || c.role}</span>
-                <span style={{ opacity: 0.5, transform: open ? "rotate(180deg)" : "none", transition: "0.2s" }}>▾</span>
-              </span>
-            </div>
+      <div className="admin-crumb"><a onClick={() => setSelId("")}>Проекты</a> <span style={{ opacity: 0.5 }}>›</span> <b>{c.title || "Без названия"}</b>{msg && <span style={{ color: "var(--accent)", marginLeft: 10 }}>{msg}</span>}</div>
 
-            {open && (
-              <>
-                <div className="admin-subtabs">
-                  {([["cfg", "Настройка"], ["caps", "Функции"], ["kb", "База знаний"], ["hist", "История"]] as const).map(([s, l]) => (
-                    <div key={s} className={`admin-subtab${sub === s ? " active" : ""}`} onClick={() => setSub(s)}>{l}</div>
+      <div className="admin-subtabs">
+        {([["cfg", "Настройка"], ["caps", "Функции"], ["kb", "База знаний"], ["hist", "История"]] as const).map(([s, l]) => (
+          <div key={s} className={`admin-subtab${sub === s ? " active" : ""}`} onClick={() => setSub(s)}>{l}</div>
+        ))}
+      </div>
+
+      {sub === "cfg" && (
+        <div className="admin-subcontent">
+          <div className="admin-fields">
+            <label className="admin-lbl">Название роли<input value={BUILTIN_TITLES[c.role] || c.role} onChange={(e) => set(c.chatId, { role: e.target.value })} className="admin-inp" style={{ width: 260 }} placeholder="напр. Поддержка BTS" /></label>
+            <label className="admin-lbl">Проект — раздел базы знаний<Dropdown value={c.space} options={spaceOpts(c.space)} onChange={(v) => set(c.chatId, { space: v })} width={220} /></label>
+            <label className="admin-lbl" style={{ alignSelf: "flex-end" }}><span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={c.enabled} onChange={(b) => set(c.chatId, { enabled: b })} /> проект активен</span></label>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <div className="admin-lbl" style={{ marginBottom: 6 }}>Команды в чате</div>
+            <div className="admin-hint" style={{ marginTop: 0, marginBottom: 10 }}>Встроенные (если включён блок «Поддержка» → «Команды»): <b>/ask &lt;вопрос&gt;</b>, <b>/rules</b>, <b>/help</b>, <b>/setup</b> (для админов). Ниже — свои команды; в ответе можно вставить <b>{"{arg}"}</b> — текст после команды.</div>
+            {chatCmds(c).map((cm, idx) => (
+              <div key={idx} className="admin-cmd-row">
+                <input className="admin-inp" style={{ width: 150 }} placeholder="/команда" value={cm.cmd} onChange={(e) => { const l = [...chatCmds(c)]; l[idx] = { ...l[idx], cmd: e.target.value }; setChatCmds(c.chatId, l); }} />
+                <input className="admin-inp" style={{ flex: 1, minWidth: 220 }} placeholder="ответ (можно с {arg})" value={cm.reply} onChange={(e) => { const l = [...chatCmds(c)]; l[idx] = { ...l[idx], reply: e.target.value }; setChatCmds(c.chatId, l); }} />
+                <button className="admin-btn ghost" style={{ padding: "8px 12px" }} onClick={() => setChatCmds(c.chatId, chatCmds(c).filter((_, j) => j !== idx))}>✕</button>
+              </div>
+            ))}
+            <button className="admin-btn ghost" style={{ padding: "8px 14px", fontSize: 13 }} onClick={() => setChatCmds(c.chatId, [...chatCmds(c), { cmd: "", reply: "" }])}>+ команда</button>
+          </div>
+
+          <RepoRow c={c} set={set} af={af} />
+          <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные; /rules покажет их)" value={c.rules || ""} onChange={(e) => set(c.chatId, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 12, resize: "vertical" }} />
+          <div className="admin-hint" style={{ marginTop: 10 }}>id чата: <code className="admin-id">{c.chatId}</code></div>
+          <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+        </div>
+      )}
+
+      {sub === "caps" && (
+        <div className="admin-subcontent">
+          <div className="admin-lbl" style={{ marginBottom: 8 }}>Возможности Аси в этом проекте — включай блоки и функции</div>
+          {grp.map((g) => {
+            const defs = capDefs.filter((d) => d.group === g);
+            const active = defs.filter((d) => !d.soon);
+            const onCount = active.filter((d) => caps[d.key]).length;
+            const allOn = active.length > 0 && onCount === active.length;
+            return (
+              <div key={g} className="admin-block">
+                <div className="admin-block-head">
+                  <span><b>{g}</b> <span className="admin-hint" style={{ margin: 0 }}>· {onCount}/{active.length} включено</span></span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="admin-hint" style={{ margin: 0 }}>весь блок</span><Toggle on={allOn} onChange={(v) => setBlock(c.chatId, g, v)} /></span>
+                </div>
+                <div className="admin-caps">
+                  {defs.map((d) => (
+                    <div key={d.key} className={`admin-cap${d.soon ? " soon" : ""}`}>
+                      <div className="admin-caprow">
+                        <Toggle on={d.soon ? false : Boolean(caps[d.key])} onChange={(v) => { if (!d.soon) setCap(c.chatId, d.key, v); }} />
+                        {d.title}{d.soon && <span className="admin-soon">скоро</span>}
+                      </div>
+                      {d.hint && <div className="admin-cap-hint">{d.hint}</div>}
+                    </div>
                   ))}
                 </div>
+              </div>
+            );
+          })}
+          <div className="admin-hint" style={{ marginTop: 4 }}>Функции с меткой «скоро» пока не работают — включим, когда будут готовы. Кризис-поддержка (блок «Поддержка») срабатывает, только если включена.</div>
+          <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+        </div>
+      )}
 
-                {sub === "cfg" && (
-                  <div className="admin-subcontent">
-                    <div className="admin-fields">
-                      <label className="admin-lbl">Название роли<input value={BUILTIN_TITLES[c.role] || c.role} onChange={(e) => set(c.chatId, { role: e.target.value })} className="admin-inp" style={{ width: 260 }} placeholder="напр. Поддержка BTS" /></label>
-                      <label className="admin-lbl">Проект — раздел базы знаний<Dropdown value={c.space} options={spaceOpts(c.space)} onChange={(v) => set(c.chatId, { space: v })} width={220} /></label>
-                      <label className="admin-lbl" style={{ alignSelf: "flex-end" }}><span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={c.enabled} onChange={(b) => set(c.chatId, { enabled: b })} /> проект активен</span></label>
-                    </div>
-
-                    <div style={{ marginTop: 16 }}>
-                      <div className="admin-lbl" style={{ marginBottom: 6 }}>Команды в чате</div>
-                      <div className="admin-hint" style={{ marginTop: 0, marginBottom: 10 }}>Встроенные (если включён блок «Поддержка» → «Команды»): <b>/ask &lt;вопрос&gt;</b>, <b>/rules</b>, <b>/help</b>, <b>/setup</b> (для админов). Ниже — свои команды; в ответе можно вставить <b>{"{arg}"}</b> — текст после команды.</div>
-                      {chatCmds(c).map((cm, idx) => (
-                        <div key={idx} className="admin-cmd-row">
-                          <input className="admin-inp" style={{ width: 150 }} placeholder="/команда" value={cm.cmd} onChange={(e) => { const l = [...chatCmds(c)]; l[idx] = { ...l[idx], cmd: e.target.value }; setChatCmds(c.chatId, l); }} />
-                          <input className="admin-inp" style={{ flex: 1, minWidth: 220 }} placeholder="ответ (можно с {arg})" value={cm.reply} onChange={(e) => { const l = [...chatCmds(c)]; l[idx] = { ...l[idx], reply: e.target.value }; setChatCmds(c.chatId, l); }} />
-                          <button className="admin-btn ghost" style={{ padding: "8px 12px" }} onClick={() => setChatCmds(c.chatId, chatCmds(c).filter((_, j) => j !== idx))}>✕</button>
-                        </div>
-                      ))}
-                      <button className="admin-btn ghost" style={{ padding: "8px 14px", fontSize: 13 }} onClick={() => setChatCmds(c.chatId, [...chatCmds(c), { cmd: "", reply: "" }])}>+ команда</button>
-                    </div>
-
-                    <RepoRow c={c} set={set} af={af} />
-                    <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные; /rules покажет их)" value={c.rules || ""} onChange={(e) => set(c.chatId, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 12, resize: "vertical" }} />
-                    <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
-                  </div>
-                )}
-
-                {sub === "caps" && (
-                  <div className="admin-subcontent">
-                    <div className="admin-lbl" style={{ marginBottom: 8 }}>Возможности Аси в этом проекте — включай блоки и функции</div>
-                    {grp.map((g) => {
-                      const defs = capDefs.filter((d) => d.group === g);
-                      const active = defs.filter((d) => !d.soon);
-                      const onCount = active.filter((d) => caps[d.key]).length;
-                      const allOn = active.length > 0 && onCount === active.length;
-                      return (
-                        <div key={g} className="admin-block">
-                          <div className="admin-block-head">
-                            <span><b>{g}</b> <span className="admin-hint" style={{ margin: 0 }}>· {onCount}/{active.length} включено</span></span>
-                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="admin-hint" style={{ margin: 0 }}>весь блок</span><Toggle on={allOn} onChange={(v) => setBlock(c.chatId, g, v)} /></span>
-                          </div>
-                          <div className="admin-caps">
-                            {defs.map((d) => (
-                              <div key={d.key} className={`admin-cap${d.soon ? " soon" : ""}`}>
-                                <div className="admin-caprow">
-                                  <Toggle on={d.soon ? false : Boolean(caps[d.key])} onChange={(v) => { if (!d.soon) setCap(c.chatId, d.key, v); }} />
-                                  {d.title}{d.soon && <span className="admin-soon">скоро</span>}
-                                </div>
-                                {d.hint && <div className="admin-cap-hint">{d.hint}</div>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div className="admin-hint" style={{ marginTop: 4 }}>Функции с меткой «скоро» пока не работают — включим, когда будут готовы. Кризис-поддержка (блок «Поддержка») срабатывает, только если включена.</div>
-                    <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
-                  </div>
-                )}
-
-                {sub === "kb" && <ChatKb c={c} af={af} onGoKb={onGoKb} />}
-                {sub === "hist" && <ChatHistory chatId={c.chatId} af={af} />}
-              </>
-            )}
-          </div>
-        );
-      })}
+      {sub === "kb" && <ChatKb c={c} af={af} onGoKb={onGoKb} />}
+      {sub === "hist" && <ChatHistory chatId={c.chatId} af={af} />}
     </div>
   );
 }
@@ -373,7 +388,7 @@ function ChatHistory({ chatId, af }: { chatId: string; af: Fetcher }) {
   if (!msgs) return <div className="admin-hint">Загрузка…</div>;
   if (msgs.length === 0) return <div className="admin-hint">История пока пустая — Ася сохраняет сообщения, начиная с подключения проекта.</div>;
   return (
-    <div className="admin-subcontent" style={{ maxHeight: 420, overflowY: "auto" }}>
+    <div className="admin-subcontent" style={{ maxHeight: 460, overflowY: "auto" }}>
       <div className="admin-hint" style={{ marginTop: 0 }}>Последние {msgs.length} сообщений (Ася хранит их у себя).</div>
       {msgs.map((m, i) => (
         <div key={i} className={`admin-msg${m.fromBot ? " bot" : ""}`}>

@@ -3,6 +3,7 @@ import { listChatConfigs, updateChatConfig, seedEnvChats } from "@/lib/community
 import { listSpaces } from "@/lib/knowledge";
 import { historyStats } from "@/lib/history";
 import { capsForChat } from "@/lib/roles";
+import { sectionCounts } from "@/lib/knowledge";
 import { tgGetChat } from "@/lib/tgbot";
 
 export const runtime = "nodejs";
@@ -23,10 +24,12 @@ export async function GET(req: NextRequest) {
       if (info?.title) { await updateChatConfig(c.chatId, { title: info.title }); c.title = info.title; }
     }
   }
+  const counts = await sectionCounts();
+  const countMap = new Map(counts.map((x) => [x.space, x.count]));
   const withStats = await Promise.all(
     chats.map(async (c) => {
       const [st, resolvedCaps] = await Promise.all([historyStats(c.chatId), capsForChat(c)]);
-      return { ...c, msgCount: st.count, lastAt: st.lastAt, resolvedCaps };
+      return { ...c, msgCount: st.count, lastAt: st.lastAt, resolvedCaps, articleCount: countMap.get(c.space) || 0 };
     }),
   );
   const spaces = await listSpaces();
