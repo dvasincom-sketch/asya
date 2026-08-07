@@ -179,7 +179,7 @@ async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Pr
 
   // --- Поддержка/ответы (для support и both; отвечаем и админам) ---
   if (text && looksLikeQuestion(text)) {
-    const reply = await communitySupportReply(text, cfg.space, cfg.rules || undefined);
+    const reply = await communitySupportReply(text, cfg.space, cfg.rules || undefined, cfg.repoUrl || undefined);
     if (reply) await tgReply(chatId, reply, msgId);
   }
 }

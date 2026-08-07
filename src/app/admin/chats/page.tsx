@@ -57,6 +57,7 @@ export default function ChatsAdmin() {
   const [seedErr, setSeedErr] = useState("");
   const [newId, setNewId] = useState("");
   const [digests, setDigests] = useState<Record<string, { loading?: boolean; text?: string; count?: number; err?: string }>>({});
+  const [repos, setRepos] = useState<Record<string, { loading?: boolean; ok?: boolean; info?: string; preview?: string }>>({});
 
   async function load() {
     const r = await fetch(`/api/admin/chats?key=${encodeURIComponent(key)}`).then((x) => x.json()).catch(() => null);
@@ -81,6 +82,13 @@ export default function ChatsAdmin() {
     const r = await fetch(`/api/admin/chats/digest?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chatId: c.chatId, space: c.space }) }).then((x) => x.json()).catch(() => null);
     if (!r || !r.ok) { setDigests((d) => ({ ...d, [c.chatId]: { err: r?.count === 0 ? "Пока нет сохранённых сообщений для выжимки." : "Не получилось сделать выжимку." } })); return; }
     setDigests((d) => ({ ...d, [c.chatId]: { text: r.digest, count: r.count } }));
+  }
+  async function checkRepo(c: Chat) {
+    if (!c.repoUrl) return;
+    setRepos((s2) => ({ ...s2, [c.chatId]: { loading: true } }));
+    const r = await fetch(`/api/admin/chats/repo?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: c.repoUrl }) }).then((x) => x.json()).catch(() => null);
+    if (!r || !r.ok) { setRepos((s2) => ({ ...s2, [c.chatId]: { ok: false, info: r?.reason === "bad_url" ? "Не распознал ссылку на репозиторий." : "Не удалось прочитать репозиторий — проверь, что он публичный." } })); return; }
+    setRepos((s2) => ({ ...s2, [c.chatId]: { ok: true, info: `${r.repo} — прочитано ${r.chars} символов`, preview: r.preview } }));
   }
 
   const spaceOpts = (cur: string) => Array.from(new Set([...spaces, cur, "default"])).filter(Boolean).map((s) => ({ v: s, t: s }));
@@ -143,7 +151,12 @@ export default function ChatsAdmin() {
           )}
 
           <a href={`/admin/knowledge?key=${encodeURIComponent(key)}&space=${encodeURIComponent(c.space)}`} className="admin-link">База знаний раздела «{c.space}» →</a>
-          <input placeholder="Ссылка на репозиторий (GitHub) — опционально" value={c.repoUrl || ""} onChange={(e) => set(i, { repoUrl: e.target.value })} className="admin-inp" style={{ width: "100%", marginTop: 10 }} />
+          <div className="admin-history" style={{ borderTop: "none", paddingTop: 0, marginTop: 12 }}>
+            <input placeholder="Ссылка на репозиторий (GitHub) — опционально" value={c.repoUrl || ""} onChange={(e) => set(i, { repoUrl: e.target.value })} className="admin-inp" style={{ flex: 1, minWidth: 240 }} />
+            <button onClick={() => checkRepo(c)} className="admin-btn ghost" style={{ padding: "9px 14px", fontSize: 13 }} disabled={!c.repoUrl || repos[c.chatId]?.loading}>{repos[c.chatId]?.loading ? "Читаю…" : "Проверить"}</button>
+          </div>
+          {repos[c.chatId]?.info && <div className="admin-hint" style={{ color: repos[c.chatId]?.ok ? "var(--text-soft)" : "var(--bubble-u1)" }}>{repos[c.chatId]?.info}</div>}
+          {repos[c.chatId]?.preview && <div className="admin-digest" style={{ marginTop: 8 }}><div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.5, color: "var(--text-soft)" }}>{repos[c.chatId]?.preview}…</div></div>}
           <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные)" value={c.rules || ""} onChange={(e) => set(i, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 8, resize: "vertical" }} />
           <div style={{ marginTop: 12 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
         </div>

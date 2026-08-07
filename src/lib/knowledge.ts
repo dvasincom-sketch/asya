@@ -1,5 +1,6 @@
 // База знаний агента поддержки: доступ к статьям + ответ по базе (простой retrieval — вся база раздела в контекст).
 import { complete } from "./timeweb";
+import { fetchRepoContext } from "./repoSource";
 import { prisma } from "./prisma";
 
 export type Article = { id: string; space: string; title: string; body: string; source: string | null; updatedAt?: string };
@@ -61,11 +62,13 @@ ${kbText ? `\nБаза знаний:\n${kbText}` : "\n(База знаний п�
 }
 
 // Ответ комьюнити-менеджера/поддержки по базе знаний раздела. Пусто — если отвечать не нужно.
-export async function communitySupportReply(text: string, space: string, rules?: string): Promise<string> {
+export async function communitySupportReply(text: string, space: string, rules?: string, repoUrl?: string): Promise<string> {
   const t = (text || "").trim();
   if (!t) return "";
-  const articles = await listArticles(space);
-  const raw = await complete([{ role: "user", content: t.slice(0, 1000) }], supportSystem(buildKbContext(articles), rules), 400).catch(() => "");
+  const [articles, repoCtx] = await Promise.all([listArticles(space), fetchRepoContext(repoUrl)]);
+  let ctx = buildKbContext(articles);
+  if (repoCtx) ctx = `${ctx}\n\n## Актуально из репозитория проекта (GitHub)\n${repoCtx}`.slice(0, 16000);
+  const raw = await complete([{ role: "user", content: t.slice(0, 1000) }], supportSystem(ctx, rules), 400).catch(() => "");
   const out = (raw || "").trim();
   if (!out || out.length < 2 || /^["'«»]*$/.test(out)) return "";
   return out;
