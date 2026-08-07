@@ -286,7 +286,7 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
           <RepoRow c={c} set={set} af={af} />
           <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные; /rules покажет их)" value={c.rules || ""} onChange={(e) => set(c.chatId, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 12, resize: "vertical" }} />
           <div className="admin-hint" style={{ marginTop: 10 }}>id чата: <code className="admin-id">{c.chatId}</code></div>
-          <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button>{msg && <span style={{ color: "var(--accent)" }}>{msg}</span>}</div>
         </div>
       )}
 
@@ -319,7 +319,7 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
             );
           })}
           <div className="admin-hint" style={{ marginTop: 4 }}>Функции с меткой «скоро» пока не работают — включим, когда будут готовы. Кризис-поддержка (блок «Поддержка») срабатывает, только если включена.</div>
-          <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button>{msg && <span style={{ color: "var(--accent)" }}>{msg}</span>}</div>
         </div>
       )}
 
