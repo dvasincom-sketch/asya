@@ -251,10 +251,9 @@ function DashTab({ overview, chats, onRefresh }: { overview: Overview | null; ch
   const activeN = chats.filter((c) => c.enabled).length;
   const withKb = chats.filter((c) => (c.articleCount || 0) > 0).length;
 
-  const secs = overview.sections || [];
+  const secs = [...(overview.sections || [])].sort((a, b) => b.count - a.count);
   const total = secs.reduce((s, x) => s + x.count, 0);
-  let acc = 0;
-  const donut = secs.map((x, i) => { const pct = total ? (x.count / total) * 100 : 0; const seg2 = { color: DONUT_PAL[i % DONUT_PAL.length], dash: `${pct} ${100 - pct}`, offset: 25 - acc }; acc += pct; return { ...x, ...seg2 }; });
+  const maxSec = Math.max(1, ...secs.map((x) => x.count));
 
   return (
     <div className="admin-subcontent">
@@ -301,19 +300,15 @@ function DashTab({ overview, chats, onRefresh }: { overview: Overview | null; ch
 
         <div className="admin-card2">
           <div className="admin-card2-h"><h3>База знаний</h3></div>
-          <div className="admin-card2-b" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <svg width="150" height="150" viewBox="0 0 42 42" style={{ transform: "rotate(-90deg)" }}>
-              <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--glass)" strokeWidth="5" />
-              {donut.map((d) => (
-                <circle key={d.space} cx="21" cy="21" r="15.9155" fill="none" stroke={d.color} strokeWidth="5" strokeDasharray={d.dash} strokeDashoffset={d.offset} />
-              ))}
-              <text x="21" y="21.5" textAnchor="middle" fontSize="7" fontWeight="700" fill="var(--text)" transform="rotate(90 21 21)">{total}</text>
-            </svg>
-            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 9 }}>
-              {donut.length === 0 && <div className="admin-hint" style={{ margin: 0 }}>Пока нет статей.</div>}
-              {donut.map((d) => (
-                <div key={d.space} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13.5 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 9, color: "var(--text-soft)" }}><span style={{ width: 11, height: 11, borderRadius: 4, background: d.color }} /> {d.space}</span><b>{d.count}</b>
+          <div className="admin-card2-b">
+            <div className="admin-kbsum"><b>{total}</b> {total === 1 ? "статья" : "статей"} · {secs.length} {secs.length === 1 ? "раздел" : "разделов"}</div>
+            <div className="admin-roles" style={{ marginTop: 16, marginBottom: 0 }}>
+              {secs.length === 0 && <div className="admin-hint" style={{ margin: 0 }}>Пока нет статей.</div>}
+              {secs.map((x, i) => (
+                <div key={x.space} className="admin-rolerow">
+                  <span className="admin-role-name"><span className="admin-role-dot" style={{ background: DONUT_PAL[i % DONUT_PAL.length] }} />{x.space}</span>
+                  <span className="admin-role-track"><span className="admin-role-fill" style={{ width: `${(x.count / maxSec) * 100}%`, background: DONUT_PAL[i % DONUT_PAL.length] }} /></span>
+                  <b>{x.count}</b>
                 </div>
               ))}
             </div>

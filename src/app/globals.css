@@ -1596,3 +1596,7 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 /* Компактнее вертикаль в карточках-метриках */
 .admin-tile .num { margin-top: 12px; }
 @media (max-width: 820px) { .admin-rolerow { grid-template-columns: 116px 1fr auto; } }
+
+/* Сводка базы знаний в карточке дашборда */
+.admin-kbsum { font-size: 14px; color: var(--text-soft); }
+.admin-kbsum b { font-size: 26px; font-weight: 750; color: var(--text); letter-spacing: -0.02em; margin-right: 6px; }
