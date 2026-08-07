@@ -1487,3 +1487,64 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
   .admin-nav { flex-direction: row; flex-wrap: wrap; }
   .admin-navgroup { width: 100%; }
 }
+
+/* ==================== РЕДИЗАЙН АДМИНКИ: светлая тема по умолчанию ==================== */
+.admin-wrap {
+  --bg1: #f3f4f7; --surface: #ffffff; --glass: #f5f6f9; --line: #e9ebf0;
+  --text: #1b1c24; --text-soft: #6b7280; --text-dim: #9aa1ac; --accent: #7c5cff;
+  --accent-soft: rgba(124, 92, 255, 0.12);
+  --bubble-u1: #f7a1bc; --bubble-u2: #b79aef; --bubble-u-text: #ffffff;
+  --crisis: #fff3f1; --crisis-border: #ffd9d2;
+  --admin-bg: #f3f4f7; --admin-panel: #ffffff;
+  --a-shadow: 0 1px 2px rgba(16,24,40,.05), 0 16px 34px -20px rgba(16,24,40,.18);
+  background: var(--admin-bg); color: var(--text);
+}
+.admin-wrap[data-theme="dark"] {
+  --bg1: #0b0810; --surface: #17131f; --glass: rgba(255,255,255,.055); --line: rgba(255,255,255,.09);
+  --text: #f4edf6; --text-soft: #b6a5c6; --text-dim: #8a7a9a; --accent: #cdaaf0;
+  --accent-soft: rgba(205,170,240,.16);
+  --crisis: rgba(255,190,170,.1); --crisis-border: rgba(255,175,150,.35);
+  --admin-bg: #0b0810; --admin-panel: #141019;
+  --a-shadow: 0 1px 2px rgba(0,0,0,.4), 0 22px 55px -32px rgba(0,0,0,.85);
+}
+
+/* Мягкие тени и радиусы на всех поверхностях */
+.admin-panel { box-shadow: var(--a-shadow); border-radius: 18px; }
+.admin-side { box-shadow: var(--a-shadow); border-radius: 18px; padding: 16px 12px; }
+.admin-card { box-shadow: var(--a-shadow); border-radius: 16px; }
+.admin-proj { box-shadow: var(--a-shadow); }
+.admin-tile { box-shadow: var(--a-shadow); border-radius: 16px; padding: 18px 20px; }
+.admin-subtabs { box-shadow: none; }
+
+/* Топбар + бургер */
+.admin-topbar { justify-content: flex-start; gap: 12px; }
+.admin-topbar .admin-h1 { font-size: 22px; }
+.admin-burger { display: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; box-shadow: var(--a-shadow); }
+.admin-scrim { position: fixed; inset: 0; background: rgba(12,14,22,.45); z-index: 40; }
+
+/* Карточки-метрики */
+.admin-tile-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.admin-tile-ic { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); flex: 0 0 auto; }
+.admin-tile .lbl { margin-top: 0; font-size: 13px; }
+.admin-tile .num { font-size: 30px; }
+
+/* Сайдбар: активный пункт мягкой заливкой акцента */
+.admin-navitem.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.admin-navitem.active svg { opacity: 1; }
+.admin-logo { border-radius: 9px; }
+
+/* Десктоп: скрыть бургер и затемнение */
+@media (min-width: 821px) {
+  .admin-burger, .admin-scrim { display: none !important; }
+}
+
+/* Мобайл: сайдбар как выезжающая панель */
+@media (max-width: 820px) {
+  .admin-shell { flex-direction: row; padding: 14px; }
+  .admin-side { position: fixed; top: 0; left: 0; bottom: 0; width: 264px; max-width: 84vw; border-radius: 0 18px 18px 0; transform: translateX(-106%); transition: transform 0.25s ease; z-index: 50; overflow-y: auto; }
+  .admin-side.open { transform: none; }
+  .admin-nav { flex-direction: column; flex-wrap: nowrap; }
+  .admin-burger { display: inline-flex; }
+  .admin-main { width: 100%; }
+  .admin-panel { padding: 18px 16px 40px; }
+}

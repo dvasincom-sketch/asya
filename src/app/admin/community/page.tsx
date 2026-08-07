@@ -55,6 +55,9 @@ function IconBell() {
 function IconSpark() {
   return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2" /></svg>);
 }
+function IconMenu() {
+  return (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>);
+}
 
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
   const [open, setOpen] = useState(false);
@@ -92,7 +95,8 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<"dash" | "chats" | "kb" | "data">("dash");
   const [err, setErr] = useState("");
   const [kbInit, setKbInit] = useState("");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [sideOpen, setSideOpen] = useState(false);
 
   const [overview, setOverview] = useState<Overview | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -153,7 +157,7 @@ export default function AdminDashboard() {
 
   if (!loaded) {
     return (
-      <div className="admin-wrap" data-theme={theme === "light" ? "day" : undefined}>
+      <div className="admin-wrap" data-theme={theme === "dark" ? "dark" : undefined}>
         <div className="admin-shell">
           <main className="admin-main">
             <div className="admin-panel">
@@ -173,15 +177,16 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="admin-wrap" data-theme={theme === "light" ? "day" : undefined}>
+    <div className="admin-wrap" data-theme={theme === "dark" ? "dark" : undefined}>
       <div className="admin-shell">
-        <aside className="admin-side">
+        {sideOpen && <div className="admin-scrim" onClick={() => setSideOpen(false)} />}
+        <aside className={`admin-side${sideOpen ? " open" : ""}`}>
           <div className="admin-brand"><span className="admin-logo">А</span> Ася</div>
           <nav className="admin-nav">
             {NAV.map((it, i) => it.group
               ? <div key={`g${i}`} className="admin-navgroup">{it.group}</div>
               : (
-                <button key={it.k || `s${i}`} className={`admin-navitem${it.soon ? " soon" : ""}${!it.soon && tab === it.k ? " active" : ""}`} onClick={() => { if (!it.soon && it.k) setTab(it.k); }} disabled={it.soon}>
+                <button key={it.k || `s${i}`} className={`admin-navitem${it.soon ? " soon" : ""}${!it.soon && tab === it.k ? " active" : ""}`} onClick={() => { if (!it.soon && it.k) { setTab(it.k); setSideOpen(false); } }} disabled={it.soon}>
                   {it.icon}<span>{it.label}</span>{it.soon && <span className="admin-soon" style={{ marginLeft: "auto" }}>скоро</span>}
                 </button>
               ))}
@@ -194,6 +199,7 @@ export default function AdminDashboard() {
 
         <main className="admin-main">
           <div className="admin-topbar">
+            <button className="admin-burger" onClick={() => setSideOpen(true)} aria-label="Меню"><IconMenu /></button>
             <h1 className="admin-h1" style={{ margin: 0 }}>{titles[tab]}</h1>
           </div>
           <div className="admin-panel">
@@ -211,18 +217,23 @@ export default function AdminDashboard() {
 
 function DashTab({ overview, onRefresh }: { overview: Overview | null; onRefresh: () => void }) {
   if (!overview) return <div className="admin-hint">Нет данных.</div>;
-  const tiles: { num: number; lbl: string }[] = [
-    { num: overview.chatsConnected, lbl: "Активных проектов" },
-    { num: overview.chatsTotal, lbl: "Всего проектов" },
-    { num: overview.messagesStored, lbl: "Сообщений в истории" },
-    { num: overview.messagesFromAsya, lbl: "Ответов Аси" },
-    { num: overview.articles, lbl: "Статей в базе" },
-    { num: overview.spaces, lbl: "Разделов базы" },
+  const tiles: { num: number; lbl: string; icon: ReactNode }[] = [
+    { num: overview.chatsConnected, lbl: "Активных проектов", icon: <IconGrid /> },
+    { num: overview.chatsTotal, lbl: "Всего проектов", icon: <IconGrid /> },
+    { num: overview.messagesStored, lbl: "Сообщений в истории", icon: <IconChat /> },
+    { num: overview.messagesFromAsya, lbl: "Ответов Аси", icon: <IconSpark /> },
+    { num: overview.articles, lbl: "Статей в базе", icon: <IconDoc /> },
+    { num: overview.spaces, lbl: "Разделов базы", icon: <IconDb /> },
   ];
   return (
     <div className="admin-subcontent">
       <div className="admin-tiles">
-        {tiles.map((t) => (<div key={t.lbl} className="admin-tile"><div className="num">{t.num}</div><div className="lbl">{t.lbl}</div></div>))}
+        {tiles.map((t) => (
+          <div key={t.lbl} className="admin-tile">
+            <div className="admin-tile-top"><span className="admin-tile-ic">{t.icon}</span><span className="lbl">{t.lbl}</span></div>
+            <div className="num">{t.num}</div>
+          </div>
+        ))}
       </div>
       <div style={{ marginTop: 16 }}><button onClick={onRefresh} className="admin-btn ghost">Обновить</button></div>
       <p className="admin-hint">История сообщений копится с момента подключения проекта (Telegram не отдаёт переписку задним числом). «Ответов Аси» — сколько раз она ответила по существу (поддержка, команды, кризис).</p>
