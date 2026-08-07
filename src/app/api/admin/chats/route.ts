@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { listChatConfigs, updateChatConfig, seedEnvChats } from "@/lib/communityConfig";
 import { listSpaces } from "@/lib/knowledge";
 import { historyStats } from "@/lib/history";
+import { capsForChat } from "@/lib/roles";
 import { tgGetChat } from "@/lib/tgbot";
 
 export const runtime = "nodejs";
@@ -24,8 +25,8 @@ export async function GET(req: NextRequest) {
   }
   const withStats = await Promise.all(
     chats.map(async (c) => {
-      const st = await historyStats(c.chatId);
-      return { ...c, msgCount: st.count, lastAt: st.lastAt };
+      const [st, resolvedCaps] = await Promise.all([historyStats(c.chatId), capsForChat(c)]);
+      return { ...c, msgCount: st.count, lastAt: st.lastAt, resolvedCaps };
     }),
   );
   const spaces = await listSpaces();

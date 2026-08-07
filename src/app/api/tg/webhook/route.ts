@@ -9,7 +9,7 @@ import { casBanned, suspiciousName, hasLink, judgeSpam, looksLikeQuestion } from
 import { communitySupportReply, COMMUNITY_RULES } from "@/lib/knowledge";
 import { getChatConfig, type ChatCfg } from "@/lib/communityConfig";
 import { saveMessage } from "@/lib/history";
-import { capsForRole, CAP_REGISTRY } from "@/lib/roles";
+import { capsForChat, CAP_REGISTRY } from "@/lib/roles";
 
 export const runtime = "nodejs";
 
@@ -114,7 +114,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
       if (msgId) await tgDeleteMessage(chatId, msgId);
       try {
         const cfg = await getChatConfig(chatId);
-        const caps = await capsForRole(cfg?.role || "off");
+        const caps = cfg ? await capsForChat(cfg) : {};
         if (cfg && cfg.enabled && caps.welcome && cb.from) await welcomeMessage(chatId, cb.from, cfg);
       } catch { /* приветствие не критично */ }
     } else {
@@ -126,7 +126,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 }
 
 async function handleCommunity(msg: TgMessage, chatId: number, cfg: ChatCfg): Promise<void> {
-  const caps = await capsForRole(cfg.role);
+  const caps = await capsForChat(cfg);
 
   // Вход новичков.
   if (msg.new_chat_members?.length) {
@@ -227,7 +227,7 @@ async function handleCommand(chatId: number, msgId: number | undefined, text: st
 
   if (cmd === "setup") {
     if (!isAdmin) { await tgReply(chatId, "Команда /setup доступна администраторам чата.", msgId); return true; }
-    const caps = await capsForRole(cfg.role);
+    const caps = await capsForChat(cfg);
     const on = CAP_REGISTRY.filter((cd) => caps[cd.key]).map((cd) => cd.title);
     const lines = [
       `Роль: ${cfg.role}`,

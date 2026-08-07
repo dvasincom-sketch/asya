@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { listChatConfigs } from "@/lib/communityConfig";
 import { listArticles, listSpaces } from "@/lib/knowledge";
 import { totalStoredMessages, totalFromBot } from "@/lib/history";
-import { capsForRole, seedRoles, anyCap } from "@/lib/roles";
+import { capsForChat, anyCap } from "@/lib/roles";
 
 export const runtime = "nodejs";
 
@@ -13,11 +13,10 @@ function authed(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!authed(req)) return Response.json({ error: "auth" }, { status: 401 });
-  await seedRoles();
   const chats = await listChatConfigs();
   let connected = 0;
   for (const c of chats) {
-    const caps = await capsForRole(c.role);
+    const caps = await capsForChat(c);
     if (c.enabled && anyCap(caps)) connected++;
   }
   const [messagesStored, messagesFromAsya, articles, spaces] = await Promise.all([

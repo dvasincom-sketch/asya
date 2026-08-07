@@ -1432,3 +1432,8 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .admin-secpill.active { background: linear-gradient(135deg, var(--bubble-u1), var(--bubble-u2)); color: var(--bubble-u-text); border-color: transparent; font-weight: 600; }
 .admin-seccount { font-size: 11px; padding: 1px 7px; border-radius: 8px; background: rgba(0,0,0,.18); }
 .admin-grouplbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 4px 0 8px; }
+
+/* --- Блоки функций внутри настройки проекта --- */
+.admin-block { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.admin-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.admin-block-head b { font-size: 15px; }

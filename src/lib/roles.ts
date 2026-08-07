@@ -116,6 +116,20 @@ export async function seedRoles(): Promise<void> {
   }
 }
 
+// Возможности из JSON, сохранённого у проекта (чата). null — если не задано.
+export function capsFromJson(json?: string | null): Caps | null {
+  if (!json) return null;
+  try { const p = JSON.parse(json); if (p && typeof p === "object") return normalizeCaps(p); } catch { /* ignore */ }
+  return null;
+}
+
+// Возможности конкретного проекта: сначала его собственный набор, иначе — по старому ключу роли (совместимость).
+export async function capsForChat(cfg: { caps?: string | null; role: string }): Promise<Caps> {
+  const own = capsFromJson(cfg.caps);
+  if (own) return own;
+  return capsForRole(cfg.role);
+}
+
 // Есть ли у роли хоть одна включённая возможность.
 export function anyCap(caps: Caps): boolean {
   return ALL_KEYS.some((k) => caps[k]);

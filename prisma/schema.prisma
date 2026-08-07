@@ -480,6 +480,7 @@ model ChatConfig {
   chatId    String   @id
   title     String?
   role      String   @default("support")
+  caps      String?
   space     String   @default("default")
   rules     String?
   repoUrl   String?
