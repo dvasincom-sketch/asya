@@ -31,6 +31,16 @@ function GithubIcon() {
   );
 }
 
+function IconDoc() {
+  return (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>);
+}
+function IconGear() {
+  return (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>);
+}
+function IconChat() {
+  return (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>);
+}
+
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
   const [open, setOpen] = useState(false);
   const cur = options.find((o) => o.v === value);
@@ -110,6 +120,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-wrap">
+      <div className="admin-panel">
       <h1 className="admin-h1">Ася — панель управления</h1>
       <p className="admin-sub">Комьюнити-менеджер, поддержка и база знаний в одном месте.</p>
 
@@ -137,6 +148,7 @@ export default function AdminDashboard() {
           {tab === "kb" && <KbTab af={af} initSpace={kbInit} />}
         </>
       )}
+      </div>
     </div>
   );
 }
@@ -222,13 +234,13 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
           {chats.map((c) => (
             <div key={c.chatId} className="admin-proj" onClick={() => openProject(c)}>
               <div className="admin-proj-title">{c.title || "Без названия"}</div>
-              <div className="admin-proj-role">Ася · {BUILTIN_TITLES[c.role] || c.role}</div>
+              <div className="admin-proj-role">{BUILTIN_TITLES[c.role] || c.role}</div>
               <div className="admin-proj-meta">
                 <span><span className={`admin-dot ${c.enabled ? "on" : "off"}`} />{c.enabled ? "активен" : "выключен"}</span>
-                <span>📚 {c.articleCount ?? 0} статей</span>
+                <span><IconDoc /> {c.articleCount ?? 0} статей</span>
                 {c.repoUrl && <span><GithubIcon /> GitHub</span>}
-                <span>⚙ {enabledCount(c)} функций</span>
-                <span>💬 {c.msgCount ?? 0} сообщений</span>
+                <span><IconGear /> {enabledCount(c)} функций</span>
+                <span><IconChat /> {c.msgCount ?? 0} сообщений</span>
               </div>
             </div>
           ))}
