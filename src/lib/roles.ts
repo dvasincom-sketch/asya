@@ -4,7 +4,7 @@ import { prisma } from "./prisma";
 
 export type Caps = Record<string, boolean>;
 export type Role = { key: string; title: string; caps: Caps; builtin: boolean };
-export type CapDef = { key: string; title: string; hint: string; group: string };
+export type CapDef = { key: string; title: string; hint: string; group: string; soon?: boolean };
 
 export const CAP_GROUPS = ["Поддержка", "Новички", "Модерация"];
 
@@ -24,6 +24,13 @@ export const CAP_REGISTRY: CapDef[] = [
   { key: "delLong", title: "Удалять длинные", hint: "Удаляет сообщения длиннее 400 символов", group: "Модерация" },
   { key: "delPlus", title: "Удалять «+»", hint: "Удаляет пустые сообщения из «+» и эмодзи", group: "Модерация" },
   { key: "spamJudge", title: "Ловить спам (ИИ)", hint: "Проверяет подозрительные сообщения моделью и удаляет спам", group: "Модерация" },
+  // Планируется (пока не работает) — помечено «скоро».
+  { key: "escalation", title: "Эскалация админу", hint: "Если ответа нет в базе — пингует ответственного, а не отвечает в пустоту", group: "Поддержка", soon: true },
+  { key: "digestSchedule", title: "Авто-выжимка по расписанию", hint: "Регулярно собирает выжимку из истории чата без ручного нажатия", group: "Поддержка", soon: true },
+  { key: "captchaKick", title: "Кик по таймауту капчи", hint: "Удаляет новичка, если он не прошёл проверку за отведённое время", group: "Новички", soon: true },
+  { key: "antiflood", title: "Антифлуд", hint: "Ограничивает частоту сообщений от одного участника", group: "Модерация", soon: true },
+  { key: "warnSystem", title: "Предупреждения и репутация", hint: "Копит предупреждения нарушителям, мьют/бан по порогу", group: "Модерация", soon: true },
+  { key: "nightMode", title: "Ночной режим", hint: "Приглушает или закрывает чат на ночь по расписанию", group: "Модерация", soon: true },
 ];
 
 const ALL_KEYS = CAP_REGISTRY.map((c) => c.key);

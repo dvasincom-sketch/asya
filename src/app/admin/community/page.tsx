@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Caps = Record<string, boolean>;
-type CapDef = { key: string; title: string; hint: string; group: string };
+type CapDef = { key: string; title: string; hint: string; group: string; soon?: boolean };
 type CustomCmd = { cmd: string; reply: string };
 type Chat = { chatId: string; title: string | null; role: string; space: string; rules: string | null; repoUrl: string | null; enabled: boolean; commands?: string | null; caps?: string | null; resolvedCaps?: Caps; msgCount?: number; lastAt?: string | null };
 type Article = { id: string; space: string; title: string; body: string; source?: string | null };
@@ -156,7 +156,7 @@ function DashTab({ overview, onRefresh }: { overview: Overview | null; onRefresh
 
 function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb }: { chats: Chat[]; setChats: (u: (c: Chat[]) => Chat[]) => void; spaces: string[]; capDefs: CapDef[]; groups: string[]; af: Fetcher; reload: () => void; onGoKb: (sp: string) => void }) {
   const [openId, setOpenId] = useState<string>("");
-  const [sub, setSub] = useState<"cfg" | "kb" | "hist">("cfg");
+  const [sub, setSub] = useState<"cfg" | "caps" | "kb" | "hist">("cfg");
   const [newId, setNewId] = useState("");
   const [msg, setMsg] = useState("");
   const [cmds, setCmds] = useState<Record<string, CustomCmd[]>>({});
@@ -179,7 +179,7 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
   const getCaps = (c: Chat) => capsById[c.chatId] ?? c.resolvedCaps ?? {};
   function setCap(id: string, key: string, v: boolean) { setCapsById((m) => ({ ...m, [id]: { ...(m[id] || {}), [key]: v } })); }
   function setBlock(id: string, group: string, v: boolean) {
-    setCapsById((m) => { const cur = { ...(m[id] || {}) }; for (const d of capDefs) if (d.group === group) cur[d.key] = v; return { ...m, [id]: cur }; });
+    setCapsById((m) => { const cur = { ...(m[id] || {}) }; for (const d of capDefs) if (d.group === group && !d.soon) cur[d.key] = v; return { ...m, [id]: cur }; });
   }
 
   async function save(c: Chat) {
@@ -226,7 +226,7 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
             {open && (
               <>
                 <div className="admin-subtabs">
-                  {([["cfg", "Настройка"], ["kb", "База знаний"], ["hist", "История"]] as const).map(([s, l]) => (
+                  {([["cfg", "Настройка"], ["caps", "Функции"], ["kb", "База знаний"], ["hist", "История"]] as const).map(([s, l]) => (
                     <div key={s} className={`admin-subtab${sub === s ? " active" : ""}`} onClick={() => setSub(s)}>{l}</div>
                   ))}
                 </div>
@@ -237,32 +237,6 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
                       <label className="admin-lbl">Название роли<input value={BUILTIN_TITLES[c.role] || c.role} onChange={(e) => set(c.chatId, { role: e.target.value })} className="admin-inp" style={{ width: 260 }} placeholder="напр. Поддержка BTS" /></label>
                       <label className="admin-lbl">Проект — раздел базы знаний<Dropdown value={c.space} options={spaceOpts(c.space)} onChange={(v) => set(c.chatId, { space: v })} width={220} /></label>
                       <label className="admin-lbl" style={{ alignSelf: "flex-end" }}><span style={{ display: "flex", alignItems: "center", gap: 8 }}><Toggle on={c.enabled} onChange={(b) => set(c.chatId, { enabled: b })} /> проект активен</span></label>
-                    </div>
-
-                    <div style={{ marginTop: 16 }}>
-                      <div className="admin-lbl" style={{ marginBottom: 8 }}>Функционал — включи нужные блоки и функции</div>
-                      {grp.map((g) => {
-                        const defs = capDefs.filter((d) => d.group === g);
-                        const onCount = defs.filter((d) => caps[d.key]).length;
-                        const allOn = onCount === defs.length && defs.length > 0;
-                        return (
-                          <div key={g} className="admin-block">
-                            <div className="admin-block-head">
-                              <span><b>{g}</b> <span className="admin-hint" style={{ margin: 0 }}>· {onCount}/{defs.length} включено</span></span>
-                              <span style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="admin-hint" style={{ margin: 0 }}>весь блок</span><Toggle on={allOn} onChange={(v) => setBlock(c.chatId, g, v)} /></span>
-                            </div>
-                            <div className="admin-caps">
-                              {defs.map((d) => (
-                                <div key={d.key} className="admin-cap">
-                                  <div className="admin-caprow"><Toggle on={Boolean(caps[d.key])} onChange={(v) => setCap(c.chatId, d.key, v)} /> {d.title}</div>
-                                  {d.hint && <div className="admin-cap-hint">{d.hint}</div>}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      <div className="admin-hint" style={{ marginTop: 4 }}>Кризис-поддержка (в блоке «Поддержка») работает, только если включена. Остальное — как настроишь.</div>
                     </div>
 
                     <div style={{ marginTop: 16 }}>
@@ -280,7 +254,40 @@ function ChatsTab({ chats, setChats, spaces, capDefs, groups, af, reload, onGoKb
 
                     <RepoRow c={c} set={set} af={af} />
                     <textarea placeholder="Свои правила чата (опц., переопределяют дефолтные; /rules покажет их)" value={c.rules || ""} onChange={(e) => set(c.chatId, { rules: e.target.value })} rows={3} className="admin-inp" style={{ width: "100%", marginTop: 12, resize: "vertical" }} />
-                    <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить роль</button></div>
+                    <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+                  </div>
+                )}
+
+                {sub === "caps" && (
+                  <div className="admin-subcontent">
+                    <div className="admin-lbl" style={{ marginBottom: 8 }}>Возможности Аси в этом проекте — включай блоки и функции</div>
+                    {grp.map((g) => {
+                      const defs = capDefs.filter((d) => d.group === g);
+                      const active = defs.filter((d) => !d.soon);
+                      const onCount = active.filter((d) => caps[d.key]).length;
+                      const allOn = active.length > 0 && onCount === active.length;
+                      return (
+                        <div key={g} className="admin-block">
+                          <div className="admin-block-head">
+                            <span><b>{g}</b> <span className="admin-hint" style={{ margin: 0 }}>· {onCount}/{active.length} включено</span></span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="admin-hint" style={{ margin: 0 }}>весь блок</span><Toggle on={allOn} onChange={(v) => setBlock(c.chatId, g, v)} /></span>
+                          </div>
+                          <div className="admin-caps">
+                            {defs.map((d) => (
+                              <div key={d.key} className={`admin-cap${d.soon ? " soon" : ""}`}>
+                                <div className="admin-caprow">
+                                  <Toggle on={d.soon ? false : Boolean(caps[d.key])} onChange={(v) => { if (!d.soon) setCap(c.chatId, d.key, v); }} />
+                                  {d.title}{d.soon && <span className="admin-soon">скоро</span>}
+                                </div>
+                                {d.hint && <div className="admin-cap-hint">{d.hint}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="admin-hint" style={{ marginTop: 4 }}>Функции с меткой «скоро» пока не работают — включим, когда будут готовы. Кризис-поддержка (блок «Поддержка») срабатывает, только если включена.</div>
+                    <div style={{ marginTop: 14 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
                   </div>
                 )}
 

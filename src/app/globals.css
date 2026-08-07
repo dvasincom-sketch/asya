@@ -1371,7 +1371,7 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 }
 
 /* ============ Админка (чаты + база знаний) — плоский тёмный фон, без градиента ============ */
-.admin-wrap { position: fixed; inset: 0; z-index: 1; background: var(--bg1); padding: 44px 24px 90px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
+.admin-wrap { position: fixed; inset: 0; z-index: 1; background: #0b0810; padding: 44px 24px 90px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
 .admin-wrap > * { width: 100%; max-width: 880px; }
 .admin-back { color: var(--text-soft); font-size: 13px; text-decoration: none; margin-bottom: 14px; display: inline-block; }
 .admin-back:hover { color: var(--accent); }
@@ -1434,6 +1434,10 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 .admin-grouplbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 4px 0 8px; }
 
 /* --- Блоки функций внутри настройки проекта --- */
-.admin-block { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.admin-block { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; background: var(--glass); }
 .admin-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .admin-block-head b { font-size: 15px; }
+
+/* --- Функции «скоро» --- */
+.admin-cap.soon { opacity: 0.6; }
+.admin-soon { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 7px; border: 1px dashed var(--line); color: var(--text-dim); margin-left: 6px; }
