@@ -58,6 +58,9 @@ function IconSpark() {
 function IconMenu() {
   return (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>);
 }
+function IconChart() {
+  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><rect x="7" y="11" width="3" height="6" rx="1" /><rect x="12.5" y="7" width="3" height="10" rx="1" /><rect x="18" y="13" width="3" height="4" rx="1" /></svg>);
+}
 
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
   const [open, setOpen] = useState(false);
@@ -92,7 +95,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (b: boolean) => void 
 export default function AdminDashboard() {
   const [key, setKey] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<"dash" | "chats" | "kb" | "data">("dash");
+  const [tab, setTab] = useState<"dash" | "stats" | "chats" | "kb" | "data">("dash");
   const [err, setErr] = useState("");
   const [kbInit, setKbInit] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("light");
@@ -141,9 +144,10 @@ export default function AdminDashboard() {
   function toggleTheme() {
     setTheme((t) => { const n = t === "light" ? "dark" : "light"; try { window.localStorage.setItem("asya_admin_theme", n); } catch { /* ignore */ } return n; });
   }
-  const NAV: Array<{ group?: string; k?: "dash" | "chats" | "kb" | "data"; label?: string; icon?: ReactNode; soon?: boolean }> = [
+  const NAV: Array<{ group?: string; k?: "dash" | "stats" | "chats" | "kb" | "data"; label?: string; icon?: ReactNode; soon?: boolean }> = [
     { group: "Обзор" },
     { k: "dash", label: "Дашборд", icon: <IconGauge /> },
+    { k: "stats", label: "Аналитика", icon: <IconChart /> },
     { k: "data", label: "Данные", icon: <IconDb /> },
     { group: "Управление" },
     { k: "chats", label: "Проекты", icon: <IconGrid /> },
@@ -153,9 +157,10 @@ export default function AdminDashboard() {
     { label: "Уведомления", icon: <IconBell />, soon: true },
   ];
 
-  const titles: Record<string, string> = { dash: "С возвращением", chats: "Проекты", kb: "База знаний", data: "Данные" };
+  const titles: Record<string, string> = { dash: "С возвращением", stats: "Аналитика", chats: "Проекты", kb: "База знаний", data: "Данные" };
   const subtitles: Record<string, string> = {
     dash: "Обзор проектов Аси, поддержки и базы знаний.",
+    stats: "Воронка, удержание и пользователи приложения.",
     chats: "Чаты, где работает Ася, и их настройки.",
     kb: "Статьи, по которым Ася отвечает участникам.",
     data: "Что реально хранится в базе на твоём сервере.",
@@ -220,6 +225,7 @@ export default function AdminDashboard() {
           <div className="admin-content">
             {seedErr && <div className="admin-err">База данных сейчас недоступна — часть данных может не отображаться, а изменения не сохранятся, пока база не поднимется. Детали: {seedErr}</div>}
             {tab === "dash" && <DashTab overview={overview} chats={chats} onRefresh={() => loadAll()} />}
+            {tab === "stats" && <AnalyticsTab af={af} />}
             {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} capDefs={capDefs} groups={groups} af={af} reload={() => loadAll()} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
             {tab === "kb" && <KbTab af={af} initSpace={kbInit} />}
             {tab === "data" && <DataTab af={af} />}
@@ -318,6 +324,129 @@ function DashTab({ overview, chats, onRefresh }: { overview: Overview | null; ch
 
       <div style={{ marginTop: 14 }}><button onClick={onRefresh} className="admin-btn ghost">Обновить</button></div>
       <p className="admin-hint">История сообщений копится с момента подключения проекта (Telegram не отдаёт переписку задним числом). «Ответов Аси» — сколько раз она ответила по существу (поддержка, команды, кризис).</p>
+    </div>
+  );
+}
+
+type Stats = { funnel: Record<string, number>; retention: { peopleWithMessages: number; returnedAnotherDay: number; rate: number }; totals: { users: number; messages: number; memories: number; crisisEvents: number; subscriptions: number } };
+type UserRow = { uid: string; label: string; msgs: number; activeDays: number; status: string; joinedAt?: string };
+type UData = { insights: { total: number; active: number; atRisk: number; churned: number; dormant: number; retentionRate: number; avgMsgs: number }; users: UserRow[] };
+
+const STATUS: Record<string, { t: string; c: string }> = {
+  active: { t: "Активен", c: "var(--ok, #16a34a)" },
+  at_risk: { t: "Под риском", c: "#e8863a" },
+  churned: { t: "Ушёл", c: "var(--bubble-u1)" },
+  dormant: { t: "Молчит", c: "var(--text-dim)" },
+};
+
+function AnalyticsTab({ af }: { af: Fetcher }) {
+  const [days, setDays] = useState(30);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [ud, setUd] = useState<UData | null>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([af(`/api/admin/stats?days=${days}`), af("/api/admin/users")]).then(([s, u]) => {
+      if (!alive) return;
+      if (!s || s.error) { setErr(true); return; }
+      setStats(s); if (u && !u.error) setUd(u);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
+
+  if (err) return <div className="admin-hint">Аналитика недоступна — проверь ключ или базу данных.</div>;
+  if (!stats) return <div className="admin-hint">Загрузка…</div>;
+
+  const tiles = [
+    { num: stats.totals.users, lbl: "Пользователей", icon: <IconGrid /> },
+    { num: stats.totals.messages, lbl: "Сообщений", icon: <IconChat /> },
+    { num: stats.totals.memories, lbl: "Записей памяти", icon: <IconSpark /> },
+    { num: stats.totals.subscriptions, lbl: "Подписок", icon: <IconDoc /> },
+  ];
+  const steps: { k: string; l: string }[] = [
+    { k: "landing", l: "Лендинг" }, { k: "chatOpened", l: "Открыли чат" }, { k: "firstMessage", l: "Первое сообщение" }, { k: "loggedIn", l: "Вошли" }, { k: "consentGiven", l: "Согласие" },
+  ];
+  const fmax = Math.max(1, ...steps.map((s) => stats.funnel[s.k] || 0));
+  const users = ud ? [...ud.users].sort((a, b) => b.msgs - a.msgs).slice(0, 60) : [];
+
+  return (
+    <div className="admin-subcontent">
+      <div className="admin-row" style={{ justifyContent: "flex-end", marginBottom: 4 }}>
+        <div className="admin-seg">
+          {[7, 30, 90].map((d) => <button key={d} className={days === d ? "on" : ""} onClick={() => setDays(d)}>{d} дн.</button>)}
+        </div>
+      </div>
+
+      <div className="admin-tiles">
+        {tiles.map((t) => (
+          <div key={t.lbl} className="admin-tile">
+            <div className="admin-tile-top"><span className="admin-tile-ic">{t.icon}</span><span className="lbl">{t.lbl}</span></div>
+            <div className="num">{t.num}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="admin-grid2">
+        <div className="admin-card2">
+          <div className="admin-card2-h"><h3>Воронка</h3><span className="admin-hint" style={{ margin: 0 }}>за {days} дн.</span></div>
+          <div className="admin-card2-b">
+            <div className="admin-roles" style={{ marginBottom: 0 }}>
+              {steps.map((s, i) => {
+                const v = stats.funnel[s.k] || 0;
+                return (
+                  <div key={s.k} className="admin-rolerow">
+                    <span className="admin-role-name"><span className="admin-role-dot" style={{ background: DONUT_PAL[i % DONUT_PAL.length] }} />{s.l}</span>
+                    <span className="admin-role-track"><span className="admin-role-fill" style={{ width: `${(v / fmax) * 100}%`, background: DONUT_PAL[i % DONUT_PAL.length] }} /></span>
+                    <b>{v}</b>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="admin-card2">
+          <div className="admin-card2-h"><h3>Удержание</h3></div>
+          <div className="admin-card2-b">
+            <div className="admin-kbsum"><b>{stats.retention.rate}%</b> возвращаются</div>
+            <div className="admin-states" style={{ marginTop: 16 }}>
+              <div className="admin-state"><b>{stats.retention.peopleWithMessages}</b> писали</div>
+              <div className="admin-state"><b>{stats.retention.returnedAnotherDay}</b> вернулись</div>
+              <div className="admin-state"><b>{stats.totals.crisisEvents}</b> кризис-событий</div>
+            </div>
+            {ud && (
+              <div className="admin-states" style={{ marginTop: 10 }}>
+                <div className="admin-state"><b>{ud.insights.active}</b> активны</div>
+                <div className="admin-state"><b>{ud.insights.atRisk}</b> под риском</div>
+                <div className="admin-state"><b>{ud.insights.churned}</b> ушли</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {ud && (
+        <div className="admin-card2" style={{ marginTop: 16 }}>
+          <div className="admin-card2-h"><h3>Пользователи</h3><span className="admin-hint" style={{ margin: 0 }}>ср. {ud.insights.avgMsgs} сообщ. · показаны {users.length} из {ud.insights.total}</span></div>
+          <div className="admin-card2-b" style={{ overflowX: "auto" }}>
+            <table className="admin-table">
+              <thead><tr><th>Пользователь</th><th>Сообщений</th><th>Дней</th><th>Статус</th><th>Регистрация</th></tr></thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.uid}>
+                    <td>{u.label}</td>
+                    <td>{u.msgs}</td>
+                    <td>{u.activeDays}</td>
+                    <td><span className="admin-status-badge" style={{ color: STATUS[u.status]?.c }}><span className="admin-role-dot" style={{ background: STATUS[u.status]?.c }} />{STATUS[u.status]?.t || u.status}</span></td>
+                    <td>{u.joinedAt ? fmtDate(u.joinedAt) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1600,3 +1600,10 @@ html { background: var(--bg1); -webkit-text-size-adjust: 100%; transition: backg
 /* Сводка базы знаний в карточке дашборда */
 .admin-kbsum { font-size: 14px; color: var(--text-soft); }
 .admin-kbsum b { font-size: 26px; font-weight: 750; color: var(--text); letter-spacing: -0.02em; margin-right: 6px; }
+
+/* Таблица пользователей в аналитике */
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.admin-table th { text-align: left; font-weight: 600; color: var(--text-dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; padding: 0 14px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.admin-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--text); white-space: nowrap; }
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-status-badge { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 13px; }
