@@ -525,3 +525,16 @@ model VideoSummary {
 
   @@index([createdAt])
 }
+
+model ApiClient {
+  id          String    @id @default(cuid())
+  name        String
+  token       String    @unique
+  capability  String    @default("summary")
+  instruction String?
+  enabled     Boolean   @default(true)
+  calls       Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+}

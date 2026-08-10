@@ -32,19 +32,20 @@ function parseResult(raw: string): SummaryResult {
   return { tldr: raw.trim().slice(0, 600), points: [] };
 }
 
-async function generate(transcript: string, lang: string): Promise<SummaryResult> {
+async function generate(transcript: string, lang: string, instruction?: string): Promise<SummaryResult> {
   const system = `Ты — Ася. По транскрипту видео сделай краткое содержание. Верни СТРОГО JSON без пояснений:
 {"tldr":"1–2 предложения главной сути","points":["ключевой тезис","..."]}
-Пиши на языке транскрипта${lang ? ` (${lang})` : ""}. 4–8 пунктов, коротко и по делу, без воды и без домыслов сверх сказанного в транскрипте.`;
+Пиши на языке транскрипта${lang ? ` (${lang})` : ""}. 4–8 пунктов, коротко и по делу, без воды и без домыслов сверх сказанного в транскрипте.${instruction && instruction.trim() ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction.trim()}` : ""}`;
   const raw = await complete([{ role: "user", content: transcript.slice(0, 24000) }], system, 900).catch(() => "");
   return parseResult(raw || "");
 }
 
 // Главная функция: отдаёт из кэша или генерирует и кэширует.
-export async function summarize(opts: { transcript: string; title?: string; source?: string; lang?: string; refresh?: boolean }): Promise<SummaryOut> {
+export async function summarize(opts: { transcript: string; title?: string; source?: string; lang?: string; refresh?: boolean; instruction?: string }): Promise<SummaryOut> {
   const transcript = (opts.transcript || "").trim();
   const lang = (opts.lang || "").trim();
-  const hash = sha256(`v1|${lang}|${transcript}`);
+  const instruction = (opts.instruction || "").trim();
+  const hash = sha256(`v2|${lang}|${instruction}|${transcript}`);
   const chars = transcript.length;
 
   if (!opts.refresh) {
@@ -54,7 +55,7 @@ export async function summarize(opts: { transcript: string; title?: string; sour
     }
   }
 
-  const result = await generate(transcript, lang);
+  const result = await generate(transcript, lang, instruction);
   await db().upsert({
     where: { hash },
     create: { hash, title: opts.title || null, source: opts.source || null, lang: lang || null, summary: JSON.stringify(result), model: process.env.TIMEWEB_MODEL || null, updatedAt: new Date() },
