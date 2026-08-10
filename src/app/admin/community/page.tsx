@@ -61,6 +61,9 @@ function IconMenu() {
 function IconChart() {
   return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><rect x="7" y="11" width="3" height="6" rx="1" /><rect x="12.5" y="7" width="3" height="10" rx="1" /><rect x="18" y="13" width="3" height="4" rx="1" /></svg>);
 }
+function IconKey() {
+  return (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5" /><path d="M10.7 12.3 20 3M17 6l2 2M14 9l2 2" /></svg>);
+}
 
 function Dropdown({ value, options, onChange, width }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
   const [open, setOpen] = useState(false);
@@ -95,7 +98,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (b: boolean) => void 
 export default function AdminDashboard() {
   const [key, setKey] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<"dash" | "stats" | "chats" | "kb" | "data">("dash");
+  const [tab, setTab] = useState<"dash" | "stats" | "chats" | "kb" | "data" | "api">("dash");
   const [err, setErr] = useState("");
   const [kbInit, setKbInit] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("light");
@@ -144,7 +147,7 @@ export default function AdminDashboard() {
   function toggleTheme() {
     setTheme((t) => { const n = t === "light" ? "dark" : "light"; try { window.localStorage.setItem("asya_admin_theme", n); } catch { /* ignore */ } return n; });
   }
-  const NAV: Array<{ group?: string; k?: "dash" | "stats" | "chats" | "kb" | "data"; label?: string; icon?: ReactNode; soon?: boolean }> = [
+  const NAV: Array<{ group?: string; k?: "dash" | "stats" | "chats" | "kb" | "data" | "api"; label?: string; icon?: ReactNode; soon?: boolean }> = [
     { group: "Обзор" },
     { k: "dash", label: "Дашборд", icon: <IconGauge /> },
     { k: "stats", label: "Аналитика", icon: <IconChart /> },
@@ -152,18 +155,20 @@ export default function AdminDashboard() {
     { group: "Управление" },
     { k: "chats", label: "Проекты", icon: <IconGrid /> },
     { k: "kb", label: "База знаний", icon: <IconDoc /> },
+    { k: "api", label: "API-проекты", icon: <IconKey /> },
     { group: "Ася" },
     { label: "Личность", icon: <IconSpark />, soon: true },
     { label: "Уведомления", icon: <IconBell />, soon: true },
   ];
 
-  const titles: Record<string, string> = { dash: "С возвращением", stats: "Аналитика", chats: "Проекты", kb: "База знаний", data: "Данные" };
+  const titles: Record<string, string> = { dash: "С возвращением", stats: "Аналитика", chats: "Проекты", kb: "База знаний", data: "Данные", api: "API-проекты" };
   const subtitles: Record<string, string> = {
     dash: "Обзор проектов Аси, поддержки и базы знаний.",
     stats: "Воронка, удержание и пользователи приложения.",
     chats: "Чаты, где работает Ася, и их настройки.",
     kb: "Статьи, по которым Ася отвечает участникам.",
     data: "Что реально хранится в базе на твоём сервере.",
+    api: "Внешние проекты по ключу и как Ася обрабатывает их запросы.",
   };
 
   if (!loaded) {
@@ -229,6 +234,7 @@ export default function AdminDashboard() {
             {tab === "chats" && <ChatsTab chats={chats} setChats={setChats} spaces={spaces} capDefs={capDefs} groups={groups} af={af} reload={() => loadAll()} onGoKb={(sp) => { setKbInit(sp); setTab("kb"); }} />}
             {tab === "kb" && <KbTab af={af} initSpace={kbInit} />}
             {tab === "data" && <DataTab af={af} />}
+            {tab === "api" && <ApiClientsTab af={af} apiKey={key} />}
           </div>
         </main>
       </div>
@@ -447,6 +453,86 @@ function AnalyticsTab({ af }: { af: Fetcher }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+type ApiClientT = { id: string; name: string; token: string; capability: string; instruction: string | null; enabled: boolean; calls: number; lastUsedAt: string | null };
+function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
+  const [clients, setClients] = useState<ApiClientT[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [msg, setMsg] = useState("");
+  const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  const [tests, setTests] = useState<Record<string, { transcript?: string; loading?: boolean; out?: string; err?: string }>>({});
+
+  async function load() { const r = await af("/api/admin/clients"); if (r && !r.error) setClients(r.clients || []); setLoaded(true); }
+  useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+  function set(id: string, patch: Partial<ApiClientT>) { setClients((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c))); }
+  async function save(c: ApiClientT) {
+    const r = await af("/api/admin/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, name: c.name, instruction: c.instruction, enabled: c.enabled }) });
+    setMsg(r?.ok ? "Сохранено ✓" : "Не сохранилось"); setTimeout(() => setMsg(""), 1500);
+  }
+  async function create() {
+    if (!newName.trim()) return;
+    const r = await af("/api/admin/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newName.trim() }) });
+    setNewName("");
+    if (r?.client) { setReveal((s) => ({ ...s, [r.client.id]: true })); setMsg("Проект создан — скопируй ключ, он показан в карточке."); } else setMsg("Не удалось создать");
+    setTimeout(() => setMsg(""), 4000);
+    await load();
+  }
+  async function copy(t: string) { try { await navigator.clipboard.writeText(t); setMsg("Ключ скопирован ✓"); setTimeout(() => setMsg(""), 1500); } catch { /* ignore */ } }
+  async function runTest(c: ApiClientT) {
+    const t = (tests[c.id]?.transcript || "").trim();
+    if (t.length < 30) { setTests((s) => ({ ...s, [c.id]: { ...s[c.id], err: "Нужен транскрипт ≥ 30 символов." } })); return; }
+    setTests((s) => ({ ...s, [c.id]: { ...s[c.id], loading: true, err: "", out: "" } }));
+    const r = await fetch(`/api/summary?key=${encodeURIComponent(c.token)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: t, refresh: true }) }).then((x) => x.json()).catch(() => null);
+    if (!r || !r.ok) { setTests((s) => ({ ...s, [c.id]: { ...s[c.id], loading: false, err: r?.text || r?.error || "Ошибка запроса" } })); return; }
+    setTests((s) => ({ ...s, [c.id]: { ...s[c.id], loading: false, out: r.summary, err: "" } }));
+  }
+
+  return (
+    <div className="admin-subcontent">
+      <p className="admin-sub">Проекты, которые обращаются к API Аси по ключу (например, саммари видео). У каждого свой ключ и своя инструкция — как Ася обрабатывает его запросы. Меняй инструкцию и проверяй на транскрипте прямо здесь.</p>
+      <div className="admin-row">
+        <input placeholder="Название нового проекта" value={newName} onChange={(e) => setNewName(e.target.value)} className="admin-inp" style={{ width: 280 }} />
+        <button onClick={create} className="admin-btn accent">Создать ключ</button>
+        {msg && <span style={{ color: "var(--accent)", alignSelf: "center" }}>{msg}</span>}
+      </div>
+
+      {loaded && clients.length === 0 && <div className="admin-hint">Пока нет ни одного API-проекта. Создай первый — получишь ключ для интеграции.</div>}
+
+      {clients.map((c) => (
+        <div key={c.id} className="admin-card">
+          <div className="admin-card-head" style={{ justifyContent: "space-between" }}>
+            <input value={c.name} onChange={(e) => set(c.id, { name: e.target.value })} className="admin-inp" style={{ width: 260, fontWeight: 600 }} />
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="admin-hint" style={{ margin: 0 }}>вызовов: {c.calls} · {c.lastUsedAt ? fmtDate(c.lastUsedAt) : "не вызывался"}</span>
+              <Toggle on={c.enabled} onChange={(b) => set(c.id, { enabled: b })} />
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+            <code className="admin-id" style={{ fontSize: 13, padding: "6px 10px" }}>{reveal[c.id] ? c.token : `${c.token.slice(0, 9)}••••••••${c.token.slice(-4)}`}</code>
+            <button className="admin-btn ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => setReveal((s) => ({ ...s, [c.id]: !s[c.id] }))}>{reveal[c.id] ? "Скрыть" : "Показать"}</button>
+            <button className="admin-btn ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => copy(c.token)}>Копировать ключ</button>
+            <span className="admin-hint" style={{ margin: 0 }}>доступ: {c.capability}</span>
+          </div>
+
+          <label className="admin-lbl" style={{ width: "100%" }}>Инструкция — как Ася обрабатывает запросы этого проекта
+            <textarea value={c.instruction || ""} onChange={(e) => set(c.id, { instruction: e.target.value })} rows={4} className="admin-inp" placeholder="Напр.: делай выжимку деловым тоном, максимум 5 пунктов, добавляй раздел «Действия»." style={{ width: "100%", marginTop: 6, resize: "vertical" }} />
+          </label>
+          <div style={{ marginTop: 12 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+
+          <div className="admin-history" style={{ marginTop: 16 }}>
+            <span className="admin-hist-stat">Проверить на транскрипте</span>
+          </div>
+          <textarea value={tests[c.id]?.transcript || ""} onChange={(e) => setTests((s) => ({ ...s, [c.id]: { ...s[c.id], transcript: e.target.value } }))} rows={3} className="admin-inp" placeholder="Вставь транскрипт для теста…" style={{ width: "100%", marginTop: 8, resize: "vertical" }} />
+          <div style={{ marginTop: 10 }}><button onClick={() => runTest(c)} className="admin-btn ghost" disabled={tests[c.id]?.loading}>{tests[c.id]?.loading ? "Делаю выжимку…" : "Проверить"}</button></div>
+          {tests[c.id]?.err && <div className="admin-hint" style={{ color: "var(--bubble-u1)" }}>{tests[c.id]?.err}</div>}
+          {tests[c.id]?.out && <div className="admin-digest" style={{ marginTop: 10 }}><div style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.5, color: "var(--text-soft)" }}>{tests[c.id]?.out}</div></div>}
+        </div>
+      ))}
     </div>
   );
 }
