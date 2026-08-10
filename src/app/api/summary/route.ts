@@ -22,13 +22,13 @@ export async function POST(req: NextRequest) {
   if (!client && !legacy) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (client && client.capability !== "summary") return Response.json({ ok: false, error: "forbidden", text: "Ключ проекта не имеет доступа к саммари." }, { status: 403 });
 
-  const b = (await req.json().catch(() => null)) as { transcript?: string; title?: string; source?: string; lang?: string; refresh?: boolean } | null;
+  const b = (await req.json().catch(() => null)) as { transcript?: string; title?: string; source?: string; lang?: string; refresh?: boolean; context?: string } | null;
   const transcript = (b?.transcript || "").trim();
   if (transcript.length < 30) return Response.json({ ok: false, error: "transcript_too_short", text: "Нужен транскрипт (минимум 30 символов)." }, { status: 400 });
 
   try {
     if (client) void bumpUsage(client.id);
-    const r = await summarize({ transcript, title: b?.title, source: b?.source, lang: b?.lang, refresh: Boolean(b?.refresh), instruction: client?.instruction || undefined });
+    const r = await summarize({ transcript, title: b?.title, source: b?.source, lang: b?.lang, refresh: Boolean(b?.refresh), instruction: client?.instruction || undefined, context: b?.context });
     return Response.json({
       ok: true,
       project: client?.name || null,
