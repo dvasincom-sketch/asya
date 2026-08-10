@@ -12,6 +12,7 @@ type Delegate = {
   findUnique: (a: { where: { token: string } }) => Promise<ApiClient | null>;
   create: (a: { data: Record<string, unknown> }) => Promise<ApiClient>;
   update: (a: { where: { id: string }; data: Record<string, unknown> }) => Promise<ApiClient>;
+  delete: (a: { where: { id: string } }) => Promise<unknown>;
 };
 function db(): Delegate {
   return (prisma as unknown as { apiClient: Delegate }).apiClient;
@@ -44,4 +45,8 @@ export async function findClientByToken(token: string): Promise<ApiClient | null
 
 export async function bumpUsage(id: string): Promise<void> {
   await db().update({ where: { id }, data: { calls: { increment: 1 } as unknown as number, lastUsedAt: new Date() } }).catch(() => {});
+}
+
+export async function deleteClient(id: string): Promise<boolean> {
+  return db().delete({ where: { id } }).then(() => true).catch(() => false);
 }

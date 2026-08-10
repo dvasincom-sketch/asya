@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { listClients, createClient, updateClient } from "@/lib/apiClients";
+import { listClients, createClient, updateClient, deleteClient } from "@/lib/apiClients";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,16 @@ function authed(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!authed(req)) return Response.json({ error: "auth" }, { status: 401 });
-  return Response.json({ clients: await listClients() });
+  const raw = process.env.SUMMARY_API_KEY || "";
+  const legacy = raw.split(",").map((s) => s.trim()).filter(Boolean).map((k) => ({ masked: `${k.slice(0, 6)}\u2022\u2022\u2022\u2022${k.slice(-4)}` }));
+  return Response.json({ clients: await listClients(), legacy });
+}
+
+export async function DELETE(req: NextRequest) {
+  if (!authed(req)) return Response.json({ error: "auth" }, { status: 401 });
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) return Response.json({ error: "id" }, { status: 400 });
+  return Response.json({ ok: await deleteClient(id) });
 }
 
 export async function POST(req: NextRequest) {

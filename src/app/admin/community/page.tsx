@@ -460,13 +460,20 @@ function AnalyticsTab({ af }: { af: Fetcher }) {
 type ApiClientT = { id: string; name: string; token: string; capability: string; instruction: string | null; enabled: boolean; calls: number; lastUsedAt: string | null };
 function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
   const [clients, setClients] = useState<ApiClientT[]>([]);
+  const [legacy, setLegacy] = useState<{ masked: string }[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [newName, setNewName] = useState("");
   const [msg, setMsg] = useState("");
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [tests, setTests] = useState<Record<string, { transcript?: string; loading?: boolean; out?: string; err?: string }>>({});
 
-  async function load() { const r = await af("/api/admin/clients"); if (r && !r.error) setClients(r.clients || []); setLoaded(true); }
+  async function load() { const r = await af("/api/admin/clients"); if (r && !r.error) { setClients(r.clients || []); setLegacy(r.legacy || []); } setLoaded(true); }
+  async function del(c: ApiClientT) {
+    if (!window.confirm(`Удалить проект «${c.name}»? Его ключ перестанет работать.`)) return;
+    const r = await af(`/api/admin/clients?id=${encodeURIComponent(c.id)}`, { method: "DELETE" });
+    setMsg(r?.ok ? "Проект удалён" : "Не удалось удалить"); setTimeout(() => setMsg(""), 1500);
+    await load();
+  }
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
   function set(id: string, patch: Partial<ApiClientT>) { setClients((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c))); }
   async function save(c: ApiClientT) {
@@ -522,7 +529,10 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
           <label className="admin-lbl" style={{ width: "100%" }}>Инструкция — как Ася обрабатывает запросы этого проекта
             <textarea value={c.instruction || ""} onChange={(e) => set(c.id, { instruction: e.target.value })} rows={4} className="admin-inp" placeholder="Напр.: делай выжимку деловым тоном, максимум 5 пунктов, добавляй раздел «Действия»." style={{ width: "100%", marginTop: 6, resize: "vertical" }} />
           </label>
-          <div style={{ marginTop: 12 }}><button onClick={() => save(c)} className="admin-btn accent">Сохранить</button></div>
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            <button onClick={() => save(c)} className="admin-btn accent">Сохранить</button>
+            <button onClick={() => del(c)} className="admin-btn ghost" style={{ color: "var(--bubble-u1)" }}>Удалить</button>
+          </div>
 
           <div className="admin-history" style={{ marginTop: 16 }}>
             <span className="admin-hist-stat">Проверить на транскрипте</span>
@@ -533,6 +543,16 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
           {tests[c.id]?.out && <div className="admin-digest" style={{ marginTop: 10 }}><div style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.5, color: "var(--text-soft)" }}>{tests[c.id]?.out}</div></div>}
         </div>
       ))}
+
+      {legacy.length > 0 && (
+        <div className="admin-card" style={{ opacity: 0.9 }}>
+          <div className="admin-card-head"><b>Ключ из окружения (legacy)</b><code className="admin-id">SUMMARY_API_KEY</code></div>
+          <div className="admin-hint" style={{ marginTop: 0 }}>Этот ключ задан в переменных окружения и работает для саммари, но у него нет инструкции и статистики. Рекомендуется завести обычный проект выше и перейти на его ключ, а этот убрать из env.</div>
+          {legacy.map((l, i) => (
+            <div key={i} style={{ marginTop: 8 }}><code className="admin-id" style={{ fontSize: 13, padding: "6px 10px" }}>{l.masked}</code></div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
