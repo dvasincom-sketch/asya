@@ -511,3 +511,17 @@ model RoleDef {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
+
+model VideoSummary {
+  id        String   @id @default(cuid())
+  hash      String   @unique
+  title     String?
+  source    String?
+  lang      String?
+  summary   String
+  model     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([createdAt])
+}

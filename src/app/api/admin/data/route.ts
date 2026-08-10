@@ -30,6 +30,7 @@ const DESC: Record<string, { title: string; desc: string }> = {
   Consent: { title: "Согласия", desc: "Согласия на обработку данных" },
   Subscription: { title: "Подписки", desc: "Платные подписки" },
   CrisisEvents: { title: "Кризис-события", desc: "Отметки тревожных сообщений" },
+  VideoSummary: { title: "Саммари видео", desc: "Кэш кратких содержаний по транскриптам" },
 };
 
 export async function GET(req: NextRequest) {
