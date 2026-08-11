@@ -538,3 +538,37 @@ model ApiClient {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @default(now())
 }
+
+// Правки редактора проекта (студия content-box) — обучающие примеры для Аси.
+// summarize подмешивает последние правки клиента как few-shot, чтобы саммари
+// со временем совпадало со стилем/фактами проекта.
+model ProjectCorrection {
+  id        String   @id @default(cuid())
+  clientId  String
+  source    String?
+  title     String?
+  kind      String   @default("summary")
+  before    String?
+  after     String
+  createdAt DateTime @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+// Знание Аси по конкретному видео проекта (саммари + главы с таймкодами).
+// Пополняется из content-box при генерации/правке саммари и глав. Используется
+// для ответов на вопросы «где посмотреть …» (эндпоинт /api/ask).
+model VideoKnowledge {
+  id        String   @id @default(cuid())
+  clientId  String
+  source    String
+  title     String?
+  url       String?
+  summary   String?
+  chapters  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@unique([clientId, source])
+  @@index([clientId, updatedAt])
+}

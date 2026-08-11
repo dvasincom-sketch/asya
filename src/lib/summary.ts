@@ -32,7 +32,7 @@ function parseResult(raw: string): SummaryResult {
   return { tldr: raw.trim().slice(0, 600), points: [] };
 }
 
-async function generate(transcript: string, lang: string, instruction?: string, title?: string, context?: string): Promise<SummaryResult> {
+async function generate(transcript: string, lang: string, instruction?: string, title?: string, context?: string, corrections?: string): Promise<SummaryResult> {
   const meta = [
     title && title.trim() ? `Название видео: ${title.trim()}` : "",
     context && context.trim() ? `Контекст: ${context.trim()}` : "",
@@ -49,20 +49,21 @@ async function generate(transcript: string, lang: string, instruction?: string, 
 Пример того, чего НЕ должно быть в саммари: «Приглашает зрителей на Boosty», «Свежие переводы выходят на Boosty раньше», «озвучка студии …». Если в транскрипте есть только такие вставки и почти нет содержания — сделай короткое саммари по тому немногому, что реально сказано по теме, и НЕ добавляй эти вставки.
 
 Саммари — только про то, что реально происходит и обсуждается в самом видео (что делает участник, о чём говорит, ключевые моменты).
-Опирайся на название и контекст, чтобы правильно назвать участников и тему.${meta ? `\n\n${meta}` : ""}${instruction && instruction.trim() ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction.trim()}` : ""}`;
+Опирайся на название и контекст, чтобы правильно назвать участников и тему.${meta ? `\n\n${meta}` : ""}${instruction && instruction.trim() ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction.trim()}` : ""}${corrections && corrections.trim() ? `\n\nПримеры правок редактора проекта — соблюдай их стиль, факты и имена участников:\n${corrections.trim()}` : ""}`;
   const raw = await complete([{ role: "user", content: transcript.slice(0, 24000) }], system, 900).catch(() => "");
   return parseResult(raw || "");
 }
 
 // Главная функция: отдаёт из кэша или генерирует и кэширует.
-export async function summarize(opts: { transcript: string; title?: string; source?: string; lang?: string; refresh?: boolean; instruction?: string; context?: string }): Promise<SummaryOut> {
+export async function summarize(opts: { transcript: string; title?: string; source?: string; lang?: string; refresh?: boolean; instruction?: string; context?: string; corrections?: string }): Promise<SummaryOut> {
   const transcript = (opts.transcript || "").trim();
   const lang = (opts.lang || "").trim();
   const instruction = (opts.instruction || "").trim();
   const title = (opts.title || "").trim();
   const context = (opts.context || "").trim();
-  // Хэш учитывает title/context и версию промпта — при их смене саммари пересоберётся.
-  const hash = sha256(`v4|${lang}|${instruction}|${title}|${context}|${transcript}`);
+  const corrections = (opts.corrections || "").trim();
+  // Хэш учитывает title/context/правки и версию промпта — при их смене саммари пересоберётся.
+  const hash = sha256(`v5|${lang}|${instruction}|${title}|${context}|${corrections}|${transcript}`);
   const chars = transcript.length;
 
   if (!opts.refresh) {
@@ -72,7 +73,7 @@ export async function summarize(opts: { transcript: string; title?: string; sour
     }
   }
 
-  const result = await generate(transcript, lang, instruction, title, context);
+  const result = await generate(transcript, lang, instruction, title, context, corrections);
   await db().upsert({
     where: { hash },
     create: { hash, title: opts.title || null, source: opts.source || null, lang: lang || null, summary: JSON.stringify(result), model: process.env.TIMEWEB_MODEL || null, updatedAt: new Date() },
