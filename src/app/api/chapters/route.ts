@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { titleChapters, type ChapterSeg } from "@/lib/chapters";
+import { titleChapters, buildChapters, type ChapterSeg, type BuildCue } from "@/lib/chapters";
 import { findClientByToken, bumpUsage } from "@/lib/apiClients";
 
 export const runtime = "nodejs";
@@ -30,7 +30,28 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: false, error: "forbidden", text: "Ключ проекта не имеет доступа к главам." }, { status: 403 });
   }
 
-  const b = (await req.json().catch(() => null)) as { segments?: unknown; title?: string; lang?: string } | null;
+  const b = (await req.json().catch(() => null)) as { mode?: string; cues?: unknown; segments?: unknown; title?: string; lang?: string; context?: string } | null;
+
+  // Режим build: клиент присылает полную расшифровку с таймкодами (cues), Ася
+  // сама делит видео на осмысленные главы и возвращает [{ start, title }].
+  if (b?.mode === "build" || Array.isArray(b?.cues)) {
+    const rawCues = Array.isArray(b?.cues) ? (b!.cues as unknown[]) : [];
+    const cues: BuildCue[] = rawCues
+      .map((x) => {
+        const o = (x || {}) as { start?: unknown; text?: unknown };
+        return { start: Number(o.start) || 0, text: String(o.text || "") };
+      })
+      .filter((c) => c.text.trim().length > 0);
+    if (cues.length < 4) return Response.json({ ok: false, error: "no_cues", text: "Нужна расшифровка с таймкодами (минимум 4 реплики)." }, { status: 400 });
+    try {
+      if (client) void bumpUsage(client.id);
+      const r = await buildChapters({ cues, title: b?.title, lang: b?.lang, context: b?.context, instruction: client?.instruction || undefined });
+      return Response.json({ ok: true, project: client?.name || null, chapters: r.chapters });
+    } catch (e) {
+      console.error("[api/chapters build]", e instanceof Error ? e.message : String(e));
+      return Response.json({ ok: false, error: "internal" }, { status: 500 });
+    }
+  }
   const raw = Array.isArray(b?.segments) ? (b!.segments as unknown[]) : [];
   const segments: ChapterSeg[] = raw
     .map((x) => {
