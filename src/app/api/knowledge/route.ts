@@ -145,7 +145,7 @@ export async function GET() {
     })
     .filter(Boolean);
 
-  const portrait = await ensurePortrait(user, facts, profileStrings).catch(() => user.portrait || "");
+  const portrait = await ensurePortrait(user, facts, profileStrings).catch(() => (user as { portrait?: string | null }).portrait || "");
 
   const themes = [...groups.entries()]
     .map(([name, g]) => ({
