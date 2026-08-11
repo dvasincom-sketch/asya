@@ -458,6 +458,8 @@ function AnalyticsTab({ af }: { af: Fetcher }) {
 }
 
 type ApiClientT = { id: string; name: string; token: string; capability: string; instruction: string | null; enabled: boolean; calls: number; lastUsedAt: string | null };
+type LC = { id: string; source: string | null; title: string | null; kind: string; before: string | null; after: string; createdAt: string };
+type LK = { id: string; source: string; title: string | null; url: string | null; summary: string | null; hasChapters: boolean; updatedAt: string };
 function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
   const [clients, setClients] = useState<ApiClientT[]>([]);
   const [legacy, setLegacy] = useState<{ masked: string }[]>([]);
@@ -466,8 +468,14 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
   const [msg, setMsg] = useState("");
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [tests, setTests] = useState<Record<string, { transcript?: string; loading?: boolean; out?: string; err?: string }>>({});
+  const [counts, setCounts] = useState<{ corrections: Record<string, number>; knowledge: Record<string, number> }>({ corrections: {}, knowledge: {} });
+  const [learn, setLearn] = useState<Record<string, { open?: boolean; loading?: boolean; corrections?: LC[]; knowledge?: LK[] }>>({});
 
-  async function load() { const r = await af("/api/admin/clients"); if (r && !r.error) { setClients(r.clients || []); setLegacy(r.legacy || []); } setLoaded(true); }
+  async function load() {
+    const r = await af("/api/admin/clients"); if (r && !r.error) { setClients(r.clients || []); setLegacy(r.legacy || []); }
+    const cc = await af("/api/admin/corrections"); if (cc && cc.ok) setCounts({ corrections: cc.corrections || {}, knowledge: cc.knowledge || {} });
+    setLoaded(true);
+  }
   async function del(c: ApiClientT) {
     if (!window.confirm(`Удалить проект «${c.name}»? Его ключ перестанет работать.`)) return;
     const r = await af(`/api/admin/clients?id=${encodeURIComponent(c.id)}`, { method: "DELETE" });
@@ -496,6 +504,14 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
     const r = await fetch(`/api/summary?key=${encodeURIComponent(c.token)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: t, refresh: true }) }).then((x) => x.json()).catch(() => null);
     if (!r || !r.ok) { setTests((s) => ({ ...s, [c.id]: { ...s[c.id], loading: false, err: r?.text || r?.error || "Ошибка запроса" } })); return; }
     setTests((s) => ({ ...s, [c.id]: { ...s[c.id], loading: false, out: r.summary, err: "" } }));
+  }
+  async function toggleLearn(c: ApiClientT) {
+    const cur = learn[c.id];
+    if (cur?.open) { setLearn((s) => ({ ...s, [c.id]: { ...s[c.id], open: false } })); return; }
+    setLearn((s) => ({ ...s, [c.id]: { ...s[c.id], open: true, loading: !cur?.corrections } }));
+    if (cur?.corrections) return;
+    const r = await af(`/api/admin/corrections?clientId=${encodeURIComponent(c.id)}`);
+    setLearn((s) => ({ ...s, [c.id]: { open: true, loading: false, corrections: r?.corrections || [], knowledge: r?.knowledge || [] } }));
   }
 
   return (
@@ -534,6 +550,47 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
             <button onClick={() => del(c)} className="admin-btn ghost" style={{ color: "var(--bubble-u1)" }}>Удалить</button>
           </div>
 
+          {(counts.corrections[c.id] || counts.knowledge[c.id] || learn[c.id]?.open) ? (
+            <div className="admin-history" style={{ marginTop: 16 }}>
+              <span className="admin-hist-stat">Обучение проекта</span>
+              <span className="admin-hist-stat">правок: {counts.corrections[c.id] || 0}</span>
+              <span className="admin-hist-stat">видео в знании: {counts.knowledge[c.id] || 0}</span>
+              <button className="admin-btn ghost" style={{ padding: "5px 12px", fontSize: 12.5, marginLeft: "auto" }} onClick={() => toggleLearn(c)}>{learn[c.id]?.open ? "Скрыть" : "Показать"}</button>
+            </div>
+          ) : (
+            <div className="admin-hint" style={{ marginTop: 16 }}>Пока нет правок и знаний. Проект присылает их через <code className="admin-id">POST /api/feedback</code> — Ася учится делать выжимки в его стиле.</div>
+          )}
+          {learn[c.id]?.open && (
+            <div style={{ marginTop: 8 }}>
+              {learn[c.id]?.loading && <div className="admin-hint">Загрузка…</div>}
+              {!learn[c.id]?.loading && !(learn[c.id]?.corrections?.length) && !(learn[c.id]?.knowledge?.length) && <div className="admin-hint">Ещё ничего не прислано.</div>}
+              {(learn[c.id]?.corrections || []).map((r) => (
+                <div key={r.id} className="admin-digest" style={{ marginTop: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                    <b style={{ fontSize: 13.5 }}>{r.title || r.source || "правка"}</b>
+                    <code className="admin-id">{r.kind}</code>
+                    <span className="admin-hint" style={{ margin: 0 }}>{fmtDate(r.createdAt)}</span>
+                  </div>
+                  {r.before && <div style={{ color: "var(--text-dim)", fontSize: 12.5, marginTop: 6, whiteSpace: "pre-wrap" }}>Было: {r.before.slice(0, 300)}{r.before.length > 300 ? "…" : ""}</div>}
+                  <div style={{ color: "var(--text-soft)", fontSize: 13, marginTop: 4, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>Как надо: {r.after.slice(0, 500)}{r.after.length > 500 ? "…" : ""}</div>
+                </div>
+              ))}
+              {(learn[c.id]?.knowledge || []).length > 0 && (
+                <div className="admin-history" style={{ marginTop: 12 }}><span className="admin-hist-stat">Знание по видео</span></div>
+              )}
+              {(learn[c.id]?.knowledge || []).map((k) => (
+                <div key={k.id} className="admin-digest" style={{ marginTop: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                    <b style={{ fontSize: 13.5 }}>{k.title || k.source}</b>
+                    {k.hasChapters && <code className="admin-id">с главами</code>}
+                    {k.url && <a href={k.url} target="_blank" rel="noreferrer" className="admin-id" style={{ color: "var(--accent)" }}>ссылка</a>}
+                    <span className="admin-hint" style={{ margin: 0 }}>{fmtDate(k.updatedAt)}</span>
+                  </div>
+                  {k.summary && <div style={{ color: "var(--text-soft)", fontSize: 13, marginTop: 4, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{k.summary.slice(0, 400)}{k.summary.length > 400 ? "…" : ""}</div>}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="admin-history" style={{ marginTop: 16 }}>
             <span className="admin-hist-stat">Проверить на транскрипте</span>
           </div>

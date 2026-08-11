@@ -32,6 +32,8 @@ const DESC: Record<string, { title: string; desc: string }> = {
   CrisisEvents: { title: "Кризис-события", desc: "Отметки тревожных сообщений" },
   VideoSummary: { title: "Саммари видео", desc: "Кэш кратких содержаний по транскриптам" },
   ApiClient: { title: "API-проекты", desc: "Внешние проекты, дёргающие API по ключу" },
+  ProjectCorrection: { title: "Правки проектов", desc: "Обучающие правки саммари из студий проектов (few-shot для Аси)" },
+  VideoKnowledge: { title: "Знание по видео", desc: "Эталонные саммари и главы по видео каждого проекта" },
 };
 
 export async function GET(req: NextRequest) {
