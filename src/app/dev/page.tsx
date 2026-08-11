@@ -289,12 +289,25 @@ export default function DevPortal() {
 
         <section id="start" className="devx-section">
           <h2 className="devx-h2">Возможности</h2>
-          <p className="devx-dim">Ася отвечает на запросы проекта с учётом его контекста (документы проекта живут на стороне Аси и редактируются в админке). Через API можно:</p>
+          <p className="devx-dim">Ася отвечает на запросы проекта с учётом его контекста (документы проекта живут на стороне Аси и редактируются в админке). Что умеет API:</p>
+
+          <h3 className="devx-h3">Доступно сейчас</h3>
           <ul className="devx-features">
-            <li><b>Генерация с контекстом</b> — <code>/generate</code>: отправляешь пользовательскую часть, получаешь текст или строгий JSON.</li>
+            <li><b>Генерация с контекстом</b> — <code>/generate</code>: текст или строгий JSON (черновики, ответы, форматирование).</li>
+            <li><b>Извлечение и классификация</b> — <code>/generate</code> с <code>json</code>: достаёшь поля, теги, категории по своей схеме.</li>
+            <li><b>Переписывание и тон</b> — <code>/generate</code>: сократить, перевести, переписать голосом проекта.</li>
             <li><b>Саммари</b> — <code>/summary</code>: транскрипт → краткое содержание с кэшем.</li>
-            <li><b>Обучение</b> — <code>/feedback</code>: правки редактора становятся примерами для будущих ответов.</li>
-            <li><b>Знание по видео</b> — <code>/knowledge/video</code> и <code>/ask</code>: пополняешь знание и спрашиваешь по нему.</li>
+            <li><b>Обучение на правках</b> — <code>/feedback</code>: правки редактора становятся примерами для будущих ответов.</li>
+            <li><b>Знание по видео и вопросы</b> — <code>/knowledge/video</code> + <code>/ask</code>: пополняешь знание, спрашиваешь с тайм-кодами.</li>
+          </ul>
+
+          <h3 className="devx-h3">На подходе <span className="devx-soon">скоро</span></h3>
+          <ul className="devx-features">
+            <li><b>Стриминг ответов</b> — <code>stream</code> в <code>/generate</code>: токены по мере генерации.</li>
+            <li><b>Модерация</b> — <code>/moderate</code>: спам, токсичность, ссылки, подозрительные имена — на движке сообществ Аси.</li>
+            <li><b>Уведомления</b> — <code>/notify</code>: сообщение пользователю в Telegram или SMS от лица проекта.</li>
+            <li><b>Вопросы по документам проекта</b> — <code>/ask</code> по контекст-документам, не только по видео.</li>
+            <li><b>Длинные транскрипты по частям</b> и <b>async-колбэк на вебхук</b> — для тяжёлых задач.</li>
           </ul>
           <Code>{`curl -X POST ${API_BASE}/generate \\
   -H "Authorization: Bearer $ASYA_KEY" \\
@@ -397,6 +410,8 @@ body { background: #ffffff !important; display: block !important; align-items: s
 .devx-features { list-style: none; padding: 0; margin: 10px 0 0; }
 .devx-features li { padding: 9px 0; border-top: 1px solid #f0f1f4; color: #4a4f5c; font-size: 14.5px; line-height: 1.6; }
 .devx-features li:first-child { border-top: none; }
+.devx-h3 { font-size: 14.5px; font-weight: 700; margin: 22px 0 6px; color: #16181d; display: flex; align-items: center; gap: 8px; }
+.devx-soon { background: #fff3e0; color: #b9770e; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; letter-spacing: .03em; text-transform: uppercase; }
 
 .devx-panel { background: #fbfbfd; border: 1px solid #e9eaf0; border-radius: 14px; padding: 18px; margin-top: 14px; }
 .devx-panelh { font-weight: 650; font-size: 15px; margin-bottom: 10px; }
