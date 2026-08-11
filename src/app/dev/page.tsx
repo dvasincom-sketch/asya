@@ -21,12 +21,60 @@ function fmtRuPhone(raw: string): string {
   return out;
 }
 
-function Code({ children }: { children: string }) {
+// Лёгкая подсветка синтаксиса (bash/json/js), без зависимостей.
+function hl(code: string, lang: string): string {
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const R: Record<string, Array<[string, RegExp]>> = {
+    bash: [
+      ["cm", /#[^\n]*/y],
+      ["st", /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/y],
+      ["url", /https?:\/\/[^\s\\]+/y],
+      ["kw", /\b(?:curl|npm|npx|node)\b/y],
+      ["fl", /-{1,2}[A-Za-z][\w-]*/y],
+      ["var", /\$[A-Za-z_]\w*/y],
+    ],
+    json: [
+      ["key", /"(?:\\.|[^"\\])*"(?=\s*:)/y],
+      ["st", /"(?:\\.|[^"\\])*"/y],
+      ["num", /-?\b\d+(?:\.\d+)?\b/y],
+      ["kw", /\b(?:true|false|null)\b/y],
+      ["pn", /[{}\[\]:,]/y],
+    ],
+    js: [
+      ["cm", /\/\/[^\n]*/y],
+      ["st", /`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/y],
+      ["kw", /\b(?:const|let|var|await|async|function|return|new|if|else|throw|for|of|in|typeof|import|from|export)\b/y],
+      ["bl", /\b(?:true|false|null|undefined)\b/y],
+      ["num", /\b\d+(?:\.\d+)?\b/y],
+      ["fn", /[A-Za-z_$][\w$]*(?=\s*\()/y],
+    ],
+  };
+  const rules = R[lang] || [];
+  let out = "";
+  let i = 0;
+  while (i < code.length) {
+    let matched = false;
+    for (const [cls, re] of rules) {
+      re.lastIndex = i;
+      const m = re.exec(code);
+      if (m && m.index === i && m[0].length) {
+        out += `<span class="tk-${cls}">${esc(m[0])}</span>`;
+        i += m[0].length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) { out += esc(code[i]); i++; }
+  }
+  return out;
+}
+
+function Code({ children, lang = "bash" }: { children: string; lang?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="devx-codewrap">
       <button className="devx-copy" onClick={async () => { try { await navigator.clipboard.writeText(children); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* */ } }}>{copied ? "Скопировано" : "Копировать"}</button>
-      <pre className="devx-code"><code>{children}</code></pre>
+      <pre className="devx-code"><code dangerouslySetInnerHTML={{ __html: hl(children, lang) }} /></pre>
     </div>
   );
 }
@@ -191,7 +239,7 @@ function Playground() {
         <button className="devx-btn primary" onClick={send} disabled={busy}>{busy ? "Отправляю…" : "Отправить"}</button>
         {res && <span className={`devx-badge ${res.status >= 200 && res.status < 300 ? "on" : "off"}`}>HTTP {res.status || "—"}</span>}
       </div>
-      {res && <pre className="devx-code" style={{ marginTop: 10, maxHeight: 340, overflow: "auto" }}>{res.text}</pre>}
+      {res && <pre className="devx-code" style={{ marginTop: 10, maxHeight: 340, overflow: "auto" }}><code dangerouslySetInnerHTML={{ __html: hl(res.text, "json") }} /></pre>}
       <p className="devx-dim" style={{ marginTop: 10 }}>Запрос уходит из браузера — удобно для теста. В проде дёргай API сервер-к-серверу, чтобы ключ не светился.</p>
     </div>
   );
@@ -278,10 +326,10 @@ export default function DevPortal() {
             <tr><td><code>maxTokens</code></td><td>number</td><td>по умолчанию 1500</td></tr>
           </tbody></table>
           <p className="devx-dim">Ответ (при <code>json:true</code>) — <b>схема Аси, не OpenAI</b>: текст в <code>output</code>, разобранный объект в <code>json</code>.</p>
-          <Code>{`{ "ok": true, "project": "content-box",
+          <Code lang="json">{`{ "ok": true, "project": "content-box",
   "json": { "version": "3.10.4", "tags": ["feature"], "title": "…", "changes": ["…"] },
   "output": "<сырой текст модели>" }`}</Code>
-          <Code>{`const r = await fetch("${API_BASE}/generate", {
+          <Code lang="js">{`const r = await fetch("${API_BASE}/generate", {
   method: "POST",
   headers: { Authorization: \`Bearer \${process.env.ASYA_KEY}\`, "Content-Type": "application/json" },
   body: JSON.stringify({ input: commitsText, json: true }),
@@ -371,7 +419,18 @@ body { background: #ffffff !important; display: block !important; align-items: s
 .devx-codewrap { position: relative; margin: 12px 0; }
 .devx-copy { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: #cfd3e0; border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .devx-copy:hover { background: rgba(255,255,255,.16); }
-.devx-code { background: #1b1e27; color: #e6e8f0; border-radius: 12px; padding: 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.8px; line-height: 1.55; margin: 0; }
+.devx-code { background: #1b1e27; color: #d4d4d4; border-radius: 12px; padding: 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.8px; line-height: 1.55; margin: 0; }
+.devx-code .tk-cm { color: #6a9955; font-style: italic; }
+.devx-code .tk-st { color: #ce9178; }
+.devx-code .tk-url { color: #ce9178; }
+.devx-code .tk-kw { color: #569cd6; }
+.devx-code .tk-bl { color: #569cd6; }
+.devx-code .tk-num { color: #b5cea8; }
+.devx-code .tk-key { color: #9cdcfe; }
+.devx-code .tk-fn { color: #dcdcaa; }
+.devx-code .tk-fl { color: #dcdcaa; }
+.devx-code .tk-var { color: #9cdcfe; }
+.devx-code .tk-pn { color: #d4d4d4; }
 
 .devx-ep-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .devx-method { background: #edeaff; color: #5b3ff0; font-weight: 700; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; letter-spacing: .04em; }
