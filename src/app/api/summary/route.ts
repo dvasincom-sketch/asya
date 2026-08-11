@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { summarize } from "@/lib/summary";
 import { findClientByToken, bumpUsage } from "@/lib/apiClients";
 import { recentCorrections } from "@/lib/corrections";
+import { buildProjectContext } from "@/lib/projectDocs";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,9 @@ export async function POST(req: NextRequest) {
   try {
     if (client) void bumpUsage(client.id);
     const corrections = client ? await recentCorrections(client.id, "summary", 5).catch(() => "") : "";
-    const r = await summarize({ transcript, title: b?.title, source: b?.source, lang: b?.lang, refresh: Boolean(b?.refresh), instruction: client?.instruction || undefined, context: b?.context, corrections });
+    const docsCtx = client ? await buildProjectContext(client.id).catch(() => "") : "";
+    const instruction = [client?.instruction || "", docsCtx].filter(Boolean).join("\n\n") || undefined;
+    const r = await summarize({ transcript, title: b?.title, source: b?.source, lang: b?.lang, refresh: Boolean(b?.refresh), instruction, context: b?.context, corrections });
     return Response.json({
       ok: true,
       project: client?.name || null,

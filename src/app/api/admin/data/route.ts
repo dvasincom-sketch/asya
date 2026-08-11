@@ -34,6 +34,7 @@ const DESC: Record<string, { title: string; desc: string }> = {
   ApiClient: { title: "API-проекты", desc: "Внешние проекты, дёргающие API по ключу" },
   ProjectCorrection: { title: "Правки проектов", desc: "Обучающие правки саммари из студий проектов (few-shot для Аси)" },
   VideoKnowledge: { title: "Знание по видео", desc: "Эталонные саммари и главы по видео каждого проекта" },
+  ProjectDoc: { title: "Документы проектов", desc: "Контекст-документы (md-дерево) каждого API-проекта" },
 };
 
 export async function GET(req: NextRequest) {

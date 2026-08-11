@@ -460,6 +460,40 @@ function AnalyticsTab({ af }: { af: Fetcher }) {
 type ApiClientT = { id: string; name: string; token: string; capability: string; instruction: string | null; enabled: boolean; calls: number; lastUsedAt: string | null };
 type LC = { id: string; source: string | null; title: string | null; kind: string; before: string | null; after: string; createdAt: string };
 type LK = { id: string; source: string; title: string | null; url: string | null; summary: string | null; hasChapters: boolean; updatedAt: string };
+type DocMetaT = { id: string; path: string; title: string; size: number; updatedAt: string };
+const fileIcon = (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" style={{ flex: "0 0 auto" }}><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" /></svg>);
+const folderIcon = (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" style={{ flex: "0 0 auto" }}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>);
+function DocTree({ docs, activeId, onOpen }: { docs: DocMetaT[]; activeId?: string; onOpen: (id: string) => void }) {
+  type N = { name: string; full: string; doc?: DocMetaT; children: Map<string, N> };
+  const root: N = { name: "", full: "", children: new Map() };
+  for (const d of docs) {
+    const parts = d.path.split("/");
+    let node = root;
+    parts.forEach((pp, i) => {
+      if (!node.children.has(pp)) node.children.set(pp, { name: pp, full: parts.slice(0, i + 1).join("/"), children: new Map() });
+      node = node.children.get(pp) as N;
+      if (i === parts.length - 1) node.doc = d;
+    });
+  }
+  const rows: Array<{ kind: "file" | "folder"; name: string; depth: number; id?: string; key: string }> = [];
+  const walk = (node: N, depth: number) => {
+    const kids = [...node.children.values()].sort((a, b) => (a.doc ? 1 : 0) - (b.doc ? 1 : 0) || a.name.localeCompare(b.name));
+    for (const k of kids) {
+      if (k.doc) rows.push({ kind: "file", name: k.name, depth, id: k.doc.id, key: k.full });
+      else { rows.push({ kind: "folder", name: k.name, depth, key: k.full }); walk(k, depth + 1); }
+    }
+  };
+  walk(root, 0);
+  return (
+    <div>
+      {rows.map((r) => r.kind === "folder" ? (
+        <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", paddingLeft: 8 + r.depth * 16, color: "var(--text-dim)", fontSize: 12, fontWeight: 600 }}>{folderIcon}{r.name}</div>
+      ) : (
+        <button key={r.key} onClick={() => r.id && onOpen(r.id)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "6px 8px", paddingLeft: 8 + r.depth * 16, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13.5, background: r.id === activeId ? "var(--glass)" : "transparent", color: r.id === activeId ? "var(--accent)" : "var(--text)" }}>{fileIcon}<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span></button>
+      ))}
+    </div>
+  );
+}
 function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
   const [clients, setClients] = useState<ApiClientT[]>([]);
   const [legacy, setLegacy] = useState<{ masked: string }[]>([]);
@@ -470,6 +504,9 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
   const [tests, setTests] = useState<Record<string, { transcript?: string; loading?: boolean; out?: string; err?: string }>>({});
   const [counts, setCounts] = useState<{ corrections: Record<string, number>; knowledge: Record<string, number> }>({ corrections: {}, knowledge: {} });
   const [learn, setLearn] = useState<Record<string, { open?: boolean; loading?: boolean; corrections?: LC[]; knowledge?: LK[] }>>({});
+  const [docs, setDocs] = useState<Record<string, DocMetaT[]>>({});
+  const [docsLoaded, setDocsLoaded] = useState<Record<string, boolean>>({});
+  const [editor, setEditor] = useState<null | { clientId: string; id?: string; path: string; title: string; body: string; saving?: boolean; err?: string; savedAt?: string }>(null);
 
   async function load() {
     const r = await af("/api/admin/clients"); if (r && !r.error) { setClients(r.clients || []); setLegacy(r.legacy || []); }
@@ -513,6 +550,46 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
     const r = await af(`/api/admin/corrections?clientId=${encodeURIComponent(c.id)}`);
     setLearn((s) => ({ ...s, [c.id]: { open: true, loading: false, corrections: r?.corrections || [], knowledge: r?.knowledge || [] } }));
   }
+  async function loadDocs(clientId: string) {
+    const r = await af(`/api/admin/docs?clientId=${encodeURIComponent(clientId)}`);
+    setDocs((s) => ({ ...s, [clientId]: r?.docs || [] }));
+    setDocsLoaded((s) => ({ ...s, [clientId]: true }));
+  }
+  useEffect(() => { clients.forEach((c) => { if (!docsLoaded[c.id]) void loadDocs(c.id); }); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clients]);
+  function newDoc(clientId: string) { setEditor({ clientId, path: "", title: "", body: "" }); }
+  async function openDoc(clientId: string, id: string) {
+    const r = await af(`/api/admin/docs?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(id)}`);
+    if (r?.ok && r.doc) setEditor({ clientId, id: r.doc.id, path: r.doc.path, title: r.doc.title, body: r.doc.body });
+  }
+  function uploadDoc(clientId: string, file: File) {
+    const reader = new FileReader();
+    reader.onload = () => { const text = String(reader.result || ""); setEditor({ clientId, path: file.name, title: file.name.replace(/\.[^.]+$/, ""), body: text }); };
+    reader.readAsText(file);
+  }
+  async function saveEditor() {
+    if (!editor) return;
+    if (!editor.id && !editor.path.trim()) { setEditor((e) => e && { ...e, err: "Укажи путь/имя файла (можно с папкой: changelog/prompt.md)." }); return; }
+    setEditor((e) => e && { ...e, saving: true, err: "" });
+    const r = await af("/api/admin/docs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: editor.clientId, id: editor.id, path: editor.path, title: editor.title, body: editor.body }) });
+    if (!r?.ok) { setEditor((e) => e && { ...e, saving: false, err: r?.text || "Не удалось сохранить." }); return; }
+    setEditor((e) => e && { ...e, saving: false, id: r.doc.id, path: r.doc.path, title: r.doc.title, savedAt: "Сохранено" });
+    await loadDocs(editor.clientId);
+  }
+  async function deleteEditor() {
+    if (!editor) return;
+    if (!editor.id) { setEditor(null); return; }
+    if (!window.confirm("Удалить документ?")) return;
+    const cid = editor.clientId, id = editor.id;
+    await af(`/api/admin/docs?clientId=${encodeURIComponent(cid)}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    setEditor(null); await loadDocs(cid);
+  }
+  function downloadEditor() {
+    if (!editor) return;
+    const name = editor.path.split("/").pop() || "document.md";
+    const blob = new Blob([editor.body], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="admin-subcontent">
@@ -542,12 +619,28 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
             <span className="admin-hint" style={{ margin: 0 }}>доступ: {c.capability}</span>
           </div>
 
-          <label className="admin-lbl" style={{ width: "100%" }}>Инструкция — как Ася обрабатывает запросы этого проекта
-            <textarea value={c.instruction || ""} onChange={(e) => set(c.id, { instruction: e.target.value })} rows={4} className="admin-inp" placeholder="Напр.: делай выжимку деловым тоном, максимум 5 пунктов, добавляй раздел «Действия»." style={{ width: "100%", marginTop: 6, resize: "vertical" }} />
+          <label className="admin-lbl" style={{ width: "100%" }}>Короткая заметка (необязательно)
+            <textarea value={c.instruction || ""} onChange={(e) => set(c.id, { instruction: e.target.value })} rows={2} className="admin-inp" placeholder="Короткая пометка к проекту. Основной контекст держи в документах ниже." style={{ width: "100%", marginTop: 6, resize: "vertical" }} />
           </label>
           <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
             <button onClick={() => save(c)} className="admin-btn accent">Сохранить</button>
             <button onClick={() => del(c)} className="admin-btn ghost" style={{ color: "var(--bubble-u1)" }}>Удалить</button>
+          </div>
+
+          <div className="admin-history" style={{ marginTop: 18 }}>
+            <span className="admin-hist-stat">Документы-контекст</span>
+            <span className="admin-hist-stat">{docs[c.id]?.length || 0} шт.</span>
+            <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <button className="admin-btn ghost" style={{ padding: "5px 12px", fontSize: 12.5 }} onClick={() => newDoc(c.id)}>+ Документ</button>
+              <label className="admin-btn ghost" style={{ padding: "5px 12px", fontSize: 12.5, cursor: "pointer" }}>Загрузить .md
+                <input type="file" accept=".md,.markdown,text/markdown,text/plain" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(c.id, f); e.currentTarget.value = ""; }} />
+              </label>
+            </span>
+          </div>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 6, marginTop: 8, background: "var(--glass)" }}>
+            {!docsLoaded[c.id] && <div className="admin-hint" style={{ margin: 6 }}>Загрузка документов…</div>}
+            {docsLoaded[c.id] && (docs[c.id]?.length || 0) === 0 && <div className="admin-hint" style={{ margin: 6 }}>Пока нет документов. Добавь первый — это и будет контекст, по которому Ася работает с этим проектом.</div>}
+            {docsLoaded[c.id] && (docs[c.id]?.length || 0) > 0 && <DocTree docs={docs[c.id] || []} activeId={editor?.clientId === c.id ? editor?.id : undefined} onOpen={(id) => openDoc(c.id, id)} />}
           </div>
 
           {(counts.corrections[c.id] || counts.knowledge[c.id] || learn[c.id]?.open) ? (
@@ -609,6 +702,28 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
             <div key={i} style={{ marginTop: 8 }}><code className="admin-id" style={{ fontSize: 13, padding: "6px 10px" }}>{l.masked}</code></div>
           ))}
         </div>
+      )}
+
+      {editor && (
+        <>
+          <div onClick={() => setEditor(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", zIndex: 55 }} />
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(560px, 94vw)", background: "var(--surface)", borderLeft: "1px solid var(--line)", boxShadow: "-24px 0 60px -24px rgba(0,0,0,.5)", zIndex: 60, display: "flex", flexDirection: "column", padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <b style={{ fontSize: 15 }}>{editor.id ? "Документ" : "Новый документ"}</b>
+              {editor.savedAt && <span style={{ color: "var(--accent)", fontSize: 12.5 }}>{editor.savedAt}</span>}
+              <button onClick={() => setEditor(null)} className="admin-btn ghost" style={{ marginLeft: "auto", padding: "5px 12px", fontSize: 12.5 }}>Закрыть</button>
+            </div>
+            <input value={editor.title} onChange={(e) => setEditor((s) => s && { ...s, title: e.target.value, savedAt: undefined })} placeholder="Заголовок" className="admin-inp" style={{ width: "100%", marginBottom: 8, fontWeight: 600 }} />
+            <input value={editor.path} onChange={(e) => setEditor((s) => s && { ...s, path: e.target.value, savedAt: undefined })} placeholder="Путь: напр. changelog/update-prompt.md" className="admin-inp" style={{ width: "100%", marginBottom: 8, fontFamily: "monospace", fontSize: 12.5 }} />
+            <textarea value={editor.body} onChange={(e) => setEditor((s) => s && { ...s, body: e.target.value, savedAt: undefined })} placeholder="Текст документа (markdown)…" className="admin-inp" style={{ width: "100%", flex: 1, minHeight: 200, resize: "none", fontFamily: "monospace", fontSize: 13, lineHeight: 1.5 }} />
+            {editor.err && <div className="admin-hint" style={{ color: "var(--bubble-u1)", marginTop: 6 }}>{editor.err}</div>}
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              <button onClick={saveEditor} className="admin-btn accent" disabled={editor.saving}>{editor.saving ? "Сохраняю…" : "Сохранить"}</button>
+              <button onClick={downloadEditor} className="admin-btn ghost">Скачать .md</button>
+              <button onClick={deleteEditor} className="admin-btn ghost" style={{ color: "var(--bubble-u1)", marginLeft: "auto" }}>{editor.id ? "Удалить" : "Отмена"}</button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

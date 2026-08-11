@@ -572,3 +572,19 @@ model VideoKnowledge {
   @@unique([clientId, source])
   @@index([clientId, updatedAt])
 }
+
+// Документы-контекст проекта: редактируемое дерево markdown-файлов (path = дерево).
+// Заменяют единое поле instruction — проект хранит контекст удобными документами.
+// buildProjectContext склеивает их и подмешивает в вызовы API этого проекта.
+model ProjectDoc {
+  id        String   @id @default(cuid())
+  clientId  String
+  path      String
+  title     String
+  body      String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@unique([clientId, path])
+  @@index([clientId, updatedAt])
+}
