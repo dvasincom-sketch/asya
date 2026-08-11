@@ -463,6 +463,43 @@ type LK = { id: string; source: string; title: string | null; url: string | null
 type DocMetaT = { id: string; path: string; title: string; size: number; updatedAt: string };
 const fileIcon = (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" style={{ flex: "0 0 auto" }}><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" /></svg>);
 const folderIcon = (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" style={{ flex: "0 0 auto" }}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>);
+function mdToHtml(src: string): string {
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = (x: string) =>
+    x
+      .replace(/`([^`]+)`/g, (_m, c) => `<code>${c}</code>`)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, t, u) => (/^(https?:|mailto:|\/|#)/.test(u) ? `<a href="${u}" target="_blank" rel="noreferrer">${t}</a>` : t));
+  const lines = esc(src).replace(/\r\n/g, "\n").split("\n");
+  const out: string[] = [];
+  let inCode = false;
+  let code: string[] = [];
+  let list: "ul" | "ol" | null = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  let i = 0;
+  while (i < lines.length) {
+    const ln = lines[i];
+    if (/^```/.test(ln)) { if (inCode) { out.push(`<pre><code>${code.join("\n")}</code></pre>`); code = []; inCode = false; } else { closeList(); inCode = true; } i++; continue; }
+    if (inCode) { code.push(ln); i++; continue; }
+    if (/^\s*$/.test(ln)) { closeList(); i++; continue; }
+    const h = ln.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { closeList(); const l = h[1].length; out.push(`<h${l}>${inline(h[2])}</h${l}>`); i++; continue; }
+    if (/^\s*[-*]\s+/.test(ln)) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(ln.replace(/^\s*[-*]\s+/, ""))}</li>`); i++; continue; }
+    if (/^\s*\d+\.\s+/.test(ln)) { if (list !== "ol") { closeList(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(ln.replace(/^\s*\d+\.\s+/, ""))}</li>`); i++; continue; }
+    if (/^\s*>\s?/.test(ln)) { closeList(); out.push(`<blockquote>${inline(ln.replace(/^\s*>\s?/, ""))}</blockquote>`); i++; continue; }
+    if (/^\s*(-{3,}|_{3,})\s*$/.test(ln)) { closeList(); out.push("<hr/>"); i++; continue; }
+    closeList();
+    const para = [ln]; i++;
+    while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^```/.test(lines[i]) && !/^(#{1,6})\s/.test(lines[i]) && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i]) && !/^\s*>\s?/.test(lines[i])) { para.push(lines[i]); i++; }
+    out.push(`<p>${para.map(inline).join("<br/>")}</p>`);
+  }
+  if (inCode) out.push(`<pre><code>${code.join("\n")}</code></pre>`);
+  closeList();
+  return out.join("\n");
+}
+const MD_PREVIEW_CSS = `.md-preview{color:var(--text-soft);font-size:13.5px;line-height:1.6;}.md-preview h1{font-size:20px;margin:12px 0 8px;color:var(--text);font-weight:700;}.md-preview h2{font-size:17px;margin:12px 0 6px;color:var(--text);font-weight:700;}.md-preview h3{font-size:15px;margin:10px 0 6px;color:var(--text);font-weight:600;}.md-preview h4,.md-preview h5,.md-preview h6{font-size:14px;margin:8px 0 4px;color:var(--text);font-weight:600;}.md-preview p{margin:8px 0;}.md-preview ul,.md-preview ol{padding-left:20px;margin:8px 0;}.md-preview li{margin:3px 0;}.md-preview code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--glass);border:1px solid var(--line);border-radius:6px;padding:1px 5px;}.md-preview pre{background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;}.md-preview pre code{background:none;border:none;padding:0;}.md-preview blockquote{border-left:3px solid var(--line);margin:8px 0;padding:2px 0 2px 12px;color:var(--text-dim);}.md-preview a{color:var(--accent);}.md-preview hr{border:none;border-top:1px solid var(--line);margin:12px 0;}`;
+
 function DocTree({ docs, activeId, onOpen }: { docs: DocMetaT[]; activeId?: string; onOpen: (id: string) => void }) {
   type N = { name: string; full: string; doc?: DocMetaT; children: Map<string, N> };
   const root: N = { name: "", full: "", children: new Map() };
@@ -507,6 +544,7 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
   const [docs, setDocs] = useState<Record<string, DocMetaT[]>>({});
   const [docsLoaded, setDocsLoaded] = useState<Record<string, boolean>>({});
   const [editor, setEditor] = useState<null | { clientId: string; id?: string; path: string; title: string; body: string; saving?: boolean; err?: string; savedAt?: string }>(null);
+  const [docPreview, setDocPreview] = useState(false);
 
   async function load() {
     const r = await af("/api/admin/clients"); if (r && !r.error) { setClients(r.clients || []); setLegacy(r.legacy || []); }
@@ -556,14 +594,14 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
     setDocsLoaded((s) => ({ ...s, [clientId]: true }));
   }
   useEffect(() => { clients.forEach((c) => { if (!docsLoaded[c.id]) void loadDocs(c.id); }); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clients]);
-  function newDoc(clientId: string) { setEditor({ clientId, path: "", title: "", body: "" }); }
+  function newDoc(clientId: string) { setDocPreview(false); setEditor({ clientId, path: "", title: "", body: "" }); }
   async function openDoc(clientId: string, id: string) {
     const r = await af(`/api/admin/docs?clientId=${encodeURIComponent(clientId)}&id=${encodeURIComponent(id)}`);
-    if (r?.ok && r.doc) setEditor({ clientId, id: r.doc.id, path: r.doc.path, title: r.doc.title, body: r.doc.body });
+    if (r?.ok && r.doc) { setDocPreview(false); setEditor({ clientId, id: r.doc.id, path: r.doc.path, title: r.doc.title, body: r.doc.body }); }
   }
   function uploadDoc(clientId: string, file: File) {
     const reader = new FileReader();
-    reader.onload = () => { const text = String(reader.result || ""); setEditor({ clientId, path: file.name, title: file.name.replace(/\.[^.]+$/, ""), body: text }); };
+    reader.onload = () => { const text = String(reader.result || ""); setDocPreview(false); setEditor({ clientId, path: file.name, title: file.name.replace(/\.[^.]+$/, ""), body: text }); };
     reader.readAsText(file);
   }
   async function saveEditor() {
@@ -715,7 +753,17 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
             </div>
             <input value={editor.title} onChange={(e) => setEditor((s) => s && { ...s, title: e.target.value, savedAt: undefined })} placeholder="Заголовок" className="admin-inp" style={{ width: "100%", marginBottom: 8, fontWeight: 600 }} />
             <input value={editor.path} onChange={(e) => setEditor((s) => s && { ...s, path: e.target.value, savedAt: undefined })} placeholder="Путь: напр. changelog/update-prompt.md" className="admin-inp" style={{ width: "100%", marginBottom: 8, fontFamily: "monospace", fontSize: 12.5 }} />
-            <textarea value={editor.body} onChange={(e) => setEditor((s) => s && { ...s, body: e.target.value, savedAt: undefined })} placeholder="Текст документа (markdown)…" className="admin-inp" style={{ width: "100%", flex: 1, minHeight: 200, resize: "none", fontFamily: "monospace", fontSize: 13, lineHeight: 1.5 }} />
+            <style>{MD_PREVIEW_CSS}</style>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
+              <button className="admin-btn ghost" style={{ padding: "5px 12px", fontSize: 12.5, color: !docPreview ? "var(--accent)" : undefined }} onClick={() => setDocPreview(false)}>Правка</button>
+              <button className="admin-btn ghost" style={{ padding: "5px 12px", fontSize: 12.5, color: docPreview ? "var(--accent)" : undefined }} onClick={() => setDocPreview(true)}>Просмотр</button>
+              <span className="admin-hint" style={{ margin: 0, marginLeft: "auto" }}>Markdown</span>
+            </div>
+            {docPreview ? (
+              <div className="md-preview" style={{ flex: 1, overflow: "auto", border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", minHeight: 200 }} dangerouslySetInnerHTML={{ __html: mdToHtml(editor.body) }} />
+            ) : (
+              <textarea value={editor.body} onChange={(e) => setEditor((s) => s && { ...s, body: e.target.value, savedAt: undefined })} placeholder="Текст документа (markdown)…" className="admin-inp" style={{ width: "100%", flex: 1, minHeight: 200, resize: "none", fontFamily: "monospace", fontSize: 13, lineHeight: 1.5 }} />
+            )}
             {editor.err && <div className="admin-hint" style={{ color: "var(--bubble-u1)", marginTop: 6 }}>{editor.err}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
               <button onClick={saveEditor} className="admin-btn accent" disabled={editor.saving}>{editor.saving ? "Сохраняю…" : "Сохранить"}</button>

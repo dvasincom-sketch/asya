@@ -144,9 +144,63 @@ function KeysPanel() {
   );
 }
 
+const PLAY_EX: Record<string, string> = {
+  generate: `{ "input": "Привет! Ответь одним словом.", "json": false }`,
+  summary: `{ "transcript": "Вставь транскрипт минимум на 30 символов, чтобы проверить саммари." }`,
+  feedback: `{ "after": "Исправленный текст саммари", "source": "vid-1", "title": "Ролик" }`,
+  "knowledge/video": `{ "source": "vid-1", "title": "Ролик", "summary": "Краткое содержание видео" }`,
+  ask: `{ "q": "О чём это видео?" }`,
+};
+
+function Playground() {
+  const [ep, setEp] = useState("generate");
+  const [apiKey, setApiKey] = useState("");
+  const [body, setBody] = useState(PLAY_EX.generate);
+  const [touched, setTouched] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ status: number; text: string } | null>(null);
+
+  function pickEp(v: string) { setEp(v); if (!touched) setBody(PLAY_EX[v] || "{}"); }
+  async function send() {
+    let parsed: unknown;
+    try { parsed = JSON.parse(body); } catch { setRes({ status: 0, text: "Тело не парсится как JSON — проверь синтаксис." }); return; }
+    setBusy(true); setRes(null);
+    try {
+      const r = await fetch(`/api/${ep}`, { method: "POST", headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) }, body: JSON.stringify(parsed) });
+      const j = await r.json().catch(() => ({}));
+      setRes({ status: r.status, text: JSON.stringify(j, null, 2) });
+    } catch (e) {
+      setRes({ status: 0, text: "Сетевая ошибка: " + (e instanceof Error ? e.message : String(e)) });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="devx-panel">
+      <div className="devx-row">
+        <select className="devx-input" style={{ maxWidth: 210 }} value={ep} onChange={(e) => pickEp(e.target.value)}>
+          <option value="generate">POST /generate</option>
+          <option value="summary">POST /summary</option>
+          <option value="feedback">POST /feedback</option>
+          <option value="knowledge/video">POST /knowledge/video</option>
+          <option value="ask">POST /ask</option>
+        </select>
+        <input className="devx-input" style={{ maxWidth: 320 }} placeholder="Ключ проекта (asya_…)" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+      </div>
+      <textarea className="devx-input" style={{ marginTop: 10, minHeight: 130, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13, resize: "vertical" }} value={body} onChange={(e) => { setBody(e.target.value); setTouched(true); }} />
+      <div className="devx-row" style={{ marginTop: 10 }}>
+        <button className="devx-btn primary" onClick={send} disabled={busy}>{busy ? "Отправляю…" : "Отправить"}</button>
+        {res && <span className={`devx-badge ${res.status >= 200 && res.status < 300 ? "on" : "off"}`}>HTTP {res.status || "—"}</span>}
+      </div>
+      {res && <pre className="devx-code" style={{ marginTop: 10, maxHeight: 340, overflow: "auto" }}>{res.text}</pre>}
+      <p className="devx-dim" style={{ marginTop: 10 }}>Запрос уходит из браузера — удобно для теста. В проде дёргай API сервер-к-серверу, чтобы ключ не светился.</p>
+    </div>
+  );
+}
+
 const NAV = [
   { id: "start", t: "Возможности" },
   { id: "keys", t: "Ключи и вход" },
+  { id: "playground", t: "Плейграунд" },
   { id: "generate", t: "/generate" },
   { id: "summary", t: "/summary" },
   { id: "feedback", t: "/feedback" },
@@ -205,6 +259,12 @@ export default function DevPortal() {
           <p className="devx-dim">Войди по номеру телефона и создай свой ключ — здесь же им управляешь (показать, скопировать, выключить, отозвать). Один ключ = один проект.</p>
           <KeysPanel />
           <p className="devx-dim" style={{ marginTop: 14 }}>Ключ передаётся любым способом: <code>Authorization: Bearer &lt;ключ&gt;</code> (рекомендуется), заголовок <code>x-api-key</code> или <code>?key=</code> в URL (для тестов). Вызывай API сервер-к-серверу.</p>
+        </section>
+
+        <section id="playground" className="devx-section">
+          <h2 className="devx-h2">Плейграунд</h2>
+          <p className="devx-dim">Вставь ключ, выбери эндпоинт и тело запроса — и посмотри ответ Аси прямо здесь, без curl.</p>
+          <Playground />
         </section>
 
         <section id="generate" className="devx-section">
