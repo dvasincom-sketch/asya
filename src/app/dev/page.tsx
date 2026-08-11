@@ -253,6 +253,81 @@ function Playground() {
   );
 }
 
+const mIcon: Record<string, JSX.Element> = {
+  text: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h10" /></svg>),
+  code: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M9 8l-4 4 4 4M15 8l4 4-4 4" /></svg>),
+  video: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="12" height="12" rx="2" /><path d="M15 10l6-3v10l-6-3" /></svg>),
+  audio: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4" /></svg>),
+  image: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9.5" r="1.5" /><path d="M21 16l-5-5-9 9" /></svg>),
+};
+type Ability = { t: string; d: string; ep?: string; soon?: boolean };
+type Modality = { id: string; title: string; hint: string; status: "live" | "soon"; abilities: Ability[] };
+const MODALITIES: Modality[] = [
+  { id: "text", title: "Текст", hint: "создание, обработка, парсинг", status: "live", abilities: [
+    { t: "Создавать", d: "генерация текста, черновики, ответы", ep: "/generate" },
+    { t: "Обрабатывать", d: "переписать, сократить, перевести, сменить тон", ep: "/generate" },
+    { t: "Парсить и извлекать", d: "поля, теги, категории — строгим JSON", ep: "/generate" },
+    { t: "Сжимать", d: "саммари длинного текста и транскриптов", ep: "/summary" },
+    { t: "Отвечать по знанию", d: "вопросы по документам и видео", ep: "/ask" },
+    { t: "Модерировать", d: "спам, токсичность, ссылки, имена", ep: "/moderate", soon: true },
+  ] },
+  { id: "code", title: "Код", hint: "генерация, объяснение, структура", status: "live", abilities: [
+    { t: "Генерировать и объяснять", d: "сниппеты, разбор, преобразование", ep: "/generate" },
+    { t: "Из коммитов — в человекочитаемое", d: "журнал обновлений из git-истории", ep: "/generate" },
+    { t: "Структурировать в JSON", d: "строгий JSON по твоей схеме", ep: "/generate" },
+  ] },
+  { id: "video", title: "Видео", hint: "по транскрипту: саммари, главы", status: "live", abilities: [
+    { t: "Саммари", d: "транскрипт → краткое содержание с кэшем", ep: "/summary" },
+    { t: "Главы по тайм-кодам", d: "разбить видео на главы", ep: "/generate" },
+    { t: "Знание по видео", d: "эталонные саммари и главы на проект", ep: "/knowledge/video" },
+    { t: "Вопросы с тайм-кодами", d: "ответ со ссылкой на момент", ep: "/ask" },
+    { t: "Приём videoUrl и авто-транскрипт", d: "сейчас транскрипт шлёт проект", soon: true },
+  ] },
+  { id: "audio", title: "Аудио", hint: "расшифровка, резюме", status: "soon", abilities: [
+    { t: "Расшифровка (ASR)", d: "аудио → текст", soon: true },
+    { t: "Резюме звонков и записей", d: "краткая суть и важность", soon: true },
+    { t: "Есть транскрипт? — как текст", d: "обрабатывай через /generate и /summary", ep: "/generate" },
+  ] },
+  { id: "image", title: "Изображения", hint: "распознавание, OCR, генерация", status: "soon", abilities: [
+    { t: "Распознавание и описание", d: "что на картинке (vision)", soon: true },
+    { t: "Извлечение текста (OCR)", d: "текст с изображения", soon: true },
+    { t: "Генерация", d: "картинка по описанию", soon: true },
+  ] },
+];
+
+function Modalities() {
+  const [open, setOpen] = useState("text");
+  const cur = MODALITIES.find((m) => m.id === open) || MODALITIES[0];
+  return (
+    <div>
+      <div className="devx-tiles">
+        {MODALITIES.map((m) => (
+          <button key={m.id} className={`devx-tile${open === m.id ? " active" : ""}`} onClick={() => setOpen(m.id)}>
+            <span className="devx-tile-ic">{mIcon[m.id]}</span>
+            <span className="devx-tile-t">{m.title}{m.status === "soon" && <span className="devx-soon">скоро</span>}</span>
+            <span className="devx-tile-h">{m.hint}</span>
+          </button>
+        ))}
+      </div>
+      <div className="devx-detail">
+        <div className="devx-detail-h">{cur.title} <span className="devx-dim" style={{ fontWeight: 400, fontSize: 13 }}>— что умеет Ася</span></div>
+        {cur.abilities.map((a, i) => (
+          <div key={i} className="devx-ability">
+            <div className="devx-ability-main">
+              <b>{a.t}</b>
+              <span className="devx-dim">{a.d}</span>
+            </div>
+            <div className="devx-ability-side">
+              {a.ep && <code className="devx-epchip">{a.ep}</code>}
+              {a.soon && <span className="devx-soon">скоро</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const NAV = [
   { id: "start", t: "Возможности" },
   { id: "keys", t: "Ключи и вход" },
@@ -314,26 +389,8 @@ export default function DevPortal() {
 
         <section id="start" className="devx-section">
           <h2 className="devx-h2">Возможности</h2>
-          <p className="devx-dim">Ася отвечает на запросы проекта с учётом его контекста (документы проекта живут на стороне Аси и редактируются в админке). Что умеет API:</p>
-
-          <h3 className="devx-h3">Доступно сейчас</h3>
-          <ul className="devx-features">
-            <li><b>Генерация с контекстом</b> — <code>/generate</code>: текст или строгий JSON (черновики, ответы, форматирование).</li>
-            <li><b>Извлечение и классификация</b> — <code>/generate</code> с <code>json</code>: достаёшь поля, теги, категории по своей схеме.</li>
-            <li><b>Переписывание и тон</b> — <code>/generate</code>: сократить, перевести, переписать голосом проекта.</li>
-            <li><b>Саммари</b> — <code>/summary</code>: транскрипт → краткое содержание с кэшем.</li>
-            <li><b>Обучение на правках</b> — <code>/feedback</code>: правки редактора становятся примерами для будущих ответов.</li>
-            <li><b>Знание по видео и вопросы</b> — <code>/knowledge/video</code> + <code>/ask</code>: пополняешь знание, спрашиваешь с тайм-кодами.</li>
-          </ul>
-
-          <h3 className="devx-h3">На подходе <span className="devx-soon">скоро</span></h3>
-          <ul className="devx-features">
-            <li><b>Стриминг ответов</b> — <code>stream</code> в <code>/generate</code>: токены по мере генерации.</li>
-            <li><b>Модерация</b> — <code>/moderate</code>: спам, токсичность, ссылки, подозрительные имена — на движке сообществ Аси.</li>
-            <li><b>Уведомления</b> — <code>/notify</code>: сообщение пользователю в Telegram или SMS от лица проекта.</li>
-            <li><b>Вопросы по документам проекта</b> — <code>/ask</code> по контекст-документам, не только по видео.</li>
-            <li><b>Длинные транскрипты по частям</b> и <b>async-колбэк на вебхук</b> — для тяжёлых задач.</li>
-          </ul>
+          <p className="devx-dim">Ася работает с разными типами контента. Выбери тип — увидишь, что именно она умеет и каким эндпоинтом. Контекст проекта (документы) живёт на стороне Аси.</p>
+          <Modalities />
 
           <Code lang="bash">{`curl -X POST ${API_BASE}/generate \\
   -H "Authorization: Bearer $ASYA_KEY" \\
@@ -504,6 +561,22 @@ body { display: block !important; align-items: stretch !important; justify-conte
 .devx-table td { border-top: 1px solid var(--line); padding: 7px 10px 7px 0; vertical-align: top; color: var(--muted); }
 .devx-table td:first-child { width: 130px; }
 .devx-main :not(pre) > code, .devx-features code, .devx-dim code { font-family: var(--f-mono), ui-monospace, monospace; font-size: 12.6px; background: var(--chip-bg); border: 1px solid var(--chip-br); border-radius: 6px; padding: 1px 6px; color: var(--chip-tx); }
+.devx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+.devx-tile { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 7px; font-family: inherit; transition: border-color .15s, background .15s; }
+.devx-tile:hover { border-color: var(--accent); }
+.devx-tile.active { border-color: var(--accent); background: var(--accent-soft); }
+.devx-tile-ic { color: var(--accent); display: flex; }
+.devx-tile-t { font-weight: 700; font-size: 14.5px; color: var(--text); display: flex; align-items: center; gap: 7px; }
+.devx-tile-h { color: var(--dim); font-size: 12.5px; line-height: 1.4; }
+.devx-detail { border: 1px solid var(--line); border-radius: 14px; padding: 4px 16px; background: var(--panel); }
+.devx-detail-h { font-weight: 700; font-size: 15px; padding: 13px 0 5px; }
+.devx-ability { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+.devx-ability:first-of-type { border-top: none; }
+.devx-ability-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 180px; }
+.devx-ability-main b { font-size: 14px; color: var(--text); }
+.devx-ability-main .devx-dim { font-size: 13px; }
+.devx-ability-side { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+.devx-epchip { font-family: var(--f-mono), monospace; font-size: 11.5px; background: var(--chip-bg); border: 1px solid var(--chip-br); border-radius: 6px; padding: 2px 7px; color: var(--chip-tx); }
 .devx-footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
 .devx-root a { color: var(--accent); text-decoration: none; }
 .devx-root a:hover { text-decoration: underline; }
