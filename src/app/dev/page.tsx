@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Unbounded, Manrope, JetBrains_Mono } from "next/font/google";
+
+const fDisplay = Unbounded({ subsets: ["latin", "cyrillic"], weight: ["600", "700"], variable: "--f-display", display: "swap" });
+const fSans = Manrope({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700", "800"], variable: "--f-sans", display: "swap" });
+const fMono = JetBrains_Mono({ subsets: ["latin", "cyrillic"], weight: ["400", "500"], variable: "--f-mono", display: "swap" });
 
 const API_BASE = "https://api.xn--80a8a2b.online";
 const API_BASE_HUMAN = "https://api.ася.online";
@@ -73,7 +78,10 @@ function Code({ children, lang = "bash" }: { children: string; lang?: string }) 
   const [copied, setCopied] = useState(false);
   return (
     <div className="devx-codewrap">
-      <button className="devx-copy" onClick={async () => { try { await navigator.clipboard.writeText(children); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* */ } }}>{copied ? "Скопировано" : "Копировать"}</button>
+      <div className="devx-codebar">
+        <span className="devx-lang">{lang}</span>
+        <button className="devx-copy" onClick={async () => { try { await navigator.clipboard.writeText(children); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* */ } }}>{copied ? "Скопировано" : "Копировать"}</button>
+      </div>
       <pre className="devx-code"><code dangerouslySetInnerHTML={{ __html: hl(children, lang) }} /></pre>
     </div>
   );
@@ -234,12 +242,12 @@ function Playground() {
         </select>
         <input className="devx-input" style={{ maxWidth: 320 }} placeholder="Ключ проекта (asya_…)" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
       </div>
-      <textarea className="devx-input" style={{ marginTop: 10, minHeight: 130, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13, resize: "vertical" }} value={body} onChange={(e) => { setBody(e.target.value); setTouched(true); }} />
+      <textarea className="devx-input devx-mono" style={{ marginTop: 10, minHeight: 130, fontSize: 13, resize: "vertical" }} value={body} onChange={(e) => { setBody(e.target.value); setTouched(true); }} />
       <div className="devx-row" style={{ marginTop: 10 }}>
         <button className="devx-btn primary" onClick={send} disabled={busy}>{busy ? "Отправляю…" : "Отправить"}</button>
         {res && <span className={`devx-badge ${res.status >= 200 && res.status < 300 ? "on" : "off"}`}>HTTP {res.status || "—"}</span>}
       </div>
-      {res && <pre className="devx-code" style={{ marginTop: 10, maxHeight: 340, overflow: "auto" }}><code dangerouslySetInnerHTML={{ __html: hl(res.text, "json") }} /></pre>}
+      {res && <div className="devx-codewrap" style={{ marginTop: 10 }}><pre className="devx-code" style={{ maxHeight: 340, overflow: "auto" }}><code dangerouslySetInnerHTML={{ __html: hl(res.text, "json") }} /></pre></div>}
       <p className="devx-dim" style={{ marginTop: 10 }}>Запрос уходит из браузера — удобно для теста. В проде дёргай API сервер-к-серверу, чтобы ключ не светился.</p>
     </div>
   );
@@ -259,6 +267,19 @@ const NAV = [
 
 export default function DevPortal() {
   const [active, setActive] = useState("start");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    try { const t = localStorage.getItem("asya-dev-theme"); if (t === "dark" || t === "light") setTheme(t); } catch { /* */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("asya-dev-theme", theme); } catch { /* */ }
+    const bg = theme === "dark" ? "#0e0f13" : "#ffffff";
+    document.documentElement.style.background = bg;
+    document.body.style.background = bg;
+    return () => { document.documentElement.style.background = ""; document.body.style.background = ""; };
+  }, [theme]);
+
   useEffect(() => {
     const els = NAV.map((n) => document.getElementById(n.id)).filter(Boolean) as HTMLElement[];
     const obs = new IntersectionObserver(
@@ -270,7 +291,7 @@ export default function DevPortal() {
   }, []);
 
   return (
-    <div className="devx-root">
+    <div className={`devx-root ${fSans.variable} ${fDisplay.variable} ${fMono.variable}`} data-theme={theme}>
       <style>{CSS}</style>
       <aside className="devx-side">
         <div className="devx-brand">Ася API</div>
@@ -280,6 +301,10 @@ export default function DevPortal() {
             <a key={n.id} href={`#${n.id}`} className={`devx-navlink${active === n.id ? " active" : ""}`}>{n.t}</a>
           ))}
         </nav>
+        <button className="devx-theme" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Переключить тему">
+          <span className="devx-switch" data-on={theme === "dark"}><span className="devx-switch-knob" /></span>
+          <span>{theme === "dark" ? "Тёмная тема" : "Светлая тема"}</span>
+        </button>
         <div className="devx-side-base">{API_BASE_HUMAN}</div>
       </aside>
 
@@ -309,7 +334,8 @@ export default function DevPortal() {
             <li><b>Вопросы по документам проекта</b> — <code>/ask</code> по контекст-документам, не только по видео.</li>
             <li><b>Длинные транскрипты по частям</b> и <b>async-колбэк на вебхук</b> — для тяжёлых задач.</li>
           </ul>
-          <Code>{`curl -X POST ${API_BASE}/generate \\
+
+          <Code lang="bash">{`curl -X POST ${API_BASE}/generate \\
   -H "Authorization: Bearer $ASYA_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"input":"Ответь одним словом: привет?","json":false}'`}</Code>
@@ -385,56 +411,80 @@ const release = data.json;          // {version, tags, title, changes, mkt?}`}</
 }
 
 const CSS = `
-html { background: #ffffff !important; }
-body { background: #ffffff !important; display: block !important; align-items: stretch !important; justify-content: flex-start !important; padding: 0 !important; color: #16181d !important; }
+body { display: block !important; align-items: stretch !important; justify-content: flex-start !important; padding: 0 !important; }
 .ambient { display: none !important; }
 
-.devx-root { position: relative; z-index: 2; display: flex; align-items: flex-start; min-height: 100vh; background: #fff; color: #16181d; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; scroll-behavior: smooth; }
-.devx-side { position: sticky; top: 0; align-self: flex-start; width: 240px; flex: 0 0 240px; height: 100vh; overflow-y: auto; border-right: 1px solid #ececf1; padding: 26px 20px; box-sizing: border-box; }
-.devx-brand { font-weight: 750; font-size: 17px; letter-spacing: -0.01em; }
-.devx-sub { color: #9aa0ad; font-size: 12.5px; margin-top: 2px; }
+.devx-root {
+  --bg: #ffffff; --panel: #fbfbfd; --field: #ffffff; --text: #16181d; --muted: #6a7080; --dim: #9aa0ad;
+  --line: #ececf1; --line-soft: #f0f1f4; --chip-bg: #f2f3f7; --chip-br: #e9eaf0; --chip-tx: #5b3ff0;
+  --accent: #5b3ff0; --accent-2: #4c31de; --accent-soft: #f3f1ff;
+  --code-bg: #1b1e27; --code-bar: #15171f; --code-line: #2a2e3a;
+  position: relative; z-index: 2; display: flex; align-items: flex-start; min-height: 100vh;
+  background: var(--bg); color: var(--text); scroll-behavior: smooth;
+  font-family: var(--f-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.devx-root[data-theme="dark"] {
+  --bg: #0e0f13; --panel: #15171d; --field: #171a21; --text: #e7e9ee; --muted: #9aa1af; --dim: #6a7180;
+  --line: #23262f; --line-soft: #1e212a; --chip-bg: #1e222c; --chip-br: #2a2e39; --chip-tx: #b9aef7;
+  --accent: #8b74ff; --accent-2: #7c63f5; --accent-soft: #1d1a30;
+  --code-bg: #0b0d12; --code-bar: #0f1116; --code-line: #20242e;
+}
+
+.devx-side { position: sticky; top: 0; align-self: flex-start; width: 244px; flex: 0 0 244px; height: 100vh; overflow-y: auto; border-right: 1px solid var(--line); padding: 26px 20px; box-sizing: border-box; }
+.devx-brand { font-family: var(--f-display), var(--f-sans); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+.devx-sub { color: var(--dim); font-size: 12.5px; margin-top: 3px; }
 .devx-nav { display: flex; flex-direction: column; gap: 1px; margin-top: 22px; }
-.devx-navlink { display: block; padding: 7px 10px; border-radius: 8px; color: #4a4f5c; font-size: 13.5px; text-decoration: none; border-left: 2px solid transparent; }
-.devx-navlink:hover { background: #f5f6f9; }
-.devx-navlink.active { color: #5b3ff0; background: #f3f1ff; font-weight: 600; }
-.devx-side-base { margin-top: 24px; color: #b7bcc7; font-size: 12px; }
+.devx-navlink { display: block; padding: 7px 10px; border-radius: 8px; color: var(--muted); font-size: 13.5px; font-weight: 500; text-decoration: none; border-left: 2px solid transparent; }
+.devx-navlink:hover { background: var(--line-soft); }
+.devx-navlink.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.devx-theme { display: flex; align-items: center; gap: 9px; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 12.5px; padding: 0; margin-top: 22px; font-family: inherit; }
+.devx-switch { width: 38px; height: 22px; border-radius: 999px; background: var(--chip-bg); border: 1px solid var(--line); position: relative; transition: .18s; flex: 0 0 auto; }
+.devx-switch[data-on="true"] { background: var(--accent); border-color: var(--accent); }
+.devx-switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.devx-switch[data-on="true"] .devx-switch-knob { transform: translateX(16px); }
+.devx-side-base { margin-top: 22px; color: var(--dim); font-size: 12px; font-family: var(--f-mono), monospace; }
 
-.devx-main { flex: 1; min-width: 0; max-width: 880px; padding: 40px 48px 90px; box-sizing: border-box; }
-.devx-h1 { font-size: 30px; font-weight: 750; margin: 0 0 8px; letter-spacing: -0.02em; }
-.devx-lead { font-size: 15.5px; color: #4a4f5c; line-height: 1.6; margin: 0; }
-.devx-section { margin-top: 40px; scroll-margin-top: 20px; }
-.devx-h2 { font-size: 21px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.01em; }
-.devx-dim { color: #6a7080; font-size: 14.5px; line-height: 1.65; }
-.devx-ok { color: #1a7f4b; font-size: 13.5px; }
-.devx-err { color: #c02626; font-size: 13.5px; margin-top: 8px; }
+.devx-main { flex: 1; min-width: 0; max-width: 880px; padding: 44px 48px 90px; box-sizing: border-box; }
+.devx-h1 { font-family: var(--f-display), var(--f-sans); font-size: 32px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.02em; }
+.devx-lead { font-size: 15.5px; color: var(--muted); line-height: 1.6; margin: 0; }
+.devx-section { margin-top: 42px; scroll-margin-top: 20px; }
+.devx-h2 { font-size: 22px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.01em; }
+.devx-h3 { font-size: 14.5px; font-weight: 700; margin: 22px 0 6px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.devx-soon { background: var(--accent-soft); color: var(--accent); font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; }
+.devx-dim { color: var(--muted); font-size: 14.5px; line-height: 1.65; }
+.devx-ok { color: #1a9f5a; font-size: 13.5px; }
+.devx-err { color: #e0555a; font-size: 13.5px; margin-top: 8px; }
 .devx-features { list-style: none; padding: 0; margin: 10px 0 0; }
-.devx-features li { padding: 9px 0; border-top: 1px solid #f0f1f4; color: #4a4f5c; font-size: 14.5px; line-height: 1.6; }
+.devx-features li { padding: 9px 0; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 14.5px; line-height: 1.6; }
 .devx-features li:first-child { border-top: none; }
-.devx-h3 { font-size: 14.5px; font-weight: 700; margin: 22px 0 6px; color: #16181d; display: flex; align-items: center; gap: 8px; }
-.devx-soon { background: #fff3e0; color: #b9770e; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; letter-spacing: .03em; text-transform: uppercase; }
+.devx-features b { color: var(--text); }
 
-.devx-panel { background: #fbfbfd; border: 1px solid #e9eaf0; border-radius: 14px; padding: 18px; margin-top: 14px; }
-.devx-panelh { font-weight: 650; font-size: 15px; margin-bottom: 10px; }
+.devx-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-top: 14px; }
+.devx-panelh { font-weight: 700; font-size: 15px; margin-bottom: 10px; }
 .devx-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.devx-input { background: #fff; border: 1px solid #d7dbe4; border-radius: 10px; padding: 10px 12px; font-size: 14px; color: #16181d; outline: none; width: 100%; }
-.devx-input:focus { border-color: #7c5cff; box-shadow: 0 0 0 3px rgba(124,92,255,.14); }
-.devx-btn { background: #fff; border: 1px solid #d7dbe4; border-radius: 10px; padding: 9px 14px; font-size: 13.5px; color: #2a2e39; cursor: pointer; font-weight: 550; }
-.devx-btn:hover { background: #f2f3f7; }
-.devx-btn.primary { background: #5b3ff0; border-color: #5b3ff0; color: #fff; }
-.devx-btn.primary:hover { background: #4c31de; }
+.devx-input { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--text); outline: none; width: 100%; font-family: inherit; }
+.devx-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.devx-mono { font-family: var(--f-mono), ui-monospace, monospace; }
+.devx-btn { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; font-size: 13.5px; color: var(--text); cursor: pointer; font-weight: 600; font-family: inherit; }
+.devx-btn:hover { background: var(--line-soft); }
+.devx-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.devx-btn.primary:hover { background: var(--accent-2); }
 .devx-btn.primary:disabled { opacity: .5; cursor: default; }
 .devx-btn.sm { padding: 6px 11px; font-size: 12.5px; }
-.devx-btn.danger { color: #c02626; }
-.devx-key { border: 1px solid #e9eaf0; border-radius: 12px; padding: 14px; margin-top: 10px; background: #fff; }
-.devx-token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: #f2f3f7; border: 1px solid #e6e8ee; border-radius: 8px; padding: 6px 10px; color: #33384a; }
+.devx-btn.danger { color: #e0555a; }
+.devx-key { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-top: 10px; background: var(--field); }
+.devx-token { font-family: var(--f-mono), monospace; font-size: 12.5px; background: var(--chip-bg); border: 1px solid var(--chip-br); border-radius: 8px; padding: 6px 10px; color: var(--text); }
 .devx-badge { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; font-weight: 600; }
-.devx-badge.on { background: #e6f6ec; color: #1a7f4b; }
-.devx-badge.off { background: #f0e6e6; color: #a33; }
+.devx-badge.on { background: rgba(26,159,90,.14); color: #1a9f5a; }
+.devx-badge.off { background: rgba(224,85,90,.14); color: #e0555a; }
 
-.devx-codewrap { position: relative; margin: 12px 0; }
-.devx-copy { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: #cfd3e0; border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
-.devx-copy:hover { background: rgba(255,255,255,.16); }
-.devx-code { background: #1b1e27; color: #d4d4d4; border-radius: 12px; padding: 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.8px; line-height: 1.55; margin: 0; }
+.devx-codewrap { margin: 12px 0; border: 1px solid var(--code-line); border-radius: 12px; overflow: hidden; background: var(--code-bg); }
+.devx-codebar { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px 7px 14px; background: var(--code-bar); border-bottom: 1px solid var(--code-line); }
+.devx-lang { color: #7d8291; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-family: var(--f-mono), monospace; }
+.devx-copy { background: transparent; border: 1px solid rgba(255,255,255,.14); color: #b9bdca; border-radius: 7px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit; }
+.devx-copy:hover { background: rgba(255,255,255,.08); color: #e6e8f0; }
+.devx-code { background: transparent; color: #d4d4d4; padding: 15px 16px; overflow-x: auto; font-family: var(--f-mono), ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.8px; line-height: 1.6; margin: 0; }
+.devx-codewrap code { background: none; border: none; padding: 0; color: inherit; font: inherit; }
 .devx-code .tk-cm { color: #6a9955; font-style: italic; }
 .devx-code .tk-st { color: #ce9178; }
 .devx-code .tk-url { color: #ce9178; }
@@ -448,20 +498,23 @@ body { background: #ffffff !important; display: block !important; align-items: s
 .devx-code .tk-pn { color: #d4d4d4; }
 
 .devx-ep-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-.devx-method { background: #edeaff; color: #5b3ff0; font-weight: 700; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; letter-spacing: .04em; }
-.devx-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; font-weight: 650; }
+.devx-method { background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; letter-spacing: .04em; }
+.devx-path { font-family: var(--f-mono), monospace; font-size: 15px; font-weight: 600; }
 .devx-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13.5px; }
-.devx-table td { border-top: 1px solid #eef0f3; padding: 7px 10px 7px 0; vertical-align: top; color: #4a4f5c; }
+.devx-table td { border-top: 1px solid var(--line); padding: 7px 10px 7px 0; vertical-align: top; color: var(--muted); }
 .devx-table td:first-child { width: 130px; }
-.devx-main code, .devx-features code, .devx-dim code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.8px; background: #f2f3f7; border: 1px solid #e9eaf0; border-radius: 6px; padding: 1px 6px; color: #4a3aa0; }
-.devx-footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid #ececf1; color: #9aa0ad; font-size: 13px; }
+.devx-main :not(pre) > code, .devx-features code, .devx-dim code { font-family: var(--f-mono), ui-monospace, monospace; font-size: 12.6px; background: var(--chip-bg); border: 1px solid var(--chip-br); border-radius: 6px; padding: 1px 6px; color: var(--chip-tx); }
+.devx-footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
+.devx-root a { color: var(--accent); text-decoration: none; }
+.devx-root a:hover { text-decoration: underline; }
 
 @media (max-width: 900px) {
   .devx-root { flex-direction: column; }
-  .devx-side { position: static; width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid #ececf1; padding: 16px 20px; }
+  .devx-side { position: static; width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid var(--line); padding: 16px 20px; }
   .devx-nav { flex-direction: row; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
   .devx-navlink { border-left: none; }
+  .devx-theme { margin-top: 14px; }
   .devx-side-base { display: none; }
-  .devx-main { padding: 24px 20px 70px; max-width: none; }
+  .devx-main { padding: 26px 20px 70px; max-width: none; }
 }
 `;
