@@ -309,8 +309,8 @@ function Modalities() {
           </button>
         ))}
       </div>
+      <div className="devx-detail-title">{cur.title} <span className="devx-dim" style={{ fontWeight: 400, fontSize: 13.5 }}>— что умеет Ася</span></div>
       <div className="devx-detail">
-        <div className="devx-detail-h">{cur.title} <span className="devx-dim" style={{ fontWeight: 400, fontSize: 13 }}>— что умеет Ася</span></div>
         {cur.abilities.map((a, i) => (
           <div key={i} className="devx-ability">
             <div className="devx-ability-main">
@@ -328,21 +328,34 @@ function Modalities() {
   );
 }
 
-const NAV = [
+const NAV_TOP = [
   { id: "start", t: "Возможности" },
+  { id: "scenarios", t: "Сценарии" },
   { id: "keys", t: "Ключи и вход" },
   { id: "playground", t: "Плейграунд" },
+];
+const NAV_EP = [
   { id: "generate", t: "/generate" },
   { id: "summary", t: "/summary" },
   { id: "feedback", t: "/feedback" },
   { id: "knowledge", t: "/knowledge/video" },
   { id: "ask", t: "/ask" },
-  { id: "errors", t: "Ошибки" },
+];
+const NAV_BOTTOM = [{ id: "errors", t: "Ошибки" }];
+const NAV_ALL = [...NAV_TOP, ...NAV_EP, ...NAV_BOTTOM];
+
+const SCENARIOS: { t: string; d: string }[] = [
+  { t: "Боты сообществ", d: "Модерация, приветствия, ответы по правилам, капча — Ася ведёт чат за тебя." },
+  { t: "Контент-платформы", d: "Саммари видео, знание с тайм-кодами, журнал обновлений из коммитов." },
+  { t: "Студии и авторские сайты", d: "Краткие содержания, тизеры и тексты — в едином тоне проекта." },
+  { t: "Игры и нарратив", d: "Реплики персонажей, описания предметов и локаций, подсказки — генерация текста по контексту игры." },
+  { t: "Поддержка и FAQ", d: "Ответы по базе знаний проекта, вопросы со ссылкой на источник." },
 ];
 
 export default function DevPortal() {
   const [active, setActive] = useState("start");
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [openReqs, setOpenReqs] = useState(false);
 
   useEffect(() => {
     try { const t = localStorage.getItem("asya-dev-theme"); if (t === "dark" || t === "light") setTheme(t); } catch { /* */ }
@@ -356,7 +369,7 @@ export default function DevPortal() {
   }, [theme]);
 
   useEffect(() => {
-    const els = NAV.map((n) => document.getElementById(n.id)).filter(Boolean) as HTMLElement[];
+    const els = NAV_ALL.map((n) => document.getElementById(n.id)).filter(Boolean) as HTMLElement[];
     const obs = new IntersectionObserver(
       (entries) => { for (const e of entries) if (e.isIntersecting) setActive(e.target.id); },
       { rootMargin: "-10% 0px -80% 0px", threshold: 0 },
@@ -372,7 +385,17 @@ export default function DevPortal() {
         <div className="devx-brand">Ася API</div>
         <div className="devx-sub">для разработчиков</div>
         <nav className="devx-nav">
-          {NAV.map((n) => (
+          {NAV_TOP.map((n) => (
+            <a key={n.id} href={`#${n.id}`} className={`devx-navlink${active === n.id ? " active" : ""}`}>{n.t}</a>
+          ))}
+          <button className={`devx-navgroup${NAV_EP.some((n) => n.id === active) ? " active" : ""}`} onClick={() => setOpenReqs((o) => !o)} aria-expanded={openReqs}>
+            <span>POST-запросы</span>
+            <svg className={`devx-caret${openReqs ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+          {openReqs && NAV_EP.map((n) => (
+            <a key={n.id} href={`#${n.id}`} className={`devx-navlink sub${active === n.id ? " active" : ""}`}>{n.t}</a>
+          ))}
+          {NAV_BOTTOM.map((n) => (
             <a key={n.id} href={`#${n.id}`} className={`devx-navlink${active === n.id ? " active" : ""}`}>{n.t}</a>
           ))}
         </nav>
@@ -396,6 +419,19 @@ export default function DevPortal() {
   -H "Authorization: Bearer $ASYA_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"input":"Ответь одним словом: привет?","json":false}'`}</Code>
+        </section>
+
+        <section id="scenarios" className="devx-section">
+          <h2 className="devx-h2">Сценарии</h2>
+          <p className="devx-dim">Из этих возможностей собираются готовые продукты. Частые сценарии, что строят на Асе:</p>
+          <div className="devx-scen">
+            {SCENARIOS.map((s) => (
+              <div key={s.t} className="devx-scencard">
+                <b>{s.t}</b>
+                <span className="devx-dim">{s.d}</span>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section id="keys" className="devx-section">
@@ -476,6 +512,7 @@ body { display: block !important; align-items: stretch !important; justify-conte
   --line: #ececf1; --line-soft: #f0f1f4; --chip-bg: #f2f3f7; --chip-br: #e9eaf0; --chip-tx: #5b3ff0;
   --accent: #5b3ff0; --accent-2: #4c31de; --accent-soft: #f3f1ff;
   --code-bg: #1b1e27; --code-bar: #15171f; --code-line: #2a2e3a;
+  --side-bg: #17181e; --side-text: #c7cad3; --side-dim: #868b9a; --side-brand: #ffffff; --side-line: rgba(255,255,255,.09); --side-hover: rgba(255,255,255,.06); --side-active-bg: rgba(255,255,255,.11); --side-active-text: #ffffff;
   position: relative; z-index: 2; display: flex; align-items: flex-start; min-height: 100vh;
   background: var(--bg); color: var(--text); scroll-behavior: smooth;
   font-family: var(--f-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -485,21 +522,28 @@ body { display: block !important; align-items: stretch !important; justify-conte
   --line: #23262f; --line-soft: #1e212a; --chip-bg: #1e222c; --chip-br: #2a2e39; --chip-tx: #b9aef7;
   --accent: #8b74ff; --accent-2: #7c63f5; --accent-soft: #1d1a30;
   --code-bg: #0b0d12; --code-bar: #0f1116; --code-line: #20242e;
+  --side-bg: #f4f5f8; --side-text: #454b57; --side-dim: #878d9b; --side-brand: #14161b; --side-line: rgba(0,0,0,.08); --side-hover: rgba(0,0,0,.045); --side-active-bg: rgba(0,0,0,.065); --side-active-text: #14161b;
 }
 
-.devx-side { position: sticky; top: 0; align-self: flex-start; width: 244px; flex: 0 0 244px; height: 100vh; overflow-y: auto; border-right: 1px solid var(--line); padding: 26px 20px; box-sizing: border-box; }
-.devx-brand { font-family: var(--f-display), var(--f-sans); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
-.devx-sub { color: var(--dim); font-size: 12.5px; margin-top: 3px; }
+.devx-side { position: sticky; top: 0; align-self: flex-start; width: 244px; flex: 0 0 244px; height: 100vh; overflow-y: auto; background: var(--side-bg); border-right: 1px solid var(--side-line); padding: 26px 20px; box-sizing: border-box; }
+.devx-brand { font-family: var(--f-display), var(--f-sans); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; color: var(--side-brand); }
+.devx-sub { color: var(--side-dim); font-size: 12.5px; margin-top: 3px; }
 .devx-nav { display: flex; flex-direction: column; gap: 1px; margin-top: 22px; }
-.devx-navlink { display: block; padding: 7px 10px; border-radius: 8px; color: var(--muted); font-size: 13.5px; font-weight: 500; text-decoration: none; border-left: 2px solid transparent; }
-.devx-navlink:hover { background: var(--line-soft); }
-.devx-navlink.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
-.devx-theme { display: flex; align-items: center; gap: 9px; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 12.5px; padding: 0; margin-top: 22px; font-family: inherit; }
-.devx-switch { width: 38px; height: 22px; border-radius: 999px; background: var(--chip-bg); border: 1px solid var(--line); position: relative; transition: .18s; flex: 0 0 auto; }
-.devx-switch[data-on="true"] { background: var(--accent); border-color: var(--accent); }
-.devx-switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.devx-navlink { display: block; padding: 7px 10px; border-radius: 8px; color: var(--side-text); font-size: 13.5px; font-weight: 500; text-decoration: none; }
+.devx-navlink:hover { background: var(--side-hover); text-decoration: none; }
+.devx-navlink.active { color: var(--side-active-text); background: var(--side-active-bg); font-weight: 600; }
+.devx-navlink.sub { padding-left: 22px; font-family: var(--f-mono), monospace; font-size: 12.5px; }
+.devx-navgroup { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; border-radius: 8px; background: none; border: none; cursor: pointer; color: var(--side-text); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-family: inherit; }
+.devx-navgroup:hover { background: var(--side-hover); }
+.devx-navgroup.active { color: var(--side-active-text); }
+.devx-caret { transition: transform .18s; opacity: .65; }
+.devx-caret.open { transform: rotate(90deg); }
+.devx-theme { display: flex; align-items: center; gap: 9px; background: none; border: none; cursor: pointer; color: var(--side-dim); font-size: 12.5px; padding: 0; margin-top: 24px; font-family: inherit; }
+.devx-switch { width: 38px; height: 22px; border-radius: 999px; background: var(--side-hover); border: 1px solid var(--side-line); position: relative; transition: .18s; flex: 0 0 auto; }
+.devx-switch[data-on="true"] { background: var(--side-active-text); border-color: var(--side-active-text); }
+.devx-switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--side-bg); transition: transform .18s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
 .devx-switch[data-on="true"] .devx-switch-knob { transform: translateX(16px); }
-.devx-side-base { margin-top: 22px; color: var(--dim); font-size: 12px; font-family: var(--f-mono), monospace; }
+.devx-side-base { margin-top: 22px; color: var(--side-dim); font-size: 12px; font-family: var(--f-mono), monospace; }
 
 .devx-main { flex: 1; min-width: 0; max-width: 880px; padding: 44px 48px 90px; box-sizing: border-box; }
 .devx-h1 { font-family: var(--f-display), var(--f-sans); font-size: 32px; font-weight: 700; margin: 0 0 10px; letter-spacing: -0.02em; }
@@ -568,8 +612,12 @@ body { display: block !important; align-items: stretch !important; justify-conte
 .devx-tile-ic { color: var(--accent); display: flex; }
 .devx-tile-t { font-weight: 700; font-size: 14.5px; color: var(--text); display: flex; align-items: center; gap: 7px; }
 .devx-tile-h { color: var(--dim); font-size: 12.5px; line-height: 1.4; }
+.devx-detail-title { font-weight: 700; font-size: 16px; margin: 16px 0 8px; }
 .devx-detail { border: 1px solid var(--line); border-radius: 14px; padding: 4px 16px; background: var(--panel); }
-.devx-detail-h { font-weight: 700; font-size: 15px; padding: 13px 0 5px; }
+.devx-scen { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 12px; }
+.devx-scencard { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--panel); display: flex; flex-direction: column; gap: 5px; }
+.devx-scencard b { font-size: 14.5px; color: var(--text); }
+.devx-scencard .devx-dim { font-size: 13px; }
 .devx-ability { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
 .devx-ability:first-of-type { border-top: none; }
 .devx-ability-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 180px; }
@@ -583,7 +631,7 @@ body { display: block !important; align-items: stretch !important; justify-conte
 
 @media (max-width: 900px) {
   .devx-root { flex-direction: column; }
-  .devx-side { position: static; width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid var(--line); padding: 16px 20px; }
+  .devx-side { position: static; width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid var(--side-line); padding: 16px 20px; }
   .devx-nav { flex-direction: row; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
   .devx-navlink { border-left: none; }
   .devx-theme { margin-top: 14px; }
