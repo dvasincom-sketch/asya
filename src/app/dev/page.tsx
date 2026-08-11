@@ -376,6 +376,7 @@ export default function DevPortal() {
   const [active, setActive] = useState("start");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [openReqs, setOpenReqs] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     try { const t = localStorage.getItem("asya-dev-theme"); if (t === "dark" || t === "light") setTheme(t); } catch { /* */ }
@@ -401,29 +402,40 @@ export default function DevPortal() {
   return (
     <div className={`devx-root ${fSans.variable} ${fDisplay.variable} ${fMono.variable}`} data-theme={theme}>
       <style>{CSS}</style>
-      <aside className="devx-side">
-        <div className="devx-brand">Ася API</div>
-        <div className="devx-sub">для разработчиков</div>
-        <nav className="devx-nav">
-          {NAV_TOP.map((n) => (
-            <a key={n.id} href={`#${n.id}`} className={`devx-navlink${active === n.id ? " active" : ""}`}>{n.t}</a>
-          ))}
-          <button className={`devx-navgroup${NAV_EP.some((n) => n.id === active) ? " active" : ""}`} onClick={() => setOpenReqs((o) => !o)} aria-expanded={openReqs}>
-            <span>POST-запросы</span>
-            <svg className={`devx-caret${openReqs ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+      <aside className={`devx-side${menuOpen ? " open" : ""}`}>
+        <div className="devx-side-head">
+          <div>
+            <div className="devx-brand">Ася API</div>
+            <div className="devx-sub">для разработчиков</div>
+          </div>
+          <button className="devx-burger" onClick={() => setMenuOpen((o) => !o)} aria-label="Меню">
+            {menuOpen
+              ? (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>)
+              : (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>)}
           </button>
-          {openReqs && NAV_EP.map((n) => (
-            <a key={n.id} href={`#${n.id}`} className={`devx-navlink sub${active === n.id ? " active" : ""}`}>{n.t}</a>
-          ))}
-          {NAV_BOTTOM.map((n) => (
-            <a key={n.id} href={`#${n.id}`} className={`devx-navlink${active === n.id ? " active" : ""}`}>{n.t}</a>
-          ))}
-        </nav>
-        <button className="devx-theme" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Переключить тему">
-          <span className="devx-switch" data-on={theme === "dark"}><span className="devx-switch-knob" /></span>
-          <span>{theme === "dark" ? "Тёмная тема" : "Светлая тема"}</span>
-        </button>
-        <div className="devx-side-base">{API_BASE_HUMAN}</div>
+        </div>
+        <div className="devx-side-body">
+          <nav className="devx-nav">
+            {NAV_TOP.map((n) => (
+              <a key={n.id} href={`#${n.id}`} className={`devx-navlink${active === n.id ? " active" : ""}`} onClick={() => setMenuOpen(false)}>{n.t}</a>
+            ))}
+            <button className={`devx-navgroup${NAV_EP.some((n) => n.id === active) ? " active" : ""}`} onClick={() => setOpenReqs((o) => !o)} aria-expanded={openReqs}>
+              <span>POST-запросы</span>
+              <svg className={`devx-caret${openReqs ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+            </button>
+            {openReqs && NAV_EP.map((n) => (
+              <a key={n.id} href={`#${n.id}`} className={`devx-navlink sub${active === n.id ? " active" : ""}`} onClick={() => setMenuOpen(false)}>{n.t}</a>
+            ))}
+            {NAV_BOTTOM.map((n) => (
+              <a key={n.id} href={`#${n.id}`} className={`devx-navlink${active === n.id ? " active" : ""}`} onClick={() => setMenuOpen(false)}>{n.t}</a>
+            ))}
+          </nav>
+          <button className="devx-theme" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Переключить тему">
+            <span className="devx-switch" data-on={theme === "dark"}><span className="devx-switch-knob" /></span>
+            <span>{theme === "dark" ? "Тёмная тема" : "Светлая тема"}</span>
+          </button>
+          <div className="devx-side-base">{API_BASE_HUMAN}</div>
+        </div>
       </aside>
 
       <main className="devx-main">
@@ -546,6 +558,8 @@ body { display: block !important; align-items: stretch !important; justify-conte
 }
 
 .devx-side { position: sticky; top: 0; align-self: flex-start; width: 244px; flex: 0 0 244px; height: 100vh; overflow-y: auto; background: var(--side-bg); border-right: 1px solid var(--side-line); padding: 26px 20px; box-sizing: border-box; }
+.devx-side-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.devx-burger { display: none; }
 .devx-brand { font-family: var(--f-display), var(--f-sans); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; color: var(--side-brand); }
 .devx-sub { color: var(--side-dim); font-size: 12.5px; margin-top: 3px; }
 .devx-nav { display: flex; flex-direction: column; gap: 1px; margin-top: 22px; }
@@ -656,13 +670,26 @@ body { display: block !important; align-items: stretch !important; justify-conte
 .devx-main a { color: var(--accent); text-decoration: none; }
 .devx-main a:hover { text-decoration: underline; }
 
-@media (max-width: 900px) {
+@media (max-width: 820px) {
   .devx-root { flex-direction: column; }
-  .devx-side { position: static; width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid var(--side-line); padding: 16px 20px; }
-  .devx-nav { flex-direction: row; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-  .devx-navlink { border-left: none; }
-  .devx-theme { margin-top: 14px; }
-  .devx-side-base { display: none; }
-  .devx-main { padding: 26px 20px 70px; max-width: none; }
+  .devx-side { position: sticky; top: 0; z-index: 30; width: 100%; height: auto; overflow: visible; flex: none; border-right: none; border-bottom: 1px solid var(--side-line); padding: 13px 18px; }
+  .devx-burger { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--side-line); background: var(--side-hover); color: var(--side-brand); cursor: pointer; flex: 0 0 auto; padding: 0; }
+  .devx-side-body { position: absolute; left: 0; right: 0; top: 100%; background: var(--side-bg); border-bottom: 1px solid var(--side-line); padding: 10px 18px 16px; display: none; box-shadow: 0 24px 44px -16px rgba(0,0,0,.45); max-height: 76vh; overflow-y: auto; }
+  .devx-side.open .devx-side-body { display: block; }
+  .devx-nav { margin-top: 4px; }
+  .devx-theme { margin-top: 16px; }
+  .devx-side-base { margin-top: 16px; }
+  .devx-main { padding: 24px 18px 64px; max-width: none; }
+  .devx-h1 { font-size: 26px; }
+  .devx-h2 { font-size: 19px; }
+  .devx-lead { font-size: 14.5px; }
+  .devx-table td:first-child { width: 108px; }
+}
+
+@media (max-width: 460px) {
+  .devx-tiles { grid-template-columns: repeat(2, 1fr); }
+  .devx-scen { grid-template-columns: 1fr; }
+  .devx-row { gap: 8px; }
+  .devx-select { width: 100% !important; max-width: none !important; }
 }
 `;
