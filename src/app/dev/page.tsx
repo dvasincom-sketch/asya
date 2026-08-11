@@ -87,6 +87,26 @@ function Code({ children, lang = "bash" }: { children: string; lang?: string }) 
   );
 }
 
+function Select({ value, options, onChange, width = 210 }: { value: string; options: { v: string; t: string }[]; onChange: (v: string) => void; width?: number }) {
+  const [open, setOpen] = useState(false);
+  const cur = options.find((o) => o.v === value);
+  return (
+    <div className="devx-select" style={{ position: "relative", width, maxWidth: width }}>
+      <button type="button" className="devx-input devx-selbtn" onClick={() => setOpen((o) => !o)} onBlur={() => setTimeout(() => setOpen(false), 150)}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cur?.t || value}</span>
+        <svg className={`devx-caret2${open ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="devx-selmenu">
+          {options.map((o) => (
+            <div key={o.v} className={`devx-selopt${o.v === value ? " sel" : ""}`} onMouseDown={() => { onChange(o.v); setOpen(false); }}>{o.t}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function KeysPanel() {
   const [me, setMe] = useState<{ authed: boolean } | null>(null);
   const [stage, setStage] = useState<"phone" | "code">("phone");
@@ -233,13 +253,13 @@ function Playground() {
   return (
     <div className="devx-panel">
       <div className="devx-row">
-        <select className="devx-input" style={{ maxWidth: 210 }} value={ep} onChange={(e) => pickEp(e.target.value)}>
-          <option value="generate">POST /generate</option>
-          <option value="summary">POST /summary</option>
-          <option value="feedback">POST /feedback</option>
-          <option value="knowledge/video">POST /knowledge/video</option>
-          <option value="ask">POST /ask</option>
-        </select>
+        <Select value={ep} onChange={pickEp} options={[
+          { v: "generate", t: "POST /generate" },
+          { v: "summary", t: "POST /summary" },
+          { v: "feedback", t: "POST /feedback" },
+          { v: "knowledge/video", t: "POST /knowledge/video" },
+          { v: "ask", t: "POST /ask" },
+        ]} />
         <input className="devx-input" style={{ maxWidth: 320 }} placeholder="Ключ проекта (asya_…)" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
       </div>
       <textarea className="devx-input devx-mono" style={{ marginTop: 10, minHeight: 130, fontSize: 13, resize: "vertical" }} value={body} onChange={(e) => { setBody(e.target.value); setTouched(true); }} />
@@ -566,6 +586,13 @@ body { display: block !important; align-items: stretch !important; justify-conte
 .devx-input { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--text); outline: none; width: 100%; font-family: inherit; }
 .devx-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .devx-mono { font-family: var(--f-mono), ui-monospace, monospace; }
+.devx-selbtn { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; text-align: left; }
+.devx-caret2 { opacity: .6; transition: transform .18s; flex: 0 0 auto; }
+.devx-caret2.open { transform: rotate(180deg); }
+.devx-selmenu { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30; background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 5px; box-shadow: 0 18px 44px -14px rgba(0,0,0,.4); }
+.devx-selopt { padding: 8px 10px; border-radius: 8px; font-size: 13.5px; cursor: pointer; color: var(--text); }
+.devx-selopt:hover { background: var(--line-soft); }
+.devx-selopt.sel { color: var(--accent); background: var(--accent-soft); }
 .devx-btn { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; font-size: 13.5px; color: var(--text); cursor: pointer; font-weight: 600; font-family: inherit; }
 .devx-btn:hover { background: var(--line-soft); }
 .devx-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -626,8 +653,8 @@ body { display: block !important; align-items: stretch !important; justify-conte
 .devx-ability-side { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
 .devx-epchip { font-family: var(--f-mono), monospace; font-size: 11.5px; background: var(--chip-bg); border: 1px solid var(--chip-br); border-radius: 6px; padding: 2px 7px; color: var(--chip-tx); }
 .devx-footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
-.devx-root a { color: var(--accent); text-decoration: none; }
-.devx-root a:hover { text-decoration: underline; }
+.devx-main a { color: var(--accent); text-decoration: none; }
+.devx-main a:hover { text-decoration: underline; }
 
 @media (max-width: 900px) {
   .devx-root { flex-direction: column; }
