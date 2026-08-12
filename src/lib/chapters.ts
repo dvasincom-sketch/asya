@@ -122,11 +122,20 @@ export async function buildChapters(opts: {
   instruction?: string;
   context?: string;
 }): Promise<{ chapters: { start: number; title: string }[] }> {
-  const cues = (opts.cues || [])
+  const full = (opts.cues || [])
     .map((c) => ({ start: Number(c.start) || 0, text: String(c.text || "").replace(/\s+/g, " ").trim() }))
-    .filter((c) => c.text.length > 0)
-    .slice(0, 800);
-  if (cues.length < 4) return { chapters: [] };
+    .filter((c) => c.text.length > 0);
+  if (full.length < 4) return { chapters: [] };
+  // Равномерно прореживаем реплики по ВСЕЙ длине видео. Раньше .slice(0, 800)
+  // + обрезка промпта до 24000 символов скармливали LLM только начало, и для
+  // длинных видео (напр. 2 ч) главы получались лишь для первой части. Теперь
+  // модель видит весь таймлайн от 0:00 до конца (с сохранением обоих краёв).
+  const MAX_CUES = 170;
+  let cues = full;
+  if (full.length > MAX_CUES) {
+    const step = (full.length - 1) / (MAX_CUES - 1);
+    cues = Array.from({ length: MAX_CUES }, (_, i) => full[Math.round(i * step)]);
+  }
 
   const lang = (opts.lang || "").trim();
   const instruction = (opts.instruction || "").trim();
@@ -140,7 +149,7 @@ export async function buildChapters(opts: {
 
   const user =
     (opts.title ? `Видео: ${opts.title}\n\n` : "") +
-    cues.map((c) => `[${mmss(c.start)}] ${c.text.slice(0, 300)}`).join("\n");
+    cues.map((c) => `[${mmss(c.start)}] ${c.text.slice(0, 110)}`).join("\n");
 
   const raw = await complete([{ role: "user", content: user.slice(0, 24000) }], system, 1400).catch(() => "");
   return { chapters: parseChapters(raw || "") };
