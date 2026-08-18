@@ -560,7 +560,7 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
   function set(id: string, patch: Partial<ApiClientT>) { setClients((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c))); }
   async function save(c: ApiClientT) {
-    const r = await af("/api/admin/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, name: c.name, instruction: c.instruction, enabled: c.enabled }) });
+    const r = await af("/api/admin/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id, name: c.name, capability: c.capability, instruction: c.instruction, enabled: c.enabled }) });
     setMsg(r?.ok ? "Сохранено ✓" : "Не сохранилось"); setTimeout(() => setMsg(""), 1500);
   }
   async function create() {
@@ -654,7 +654,14 @@ function ApiClientsTab({ af }: { af: Fetcher; apiKey?: string }) {
             <code className="admin-id" style={{ fontSize: 13, padding: "6px 10px" }}>{reveal[c.id] ? c.token : `${c.token.slice(0, 9)}••••••••${c.token.slice(-4)}`}</code>
             <button className="admin-btn ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => setReveal((s) => ({ ...s, [c.id]: !s[c.id] }))}>{reveal[c.id] ? "Скрыть" : "Показать"}</button>
             <button className="admin-btn ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => copy(c.token)}>Копировать ключ</button>
-            <span className="admin-hint" style={{ margin: 0 }}>доступ: {c.capability}</span>
+            <label className="admin-hint" style={{ margin: 0, display: "flex", alignItems: "center", gap: 6 }}>доступ:
+              <select value={c.capability} onChange={(e) => set(c.id, { capability: e.target.value })} className="admin-inp" style={{ padding: "4px 8px", fontSize: 12.5 }}>
+                <option value="summary">summary</option>
+                <option value="chapters">chapters</option>
+                <option value="compose">compose</option>
+                <option value="generate">generate</option>
+              </select>
+            </label>
           </div>
 
           <label className="admin-lbl" style={{ width: "100%" }}>Короткая заметка (необязательно)
