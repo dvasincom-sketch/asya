@@ -46,6 +46,7 @@ const SYSTEM = `Ты — редактор-структуровщик платф�
 Используй только Markdown: **жирный**, *курсив*, «## Подзаголовок», списки через «- », ссылки [текст](url) только если ссылка есть в исходном тексте. Абзацы разделяй пустой строкой. НЕ используй: цитаты >, код, таблицы, картинки, заголовки # или ###, HTML. Все прочие поля (label, value, title, year, name, строки factsList) — простой текст без разметки.
 
 ПРАВИЛА
+- ПЕРЕНОСИ ТЕКСТ ДОСЛОВНО: сохраняй ВСЕ предложения, факты, детали и объём исходника. НЕ сокращай, НЕ пересказывай, НЕ выкидывай абзацы, НЕ переписывай стиль. Твоя задача — разложить текст по блокам, а не сжать его. Единственные допустимые изменения — короткие заголовки блоков и минимальная разметка (**жирный**/*курсив*).
 - Не выдумывай факты, даты, имена, цифры, которых нет в тексте. Лучше меньше блоков, чем додуманные.
 - Не дублируй один и тот же контент в разных блоках.
 - Начинай с hero, только если в тексте есть вводная часть (подзаголовок/лид). Если текст сразу «по делу» — hero можно не создавать.
@@ -162,6 +163,20 @@ function normalizeBlocks(arr: unknown[]): ComposeBlock[] {
  * Разобрать текст на блоки. messages — предыдущие реплики диалога (правки автора
  * и заметки ассистента), prevBlocks — последний предложенный вариант (для правки).
  */
+/** Разбивка длинного текста на части по границам абзацев (~maxChars символов). */
+function chunkText(text: string, maxChars: number): string[] {
+  const paras = text.split(/\n{2,}/);
+  const chunks: string[] = [];
+  let buf = "";
+  for (const p of paras) {
+    if (buf && buf.length + p.length + 2 > maxChars) { chunks.push(buf); buf = ""; }
+    buf = buf ? buf + "\n\n" + p : p;
+    while (buf.length > maxChars * 1.5) { chunks.push(buf.slice(0, maxChars)); buf = buf.slice(maxChars); }
+  }
+  if (buf.trim()) chunks.push(buf);
+  return chunks.length ? chunks : [text];
+}
+
 export async function composeBlocks(opts: {
   text: string;
   messages?: { role: string; content: string }[];
@@ -181,8 +196,40 @@ export async function composeBlocks(opts: {
     (instruction ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction}` : "") +
     (corrections ? `\n\nПримеры правок редактора проекта — учитывай их стиль:\n${corrections}` : "");
 
+  const isRefine =
+    (Array.isArray(opts.prevBlocks) && opts.prevBlocks.length > 0) ||
+    (Array.isArray(opts.messages) && opts.messages.length > 0);
+
+  // Первый разбор длинного текста — по частям: одним вызовом модель упирается в
+  // лимит вывода и режет хвост (текст «уменьшается»). По частям переносим весь объём.
+  if (!isRefine && text.length > 9000) {
+    const chunks = chunkText(text, 8000);
+    const allBlocks: ComposeBlock[] = [];
+    let note = "";
+    for (let i = 0; i < chunks.length; i++) {
+      const first = i === 0;
+      const sys =
+        system +
+        (first
+          ? ""
+          : `\n\nЭто ПРОДОЛЖЕНИЕ большого текста, часть ${i + 1} из ${chunks.length}. НЕ создавай hero и facts — только блоки содержания (text, timeline, relations, awards, factsList, columns, callout, divider) по этому фрагменту. Перенеси текст фрагмента ДОСЛОВНО.`);
+      const raw = await complete([{ role: "user", content: `ФРАГМЕНТ ТЕКСТА:\n\n${chunks[i]}` }], sys, 6000).catch(() => "");
+      const r = parseResult(raw || "");
+      if (first) note = r.note;
+      for (const b of r.blocks) {
+        if (!first && (b.type === "hero" || b.type === "facts")) continue;
+        allBlocks.push(b);
+      }
+      if (allBlocks.length >= 60) break;
+    }
+    return {
+      note: note || `Разобрал текст на ${allBlocks.length} блоков (в ${chunks.length} частях), перенося содержание дословно.`,
+      blocks: allBlocks.slice(0, 60),
+    };
+  }
+
   const msgs: ChatMessage[] = [
-    { role: "user", content: `ИСХОДНЫЙ ТЕКСТ АВТОРА:\n\n${text.slice(0, 24000)}` },
+    { role: "user", content: `ИСХОДНЫЙ ТЕКСТ АВТОРА:\n\n${text.slice(0, 40000)}` },
   ];
   if (Array.isArray(opts.prevBlocks) && opts.prevBlocks.length) {
     msgs.push({
