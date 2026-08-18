@@ -78,6 +78,43 @@ function extractBalanced(t: string): string | null {
   return null;
 }
 
+/**
+ * Частичное восстановление: собрать блоки из массива "blocks", даже если хвост
+ * ответа обрезан лимитом токенов. Берём каждый полностью пришедший объект {...}
+ * и останавливаемся на первом незакрытом.
+ */
+function salvageBlocks(t: string): ComposeBlock[] {
+  const bi = t.indexOf('"blocks"');
+  if (bi < 0) return [];
+  const arrStart = t.indexOf("[", bi);
+  if (arrStart < 0) return [];
+  const out: ComposeBlock[] = [];
+  let k = arrStart + 1;
+  while (k < t.length) {
+    while (k < t.length && (t[k] === " " || t[k] === "\n" || t[k] === "\r" || t[k] === "\t" || t[k] === ",")) k++;
+    if (k >= t.length || t[k] === "]") break;
+    if (t[k] !== "{") break;
+    let depth = 0, inStr = false, esc = false, end = -1;
+    for (let p = k; p < t.length; p++) {
+      const ch = t[p];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+      } else if (ch === '"') inStr = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") { depth--; if (depth === 0) { end = p; break; } }
+    }
+    if (end < 0) break; // объект не закрыт (обрыв) — дальше не идём
+    try {
+      const o = JSON.parse(t.slice(k, end + 1));
+      if (o && typeof o === "object") out.push(o as ComposeBlock);
+    } catch { break; }
+    k = end + 1;
+  }
+  return out;
+}
+
 function parseResult(raw: string): ComposeResult {
   let t = String(raw || "").trim();
   // снимаем возможную \`\`\`json ... \`\`\` обёртку
@@ -93,6 +130,13 @@ function parseResult(raw: string): ComposeResult {
     const note = typeof j.note === "string" ? j.note.trim() : "";
     const blocks = Array.isArray(j.blocks) ? normalizeBlocks(j.blocks) : [];
     if (note || blocks.length) return { note, blocks };
+  }
+  // Полный парс не удался (обрыв/мусор) — спасаем целиком пришедшие блоки.
+  const salvaged = normalizeBlocks(salvageBlocks(t));
+  if (salvaged.length) {
+    const nm = t.match(/"note"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const note = nm ? nm[1].replace(/\\"/g, '"').slice(0, 400) : "";
+    return { note, blocks: salvaged };
   }
   return { note: t.slice(0, 500), blocks: [] };
 }
@@ -150,6 +194,6 @@ export async function composeBlocks(opts: {
     if (content) msgs.push({ role, content } as ChatMessage);
   }
 
-  const raw = await complete(msgs, system, 4800).catch(() => "");
+  const raw = await complete(msgs, system, 6000).catch(() => "");
   return parseResult(raw || "");
 }
