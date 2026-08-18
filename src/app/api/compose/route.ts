@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       instruction,
       corrections,
     });
-    return Response.json({ ok: true, project: client.name || null, note: r.note, blocks: r.blocks });
+    return Response.json({ ok: true, project: client.name || null, note: r.note, blocks: r.blocks, suggest: r.suggest ?? null });
   } catch (e) {
     console.error("[api/compose]", e instanceof Error ? e.message : String(e));
     return Response.json({ ok: false, error: "internal" }, { status: 500 });

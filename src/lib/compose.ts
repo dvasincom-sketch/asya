@@ -6,7 +6,18 @@ import type { ChatMessage } from "./crisis";
 
 /** Блок в ответе (без id — id проставляет клиент, content-box). */
 export type ComposeBlock = { type: string; [k: string]: unknown };
-export type ComposeResult = { note: string; blocks: ComposeBlock[] };
+export type ComposeSuggest = { title?: string; tags?: string[] };
+export type ComposeResult = { note: string; blocks: ComposeBlock[]; suggest?: ComposeSuggest };
+
+/** Нормализация предложения заголовка/тегов. */
+function parseSuggest(v: unknown): ComposeSuggest | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as { title?: unknown; tags?: unknown };
+  const title = typeof o.title === "string" ? o.title.trim().slice(0, 160) : "";
+  const tags = Array.isArray(o.tags) ? o.tags.map((x) => String(x).trim()).filter(Boolean).slice(0, 8) : [];
+  if (!title && !tags.length) return undefined;
+  return { ...(title ? { title } : {}), ...(tags.length ? { tags } : {}) };
+}
 
 /** Типы, которые ИИ имеет право создавать (текстовые + пустые плейсхолдеры). */
 const ALLOWED = new Set([
@@ -21,7 +32,7 @@ const SYSTEM = `Ты — редактор-структуровщик платф�
 1. Читаешь текст и делишь его на логические части.
 2. Каждой части подбираешь наиболее подходящий тип блока из каталога ниже.
 3. Переносишь содержание в поля блока дословно по смыслу: перефразируешь только ради краткости заголовков и подписей, но НЕ добавляешь того, чего в тексте нет.
-4. Возвращаешь ТОЛЬКО JSON вида {"blocks":[...],"note":"..."} — БЕЗ вводных фраз до и после, БЕЗ обёртки в тройные кавычки. Не пиши ничего вне JSON. Поле note — не длиннее 2 коротких предложений (длинный note обрывает ответ и ломает разбор).
+4. Возвращаешь ТОЛЬКО JSON вида {"blocks":[...],"note":"...","suggest":{"title":"вариант заголовка публикации","tags":["тег","тег"]}} — БЕЗ вводных фраз до и после, БЕЗ обёртки в тройные кавычки. Не пиши ничего вне JSON. Поле note — не длиннее 2 коротких предложений. Поле suggest — необязательное: предложи заголовок публикации и 2–5 тегов по тексту (если неясно — опусти).
 
 КАТАЛОГ БЛОКОВ (type → назначение → поля)
 - hero — вводная шапка страницы. {"type":"hero","eyebrow"?:"надзаголовок","subtitle"?:"подзаголовок","lead"?:"короткий лид (Markdown)"}. Крупный заголовок берётся из названия публикации — сюда его НЕ дублируй.
@@ -36,11 +47,12 @@ const SYSTEM = `Ты — редактор-структуровщик платф�
 - divider — разделитель между смысловыми зонами. {"type":"divider","variant"?:"line|dots|space"}
 
 БЛОКИ-ПЛЕЙСХОЛДЕРЫ (создаёшь ПУСТЫМИ, только если по смыслу текста там явно просится медиа; НЕ придумывай ссылки, файлы, категории):
-- gallery {"type":"gallery","title"?:"Галерея"}
-- videos {"type":"videos","title"?:"Видео"}
-- categoryRow {"type":"categoryRow","title"?:""}
-- publications {"type":"publications","title"?:""}
+- gallery {"type":"gallery","title"?:"Галерея","hint"?:"какие фото сюда"}
+- videos {"type":"videos","title"?:"Видео","hint"?:"какие ролики сюда"}
+- categoryRow {"type":"categoryRow","title"?:"","hint"?:"какую категорию показать"}
+- publications {"type":"publications","title"?:"","hint"?:"какие материалы прикрепить"}
 - button {"type":"button","label"?:"Текст кнопки"} (без href)
+Для медиа-плейсхолдеров ЗАПОЛНЯЙ короткое поле hint — подсказку автору, что туда вставить, по смыслу текста (напр. «фото с концерта», «клип на песню»).
 
 ФОРМАТИРОВАНИЕ ТЕКСТА (поля body, lead, callout.text, columns[].body)
 Используй только Markdown: **жирный**, *курсив*, «## Подзаголовок», списки через «- », ссылки [текст](url) только если ссылка есть в исходном тексте. Абзацы разделяй пустой строкой. НЕ используй: цитаты >, код, таблицы, картинки, заголовки # или ###, HTML. Все прочие поля (label, value, title, year, name, строки factsList) — простой текст без разметки.
@@ -132,7 +144,8 @@ function parseResult(raw: string): ComposeResult {
   if (j && typeof j === "object") {
     const note = typeof j.note === "string" ? j.note.trim() : "";
     const blocks = Array.isArray(j.blocks) ? normalizeBlocks(j.blocks) : [];
-    if (note || blocks.length) return { note, blocks };
+    const suggest = parseSuggest((j as { suggest?: unknown }).suggest);
+    if (note || blocks.length) return { note, blocks, suggest };
   }
   // Полный парс не удался (обрыв/мусор) — спасаем целиком пришедшие блоки.
   const salvaged = normalizeBlocks(salvageBlocks(t));
@@ -206,6 +219,7 @@ export async function composeBlocks(opts: {
     const chunks = chunkText(text, 8000);
     const allBlocks: ComposeBlock[] = [];
     let note = "";
+    let suggest: ComposeSuggest | undefined;
     for (let i = 0; i < chunks.length; i++) {
       const first = i === 0;
       const sys =
@@ -215,7 +229,7 @@ export async function composeBlocks(opts: {
           : `\n\nЭто ПРОДОЛЖЕНИЕ большого текста, часть ${i + 1} из ${chunks.length}. НЕ создавай hero и facts — только блоки содержания (text, timeline, relations, awards, factsList, columns, callout, divider) по этому фрагменту. Перенеси текст фрагмента ДОСЛОВНО.`);
       const raw = await complete([{ role: "user", content: `ФРАГМЕНТ ТЕКСТА:\n\n${chunks[i]}` }], sys, 6000).catch(() => "");
       const r = parseResult(raw || "");
-      if (first) note = r.note;
+      if (first) { note = r.note; suggest = r.suggest; }
       for (const b of r.blocks) {
         if (!first && (b.type === "hero" || b.type === "facts")) continue;
         allBlocks.push(b);
@@ -225,6 +239,7 @@ export async function composeBlocks(opts: {
     return {
       note: note || `Разобрал текст на ${allBlocks.length} блоков (в ${chunks.length} частях), перенося содержание дословно.`,
       blocks: allBlocks.slice(0, 60),
+      suggest,
     };
   }
 
