@@ -197,6 +197,7 @@ export async function composeBlocks(opts: {
   lang?: string;
   instruction?: string;
   corrections?: string;
+  existing?: { type: string; title: string }[];
 }): Promise<ComposeResult> {
   const text = (opts.text || "").trim();
   const lang = (opts.lang || "").trim();
@@ -207,7 +208,10 @@ export async function composeBlocks(opts: {
     SYSTEM +
     (lang ? `\n\nЯзык автора: ${lang}.` : "") +
     (instruction ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction}` : "") +
-    (corrections ? `\n\nПримеры правок редактора проекта — учитывай их стиль:\n${corrections}` : "");
+    (corrections ? `\n\nПримеры правок редактора проекта — учитывай их стиль:\n${corrections}` : "") +
+    (Array.isArray(opts.existing) && opts.existing.length
+      ? `\n\nНа странице УЖЕ ЕСТЬ блоки — НЕ повторяй их, только дополни новыми по тексту:\n${opts.existing.map((e) => `- ${e.type}${e.title ? ": " + e.title : ""}`).join("\n")}`
+      : "");
 
   const isRefine =
     (Array.isArray(opts.prevBlocks) && opts.prevBlocks.length > 0) ||

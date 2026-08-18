@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const b = (await req.json().catch(() => null)) as
-    | { text?: string; messages?: { role: string; content: string }[]; blocks?: unknown[]; lang?: string }
+    | { text?: string; messages?: { role: string; content: string }[]; blocks?: unknown[]; existing?: { type: string; title: string }[]; lang?: string }
     | null;
   const text = (b?.text || "").trim();
   if (text.length < 30) {
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
       text,
       messages: Array.isArray(b?.messages) ? b?.messages : [],
       prevBlocks: Array.isArray(b?.blocks) ? b?.blocks : [],
+      existing: Array.isArray(b?.existing) ? b?.existing : [],
       lang: b?.lang,
       instruction,
       corrections,
