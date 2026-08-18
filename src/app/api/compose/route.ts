@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { composeBlocks } from "@/lib/compose";
+import { composeBlocks, composeFragment } from "@/lib/compose";
 import { findClientByToken, bumpUsage } from "@/lib/apiClients";
 import { recentCorrections } from "@/lib/corrections";
 import { buildProjectContext } from "@/lib/projectDocs";
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const b = (await req.json().catch(() => null)) as
-    | { text?: string; messages?: { role: string; content: string }[]; blocks?: unknown[]; existing?: { type: string; title: string }[]; lang?: string }
+    | { text?: string; messages?: { role: string; content: string }[]; blocks?: unknown[]; existing?: { type: string; title: string }[]; lang?: string; part?: { i?: number; n?: number } }
     | null;
   const text = (b?.text || "").trim();
   if (text.length < 30) {
@@ -41,11 +41,30 @@ export async function POST(req: NextRequest) {
     const corrections = await recentCorrections(client.id, "compose", 5).catch(() => "");
     const docsCtx = await buildProjectContext(client.id).catch(() => "");
     const instruction = [client.instruction || "", docsCtx].filter(Boolean).join("\n\n") || undefined;
+    const existing = Array.isArray(b?.existing) ? b?.existing : [];
+
+    // Потоковый режим (оркестрация на стороне content-box): один фрагмент за вызов.
+    // Клиент сам режет текст и присылает part={i,n}; мы не чанкуем повторно.
+    const part = b?.part;
+    if (part && Number.isInteger(part.i) && Number.isInteger(part.n)) {
+      const fr = await composeFragment({
+        text,
+        first: part.i === 0,
+        partIndex: part.i as number,
+        partCount: part.n as number,
+        lang: b?.lang,
+        instruction,
+        corrections,
+        existing,
+      });
+      return Response.json({ ok: true, project: client.name || null, note: fr.note, blocks: fr.blocks, suggest: fr.suggest ?? null });
+    }
+
     const r = await composeBlocks({
       text,
       messages: Array.isArray(b?.messages) ? b?.messages : [],
       prevBlocks: Array.isArray(b?.blocks) ? b?.blocks : [],
-      existing: Array.isArray(b?.existing) ? b?.existing : [],
+      existing,
       lang: b?.lang,
       instruction,
       corrections,

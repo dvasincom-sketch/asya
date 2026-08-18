@@ -190,6 +190,50 @@ function chunkText(text: string, maxChars: number): string[] {
   return chunks.length ? chunks : [text];
 }
 
+/** Сборка системного промпта из общих вводных проекта (язык, инструкции, правки, уже существующие блоки). */
+function buildSystem(opts: { lang?: string; instruction?: string; corrections?: string; existing?: { type: string; title: string }[] }): string {
+  const lang = (opts.lang || "").trim();
+  const instruction = (opts.instruction || "").trim();
+  const corrections = (opts.corrections || "").trim();
+  return (
+    SYSTEM +
+    (lang ? `\n\nЯзык автора: ${lang}.` : "") +
+    (instruction ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction}` : "") +
+    (corrections ? `\n\nПримеры правок редактора проекта — учитывай их стиль:\n${corrections}` : "") +
+    (Array.isArray(opts.existing) && opts.existing.length
+      ? `\n\nНа странице УЖЕ ЕСТЬ блоки — НЕ повторяй их, только дополни новыми по тексту:\n${opts.existing.map((e) => `- ${e.type}${e.title ? ": " + e.title : ""}`).join("\n")}`
+      : "")
+  );
+}
+
+/**
+ * Разобрать ОДИН фрагмент текста. Нужен для потоковой обработки по частям, когда
+ * оркестрацию ведёт content-box (свой вызов на каждый фрагмент, прогресс в UI).
+ * first=true — первая часть (можно hero/facts и suggest); иначе только блоки
+ * содержания. Хвостовые hero/facts из продолжений отсекаем.
+ */
+export async function composeFragment(opts: {
+  text: string;
+  first: boolean;
+  partIndex: number;
+  partCount: number;
+  lang?: string;
+  instruction?: string;
+  corrections?: string;
+  existing?: { type: string; title: string }[];
+}): Promise<ComposeResult> {
+  const text = (opts.text || "").trim();
+  const sys =
+    buildSystem({ lang: opts.lang, instruction: opts.instruction, corrections: opts.corrections, existing: opts.existing }) +
+    (opts.first
+      ? ""
+      : `\n\nЭто ПРОДОЛЖЕНИЕ большого текста, часть ${opts.partIndex + 1} из ${opts.partCount}. НЕ создавай hero и facts — только блоки содержания (text, timeline, relations, awards, factsList, columns, callout, divider) по этому фрагменту. Перенеси текст фрагмента ДОСЛОВНО.`);
+  const raw = await complete([{ role: "user", content: `ФРАГМЕНТ ТЕКСТА:\n\n${text}` }], sys, 6000).catch(() => "");
+  const r = parseResult(raw || "");
+  const blocks = opts.first ? r.blocks : r.blocks.filter((b) => b.type !== "hero" && b.type !== "facts");
+  return { note: r.note, blocks, suggest: opts.first ? r.suggest : undefined };
+}
+
 export async function composeBlocks(opts: {
   text: string;
   messages?: { role: string; content: string }[];
@@ -204,14 +248,7 @@ export async function composeBlocks(opts: {
   const instruction = (opts.instruction || "").trim();
   const corrections = (opts.corrections || "").trim();
 
-  const system =
-    SYSTEM +
-    (lang ? `\n\nЯзык автора: ${lang}.` : "") +
-    (instruction ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction}` : "") +
-    (corrections ? `\n\nПримеры правок редактора проекта — учитывай их стиль:\n${corrections}` : "") +
-    (Array.isArray(opts.existing) && opts.existing.length
-      ? `\n\nНа странице УЖЕ ЕСТЬ блоки — НЕ повторяй их, только дополни новыми по тексту:\n${opts.existing.map((e) => `- ${e.type}${e.title ? ": " + e.title : ""}`).join("\n")}`
-      : "");
+  const system = buildSystem({ lang, instruction, corrections, existing: opts.existing });
 
   const isRefine =
     (Array.isArray(opts.prevBlocks) && opts.prevBlocks.length > 0) ||
@@ -225,19 +262,12 @@ export async function composeBlocks(opts: {
     let note = "";
     let suggest: ComposeSuggest | undefined;
     for (let i = 0; i < chunks.length; i++) {
-      const first = i === 0;
-      const sys =
-        system +
-        (first
-          ? ""
-          : `\n\nЭто ПРОДОЛЖЕНИЕ большого текста, часть ${i + 1} из ${chunks.length}. НЕ создавай hero и facts — только блоки содержания (text, timeline, relations, awards, factsList, columns, callout, divider) по этому фрагменту. Перенеси текст фрагмента ДОСЛОВНО.`);
-      const raw = await complete([{ role: "user", content: `ФРАГМЕНТ ТЕКСТА:\n\n${chunks[i]}` }], sys, 6000).catch(() => "");
-      const r = parseResult(raw || "");
-      if (first) { note = r.note; suggest = r.suggest; }
-      for (const b of r.blocks) {
-        if (!first && (b.type === "hero" || b.type === "facts")) continue;
-        allBlocks.push(b);
-      }
+      const r = await composeFragment({
+        text: chunks[i], first: i === 0, partIndex: i, partCount: chunks.length,
+        lang, instruction, corrections, existing: opts.existing,
+      });
+      if (i === 0) { note = r.note; suggest = r.suggest; }
+      for (const b of r.blocks) allBlocks.push(b);
       if (allBlocks.length >= 60) break;
     }
     return {
