@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const b = (await req.json().catch(() => null)) as
-    | { text?: string; messages?: { role: string; content: string }[]; blocks?: unknown[]; existing?: { type: string; title: string }[]; lang?: string; part?: { i?: number; n?: number } }
+    | { text?: string; messages?: { role: string; content: string }[]; blocks?: unknown[]; existing?: { type: string; title: string }[]; lang?: string; mode?: "verbatim" | "condense" | "brief"; brief?: string; part?: { i?: number; n?: number } }
     | null;
   const text = (b?.text || "").trim();
   if (text.length < 30) {
@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
     const docsCtx = await buildProjectContext(client.id).catch(() => "");
     const instruction = [client.instruction || "", docsCtx].filter(Boolean).join("\n\n") || undefined;
     const existing = Array.isArray(b?.existing) ? b?.existing : [];
+    const mode = b?.mode === "condense" || b?.mode === "brief" ? b.mode : "verbatim";
+    const brief = String(b?.brief || "").slice(0, 2000);
 
     // Потоковый режим (оркестрация на стороне content-box): один фрагмент за вызов.
     // Клиент сам режет текст и присылает part={i,n}; мы не чанкуем повторно.
@@ -53,6 +55,8 @@ export async function POST(req: NextRequest) {
         partIndex: part.i as number,
         partCount: part.n as number,
         lang: b?.lang,
+        mode,
+        brief,
         instruction,
         corrections,
         existing,
@@ -66,6 +70,8 @@ export async function POST(req: NextRequest) {
       prevBlocks: Array.isArray(b?.blocks) ? b?.blocks : [],
       existing,
       lang: b?.lang,
+      mode,
+      brief,
       instruction,
       corrections,
     });

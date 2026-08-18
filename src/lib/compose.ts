@@ -58,7 +58,8 @@ const SYSTEM = `Ты — редактор-структуровщик платф�
 Используй только Markdown: **жирный**, *курсив*, «## Подзаголовок», списки через «- », ссылки [текст](url) только если ссылка есть в исходном тексте. Абзацы разделяй пустой строкой. НЕ используй: цитаты >, код, таблицы, картинки, заголовки # или ###, HTML. Все прочие поля (label, value, title, year, name, строки factsList) — простой текст без разметки.
 
 ПРАВИЛА
-- ПЕРЕНОСИ ТЕКСТ ДОСЛОВНО: сохраняй ВСЕ предложения, факты, детали и объём исходника. НЕ сокращай, НЕ пересказывай, НЕ выкидывай абзацы, НЕ переписывай стиль. Твоя задача — разложить текст по блокам, а не сжать его. Единственные допустимые изменения — короткие заголовки блоков и минимальная разметка (**жирный**/*курсив*).
+- РАЗНООБРАЗЬ БЛОКИ — это ГЛАВНОЕ. НЕ сваливай всё в text. Подбирай тип под смысл: даты/этапы/годы → timeline; пары «характеристика → значение» (год рождения, жанр, страна, рост…) → facts; перечни тезисов/пунктов → factsList; разделы-справки, FAQ, свёрнутые под-темы → relations (аккордеон); достижения/награды/короткие пункты с подписью → awards; сравнения и параллельные темы → columns; сильная мысль или цитата → callout. Если 80%+ блоков получились text — это ошибка, пересмотри разбивку.
+- ПОД-РАЗДЕЛЫ: если внутри одного раздела несколько под-тем, оформи их подзаголовками «## Название» ВНУТРИ body одного text-блока, либо (для свёрнутых/справочных под-тем) отдельными пунктами relations (аккордеон). НЕ плоди по отдельному text на каждый абзац.
 - Не выдумывай факты, даты, имена, цифры, которых нет в тексте. Лучше меньше блоков, чем додуманные.
 - Не дублируй один и тот же контент в разных блоках.
 - Начинай с hero, только если в тексте есть вводная часть (подзаголовок/лид). Если текст сразу «по делу» — hero можно не создавать.
@@ -190,13 +191,25 @@ function chunkText(text: string, maxChars: number): string[] {
   return chunks.length ? chunks : [text];
 }
 
-/** Сборка системного промпта из общих вводных проекта (язык, инструкции, правки, уже существующие блоки). */
-function buildSystem(opts: { lang?: string; instruction?: string; corrections?: string; existing?: { type: string; title: string }[] }): string {
+export type ComposeMode = "verbatim" | "condense" | "brief";
+
+/** Правило режима работы с текстом (как есть / сократить / по заданию). */
+function modeRule(mode: ComposeMode, brief: string): string {
+  if (mode === "condense")
+    return "\n\nРЕЖИМ: СОКРАТИТЬ. Ужми текст, сохранив ВСЕ ключевые факты, имена, даты и смысл; убери воду, повторы и второстепенные детали. Можно перефразировать ради краткости. Активнее используй компактные блоки (facts, factsList, timeline, awards) там, где они короче и нагляднее сплошного текста.";
+  if (mode === "brief")
+    return `\n\nРЕЖИМ: ПО ЗАДАНИЮ. Выполни задание автора над текстом. ЗАДАНИЕ: «${brief || "улучшить и структурировать"}». Исходный текст — материал: можешь переписывать, сокращать, дополнять и переструктурировать по заданию. НЕ выдумывай факты, которых нет ни в тексте, ни в задании. Результат оформляй РАЗНЫМИ блоками и под-разделами.`;
+  return "\n\nРЕЖИМ: КАК ЕСТЬ (дословно). Сохраняй ВСЕ предложения, факты, детали и объём исходника; НЕ сокращай и НЕ переписывай стиль. Допустимы только короткие заголовки блоков и минимальная разметка (**жирный**/*курсив*). Но раскладывай дословный текст по РАЗНЫМ типам блоков (см. правила выше), а не в один сплошной text.";
+}
+
+/** Сборка системного промпта из общих вводных проекта (язык, режим, инструкции, правки, уже существующие блоки). */
+function buildSystem(opts: { lang?: string; mode?: ComposeMode; brief?: string; instruction?: string; corrections?: string; existing?: { type: string; title: string }[] }): string {
   const lang = (opts.lang || "").trim();
   const instruction = (opts.instruction || "").trim();
   const corrections = (opts.corrections || "").trim();
   return (
     SYSTEM +
+    modeRule(opts.mode || "verbatim", (opts.brief || "").trim()) +
     (lang ? `\n\nЯзык автора: ${lang}.` : "") +
     (instruction ? `\n\nДополнительные указания проекта (соблюдай их):\n${instruction}` : "") +
     (corrections ? `\n\nПримеры правок редактора проекта — учитывай их стиль:\n${corrections}` : "") +
@@ -218,16 +231,18 @@ export async function composeFragment(opts: {
   partIndex: number;
   partCount: number;
   lang?: string;
+  mode?: ComposeMode;
+  brief?: string;
   instruction?: string;
   corrections?: string;
   existing?: { type: string; title: string }[];
 }): Promise<ComposeResult> {
   const text = (opts.text || "").trim();
   const sys =
-    buildSystem({ lang: opts.lang, instruction: opts.instruction, corrections: opts.corrections, existing: opts.existing }) +
+    buildSystem({ lang: opts.lang, mode: opts.mode, brief: opts.brief, instruction: opts.instruction, corrections: opts.corrections, existing: opts.existing }) +
     (opts.first
       ? ""
-      : `\n\nЭто ПРОДОЛЖЕНИЕ большого текста, часть ${opts.partIndex + 1} из ${opts.partCount}. НЕ создавай hero и facts — только блоки содержания (text, timeline, relations, awards, factsList, columns, callout, divider) по этому фрагменту. Перенеси текст фрагмента ДОСЛОВНО.`);
+      : `\n\nЭто ПРОДОЛЖЕНИЕ большого текста, часть ${opts.partIndex + 1} из ${opts.partCount}. НЕ создавай hero и facts — только блоки содержания (text, timeline, relations, awards, factsList, columns, callout, divider) по этому фрагменту. Соблюдай РЕЖИМ работы с текстом, описанный выше.`);
   const raw = await complete([{ role: "user", content: `ФРАГМЕНТ ТЕКСТА:\n\n${text}` }], sys, 6000).catch(() => "");
   const r = parseResult(raw || "");
   const blocks = opts.first ? r.blocks : r.blocks.filter((b) => b.type !== "hero" && b.type !== "facts");
@@ -239,6 +254,8 @@ export async function composeBlocks(opts: {
   messages?: { role: string; content: string }[];
   prevBlocks?: unknown[];
   lang?: string;
+  mode?: ComposeMode;
+  brief?: string;
   instruction?: string;
   corrections?: string;
   existing?: { type: string; title: string }[];
@@ -248,7 +265,7 @@ export async function composeBlocks(opts: {
   const instruction = (opts.instruction || "").trim();
   const corrections = (opts.corrections || "").trim();
 
-  const system = buildSystem({ lang, instruction, corrections, existing: opts.existing });
+  const system = buildSystem({ lang, mode: opts.mode, brief: opts.brief, instruction, corrections, existing: opts.existing });
 
   const isRefine =
     (Array.isArray(opts.prevBlocks) && opts.prevBlocks.length > 0) ||
@@ -264,7 +281,7 @@ export async function composeBlocks(opts: {
     for (let i = 0; i < chunks.length; i++) {
       const r = await composeFragment({
         text: chunks[i], first: i === 0, partIndex: i, partCount: chunks.length,
-        lang, instruction, corrections, existing: opts.existing,
+        lang, mode: opts.mode, brief: opts.brief, instruction, corrections, existing: opts.existing,
       });
       if (i === 0) { note = r.note; suggest = r.suggest; }
       for (const b of r.blocks) allBlocks.push(b);
