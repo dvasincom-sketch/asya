@@ -21,7 +21,7 @@ const SYSTEM = `Ты — редактор-структуровщик платф�
 1. Читаешь текст и делишь его на логические части.
 2. Каждой части подбираешь наиболее подходящий тип блока из каталога ниже.
 3. Переносишь содержание в поля блока дословно по смыслу: перефразируешь только ради краткости заголовков и подписей, но НЕ добавляешь того, чего в тексте нет.
-4. Возвращаешь СТРОГО JSON вида {"note":"...","blocks":[...]} — без пояснений вокруг, без Markdown-обёртки.
+4. Возвращаешь ТОЛЬКО JSON вида {"blocks":[...],"note":"..."} — БЕЗ вводных фраз до и после, БЕЗ обёртки в тройные кавычки. Не пиши ничего вне JSON. Поле note — не длиннее 2 коротких предложений (длинный note обрывает ответ и ломает разбор).
 
 КАТАЛОГ БЛОКОВ (type → назначение → поля)
 - hero — вводная шапка страницы. {"type":"hero","eyebrow"?:"надзаголовок","subtitle"?:"подзаголовок","lead"?:"короткий лид (Markdown)"}. Крупный заголовок берётся из названия публикации — сюда его НЕ дублируй.
@@ -60,19 +60,41 @@ const SYSTEM = `Ты — редактор-структуровщик платф�
 Тебе могут прийти прошлый вариант блоков и сообщение автора с правками. Верни ПОЛНЫЙ обновлённый набор блоков (не дифф) с учётом правки и обнови note. Сохраняй то, что автор не просил менять.`;
 
 /** Достаём первый JSON-объект из ответа модели. */
-function parseResult(raw: string): ComposeResult {
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (m) {
-    try {
-      const j = JSON.parse(m[0]) as { note?: unknown; blocks?: unknown };
-      const note = typeof j.note === "string" ? j.note.trim() : "";
-      const blocks = Array.isArray(j.blocks) ? normalizeBlocks(j.blocks) : [];
-      return { note, blocks };
-    } catch {
-      /* фолбэк ниже */
-    }
+/** Сбалансированный JSON-объект от первого '{' (учёт строк и экранирования). */
+function extractBalanced(t: string): string | null {
+  const i = t.indexOf("{");
+  if (i < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let k = i; k < t.length; k++) {
+    const ch = t[k];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+    } else if (ch === '"') inStr = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") { depth--; if (depth === 0) return t.slice(i, k + 1); }
   }
-  return { note: raw.trim().slice(0, 500), blocks: [] };
+  return null;
+}
+
+function parseResult(raw: string): ComposeResult {
+  let t = String(raw || "").trim();
+  // снимаем возможную \`\`\`json ... \`\`\` обёртку
+  const fence = t.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i);
+  if (fence) t = fence[1].trim();
+  const tryParse = (str: string): { note?: unknown; blocks?: unknown } | null => {
+    try { return JSON.parse(str) as { note?: unknown; blocks?: unknown }; } catch { return null; }
+  };
+  let j = tryParse(t);
+  if (!j) { const b = extractBalanced(t); if (b) j = tryParse(b); }
+  if (!j) { const m = t.match(/\{[\s\S]*\}/); if (m) j = tryParse(m[0]); }
+  if (j && typeof j === "object") {
+    const note = typeof j.note === "string" ? j.note.trim() : "";
+    const blocks = Array.isArray(j.blocks) ? normalizeBlocks(j.blocks) : [];
+    if (note || blocks.length) return { note, blocks };
+  }
+  return { note: t.slice(0, 500), blocks: [] };
 }
 
 /** Лёгкая нормализация: только валидные типы, каждый блок — объект. Строгий
@@ -128,6 +150,6 @@ export async function composeBlocks(opts: {
     if (content) msgs.push({ role, content } as ChatMessage);
   }
 
-  const raw = await complete(msgs, system, 2600).catch(() => "");
+  const raw = await complete(msgs, system, 4800).catch(() => "");
   return parseResult(raw || "");
 }
